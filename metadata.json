@@ -1,0 +1,5 @@
+{
+  "name": "CRM Universitario",
+  "description": "Un CRM para gestionar leads de estudiantes potenciales para una universidad, dar seguimiento, gestionar estados y asignar leads a asesores.",
+  "requestFramePermissions": []
+}
