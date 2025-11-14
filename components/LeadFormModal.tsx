@@ -1,14 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
-import { Lead, Advisor, Status, Source, Licenciatura } from '../types';
+import { Lead, Profile, Status, Source, Licenciatura } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 
 interface LeadFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (lead: Lead) => void;
+  onSave: (lead: Omit<Lead, 'id' | 'registration_date' | 'status_history'>, leadIdToEdit?: string) => void;
   leadToEdit: Lead | null;
-  advisors: Advisor[];
+  advisors: Profile[];
   statuses: Status[];
   sources: Source[];
   licenciaturas: Licenciatura[];
@@ -16,41 +17,41 @@ interface LeadFormModalProps {
 
 const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, leadToEdit, advisors, statuses, sources, licenciaturas }) => {
   const [formData, setFormData] = useState({
-    firstName: '',
-    paternalLastName: '',
-    maternalLastName: '',
+    first_name: '',
+    paternal_last_name: '',
+    maternal_last_name: '',
     email: '',
     phone: '',
-    programId: '',
-    statusId: '',
-    advisorId: '',
-    sourceId: '',
+    program_id: '',
+    status_id: '',
+    advisor_id: '',
+    source_id: '',
   });
 
   useEffect(() => {
     if (leadToEdit) {
       setFormData({
-        firstName: leadToEdit.firstName,
-        paternalLastName: leadToEdit.paternalLastName,
-        maternalLastName: leadToEdit.maternalLastName || '',
+        first_name: leadToEdit.first_name,
+        paternal_last_name: leadToEdit.paternal_last_name,
+        maternal_last_name: leadToEdit.maternal_last_name || '',
         email: leadToEdit.email || '',
         phone: leadToEdit.phone,
-        programId: leadToEdit.programId,
-        statusId: leadToEdit.statusId,
-        advisorId: leadToEdit.advisorId,
-        sourceId: leadToEdit.sourceId,
+        program_id: leadToEdit.program_id,
+        status_id: leadToEdit.status_id,
+        advisor_id: leadToEdit.advisor_id,
+        source_id: leadToEdit.source_id,
       });
     } else {
       setFormData({
-        firstName: '',
-        paternalLastName: '',
-        maternalLastName: '',
+        first_name: '',
+        paternal_last_name: '',
+        maternal_last_name: '',
         email: '',
         phone: '',
-        programId: licenciaturas[0]?.id || '',
-        statusId: statuses[0]?.id || '',
-        advisorId: advisors[0]?.id || '',
-        sourceId: sources[0]?.id || '',
+        program_id: licenciaturas[0]?.id || '',
+        status_id: statuses[0]?.id || '',
+        advisor_id: advisors[0]?.id || '',
+        source_id: sources[0]?.id || '',
       });
     }
   }, [leadToEdit, isOpen, advisors, statuses, sources, licenciaturas]);
@@ -62,40 +63,35 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const registrationDate = leadToEdit ? leadToEdit.registrationDate : new Date().toISOString();
-    const newLead: Lead = {
-      id: leadToEdit ? leadToEdit.id : registrationDate,
-      ...formData,
-      email: formData.email || undefined,
-      maternalLastName: formData.maternalLastName || undefined,
-      registrationDate,
-      followUps: leadToEdit ? leadToEdit.followUps : [],
-      appointments: leadToEdit ? leadToEdit.appointments : [],
-      // FIX: Added statusHistory to satisfy the Lead type.
-      statusHistory: leadToEdit?.statusHistory || [],
+    
+    const leadPayload = {
+        ...formData,
+        email: formData.email || undefined,
+        maternal_last_name: formData.maternal_last_name || undefined,
     };
-    onSave(newLead);
+    
+    onSave(leadPayload, leadToEdit?.id);
     onClose();
   };
   
-  const formIsInvalid = !formData.firstName || !formData.paternalLastName || !formData.phone || !formData.advisorId || !formData.statusId || !formData.sourceId || !formData.programId;
+  const formIsInvalid = !formData.first_name || !formData.paternal_last_name || !formData.phone || !formData.advisor_id || !formData.status_id || !formData.source_id || !formData.program_id;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={leadToEdit ? 'Editar Lead' : 'Añadir Nuevo Lead'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">Nombre(s)</label>
-              <input type="text" name="firstName" id="firstName" value={formData.firstName} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
+              <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">Nombre(s)</label>
+              <input type="text" name="first_name" id="first_name" value={formData.first_name} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
             </div>
             <div>
-              <label htmlFor="paternalLastName" className="block text-sm font-medium text-gray-700">Apellido Paterno</label>
-              <input type="text" name="paternalLastName" id="paternalLastName" value={formData.paternalLastName} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
+              <label htmlFor="paternal_last_name" className="block text-sm font-medium text-gray-700">Apellido Paterno</label>
+              <input type="text" name="paternal_last_name" id="paternal_last_name" value={formData.paternal_last_name} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
             </div>
         </div>
         <div>
-          <label htmlFor="maternalLastName" className="block text-sm font-medium text-gray-700">Apellido Materno (Opcional)</label>
-          <input type="text" name="maternalLastName" id="maternalLastName" value={formData.maternalLastName} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
+          <label htmlFor="maternal_last_name" className="block text-sm font-medium text-gray-700">Apellido Materno (Opcional)</label>
+          <input type="text" name="maternal_last_name" id="maternal_last_name" value={formData.maternal_last_name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
         </div>
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo Electrónico (Opcional)</label>
@@ -106,26 +102,26 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
           <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
         </div>
         <div>
-          <label htmlFor="programId" className="block text-sm font-medium text-gray-700">Licenciatura de Interés</label>
-          <select name="programId" id="programId" value={formData.programId} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
+          <label htmlFor="program_id" className="block text-sm font-medium text-gray-700">Licenciatura de Interés</label>
+          <select name="program_id" id="program_id" value={formData.program_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
             {licenciaturas.map(lic => <option key={lic.id} value={lic.id}>{lic.name}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor="sourceId" className="block text-sm font-medium text-gray-700">Origen del Lead</label>
-          <select name="sourceId" id="sourceId" value={formData.sourceId} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
+          <label htmlFor="source_id" className="block text-sm font-medium text-gray-700">Origen del Lead</label>
+          <select name="source_id" id="source_id" value={formData.source_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
             {sources.map(source => <option key={source.id} value={source.id}>{source.name}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor="advisorId" className="block text-sm font-medium text-gray-700">Asesor Asignado</label>
-          <select name="advisorId" id="advisorId" value={formData.advisorId} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
-            {advisors.map(advisor => <option key={advisor.id} value={advisor.id}>{advisor.name}</option>)}
+          <label htmlFor="advisor_id" className="block text-sm font-medium text-gray-700">Asesor Asignado</label>
+          <select name="advisor_id" id="advisor_id" value={formData.advisor_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
+            {advisors.map(advisor => <option key={advisor.id} value={advisor.id}>{advisor.full_name}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor="statusId" className="block text-sm font-medium text-gray-700">Estado</label>
-          <select name="statusId" id="statusId" value={formData.statusId} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
+          <label htmlFor="status_id" className="block text-sm font-medium text-gray-700">Estado</label>
+          <select name="status_id" id="status_id" value={formData.status_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
             {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
           </select>
         </div>

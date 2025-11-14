@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Lead, Advisor, Status, Licenciatura } from '../types';
+import { Lead, Profile, Status, Licenciatura } from '../types';
 import Button from './common/Button';
 import EditIcon from './icons/EditIcon';
 import TrashIcon from './icons/TrashIcon';
@@ -18,7 +18,7 @@ import ArrowDownTrayIcon from './icons/ArrowDownTrayIcon';
 interface LeadListProps {
   loading: boolean;
   leads: Lead[];
-  advisors: Advisor[];
+  advisors: Profile[];
   statuses: Status[];
   licenciaturas: Licenciatura[];
   onAddNew: () => void;
@@ -28,7 +28,7 @@ interface LeadListProps {
   onOpenReports: () => void;
 }
 
-type SortableColumn = 'name' | 'advisorId' | 'statusId' | 'programId' | 'registrationDate';
+type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date';
 type SortDirection = 'asc' | 'desc';
 
 const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports }) => {
@@ -38,16 +38,17 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [sortColumn, setSortColumn] = useState<SortableColumn>('registrationDate');
+  const [sortColumn, setSortColumn] = useState<SortableColumn>('registration_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.name])), [advisors]);
+  const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color }])), [statuses]);
   const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
 
   const isAppointmentUrgent = (lead: Lead): boolean => {
+    if(!lead.appointments) return false;
     const activeAppointment = lead.appointments.find(a => a.status === 'scheduled');
     if (!activeAppointment) return false;
 
@@ -67,16 +68,16 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
     const end = endDate ? new Date(`${endDate}T23:59:59.999Z`) : null;
 
     const filtered = leads
-      .filter(lead => filterAdvisor === 'all' || lead.advisorId === filterAdvisor)
-      .filter(lead => filterStatus === 'all' || lead.statusId === filterStatus)
-      .filter(lead => filterProgram === 'all' || lead.programId === filterProgram)
+      .filter(lead => filterAdvisor === 'all' || lead.advisor_id === filterAdvisor)
+      .filter(lead => filterStatus === 'all' || lead.status_id === filterStatus)
+      .filter(lead => filterProgram === 'all' || lead.program_id === filterProgram)
       .filter(lead => {
-          const fullName = `${lead.firstName} ${lead.paternalLastName} ${lead.maternalLastName || ''}`.toLowerCase();
+          const fullName = `${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.toLowerCase();
           return fullName.includes(searchTerm.toLowerCase()) || (lead.email || '').toLowerCase().includes(searchTerm.toLowerCase());
         }
       ).filter(lead => {
         if (!start && !end) return true;
-        const regDate = new Date(lead.registrationDate);
+        const regDate = new Date(lead.registration_date);
         if (start && regDate < start) return false;
         if (end && regDate > end) return false;
         return true;
@@ -88,24 +89,24 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
 
       switch (sortColumn) {
         case 'name':
-          valA = `${a.firstName} ${a.paternalLastName}`.toLowerCase();
-          valB = `${b.firstName} ${b.paternalLastName}`.toLowerCase();
+          valA = `${a.first_name} ${a.paternal_last_name}`.toLowerCase();
+          valB = `${b.first_name} ${b.paternal_last_name}`.toLowerCase();
           break;
-        case 'advisorId':
-          valA = advisorMap.get(a.advisorId)?.toLowerCase() || '';
-          valB = advisorMap.get(b.advisorId)?.toLowerCase() || '';
+        case 'advisor_id':
+          valA = advisorMap.get(a.advisor_id)?.toLowerCase() || '';
+          valB = advisorMap.get(b.advisor_id)?.toLowerCase() || '';
           break;
-        case 'statusId':
-          valA = statusMap.get(a.statusId)?.name.toLowerCase() || '';
-          valB = statusMap.get(b.statusId)?.name.toLowerCase() || '';
+        case 'status_id':
+          valA = statusMap.get(a.status_id)?.name.toLowerCase() || '';
+          valB = statusMap.get(b.status_id)?.name.toLowerCase() || '';
           break;
-        case 'programId':
-            valA = licenciaturaMap.get(a.programId)?.toLowerCase() || '';
-            valB = licenciaturaMap.get(b.programId)?.toLowerCase() || '';
+        case 'program_id':
+            valA = licenciaturaMap.get(a.program_id)?.toLowerCase() || '';
+            valB = licenciaturaMap.get(b.program_id)?.toLowerCase() || '';
             break;
-        case 'registrationDate':
-          valA = new Date(a.registrationDate).getTime();
-          valB = new Date(b.registrationDate).getTime();
+        case 'registration_date':
+          valA = new Date(a.registration_date).getTime();
+          valB = new Date(b.registration_date).getTime();
           break;
         default:
           return 0;
@@ -142,9 +143,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
       return '""';
     }
     const stringField = String(field);
-    // If the field contains a comma, double quote, or newline, enclose it in double quotes.
     if (/[",\n]/.test(stringField)) {
-      // Within a double-quoted field, any double quote must be escaped by another double quote.
       return `"${stringField.replace(/"/g, '""')}"`;
     }
     return stringField;
@@ -157,13 +156,13 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
     ];
 
     const rows = filteredAndSortedLeads.map(lead => [
-        escapeCsvField(`${lead.firstName} ${lead.paternalLastName} ${lead.maternalLastName || ''}`.trim()),
+        escapeCsvField(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim()),
         escapeCsvField(lead.email),
         escapeCsvField(lead.phone),
-        escapeCsvField(advisorMap.get(lead.advisorId)),
-        escapeCsvField(statusMap.get(lead.statusId)?.name),
-        escapeCsvField(licenciaturaMap.get(lead.programId)),
-        escapeCsvField(new Date(lead.registrationDate).toLocaleDateString())
+        escapeCsvField(advisorMap.get(lead.advisor_id)),
+        escapeCsvField(statusMap.get(lead.status_id)?.name),
+        escapeCsvField(licenciaturaMap.get(lead.program_id)),
+        escapeCsvField(new Date(lead.registration_date).toLocaleDateString())
     ].join(','));
     
     const csvContent = [headers.join(','), ...rows].join('\n');
@@ -225,7 +224,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
           />
           <select value={filterAdvisor} onChange={e => setFilterAdvisor(e.target.value)} className="w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
             <option value="all">Todos los Asesores</option>
-            {advisors.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {advisors.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
           </select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
             <option value="all">Todos los Estados</option>
@@ -271,10 +270,10 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
             <thead className="bg-gray-50">
               <tr>
                 <SortableHeader column="name" label="Nombre" />
-                <SortableHeader column="advisorId" label="Asesor" />
-                <SortableHeader column="statusId" label="Estado" />
-                <SortableHeader column="programId" label="Licenciatura" />
-                <SortableHeader column="registrationDate" label="Fecha Registro" />
+                <SortableHeader column="advisor_id" label="Asesor" />
+                <SortableHeader column="status_id" label="Estado" />
+                <SortableHeader column="program_id" label="Licenciatura" />
+                <SortableHeader column="registration_date" label="Fecha Registro" />
                 <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Cita</th>
                 <th scope="col" className="relative px-6 py-3"><span className="sr-only">Acciones</span></th>
               </tr>
@@ -285,31 +284,31 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                 return (
                   <tr key={lead.id} className={`hover:bg-gray-50 transition-colors duration-150 ${isUrgent ? 'bg-yellow-50' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 cursor-pointer hover:text-brand-secondary" onClick={() => onViewDetails(lead)}>{`${lead.firstName} ${lead.paternalLastName} ${lead.maternalLastName || ''}`}</div>
+                      <div className="text-sm font-medium text-gray-900 cursor-pointer hover:text-brand-secondary" onClick={() => onViewDetails(lead)}>{`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`}</div>
                       <div className="text-sm text-gray-500">{lead.email || 'N/A'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{advisorMap.get(lead.advisorId) || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{advisorMap.get(lead.advisor_id) || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full text-white ${statusMap.get(lead.statusId)?.color || 'bg-gray-400'}`}>
-                        {statusMap.get(lead.statusId)?.name || 'Unknown'}
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full text-white ${statusMap.get(lead.status_id)?.color || 'bg-gray-400'}`}>
+                        {statusMap.get(lead.status_id)?.name || 'Unknown'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{licenciaturaMap.get(lead.programId)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(lead.registrationDate).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{licenciaturaMap.get(lead.program_id)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(lead.registration_date).toLocaleDateString()}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       {isUrgent ? (
                         <button
                           onClick={() => onViewDetails(lead)}
                           className="text-red-500 hover:text-red-700 transition-colors animate-pulse"
-                          aria-label={`Cita urgente para ${lead.firstName}`}
+                          aria-label={`Cita urgente para ${lead.first_name}`}
                         >
                           <BellAlertIcon className="w-5 h-5 inline-block" />
                         </button>
-                      ) : lead.appointments.some(a => a.status === 'scheduled') ? (
+                      ) : lead.appointments?.some(a => a.status === 'scheduled') ? (
                         <button
                           onClick={() => onViewDetails(lead)}
                           className="text-green-600 hover:text-green-800 transition-colors"
-                          aria-label={`Ver detalles para ${lead.firstName}`}
+                          aria-label={`Ver detalles para ${lead.first_name}`}
                         >
                           <CalendarIcon className="w-5 h-5 inline-block" />
                         </button>
@@ -336,7 +335,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         </div>
       </div>
       
-      {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-gray-700">

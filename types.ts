@@ -3,6 +3,7 @@ export interface FollowUp {
   id: string;
   date: string; // ISO string format
   notes: string;
+  lead_id: string;
 }
 
 export interface Appointment {
@@ -12,6 +13,7 @@ export interface Appointment {
   duration: number; // in minutes
   details: string;
   status: 'scheduled' | 'completed' | 'canceled';
+  lead_id: string;
 }
 
 export interface Licenciatura {
@@ -21,32 +23,35 @@ export interface Licenciatura {
 
 export interface StatusChange {
   id: string;
-  oldStatusId: string | null;
-  newStatusId: string;
+  old_status_id: string | null;
+  new_status_id: string;
   date: string; // ISO string
+  lead_id: string;
 }
 
 export interface Lead {
   id: string;
-  firstName: string;
-  paternalLastName: string;
-  maternalLastName?: string;
+  first_name: string;
+  paternal_last_name: string;
+  maternal_last_name?: string;
   email?: string;
   phone: string;
-  programId: string;
-  statusId: string;
-  advisorId: string;
-  sourceId: string;
-  registrationDate: string; // ISO string format
-  followUps: FollowUp[];
-  appointments: Appointment[];
-  statusHistory: StatusChange[];
+  program_id: string;
+  status_id: string;
+  advisor_id: string; // Corresponds to a user's UUID in auth.users
+  source_id: string;
+  registration_date: string; // ISO string format
+  follow_ups?: FollowUp[];
+  appointments?: Appointment[];
+  status_history?: StatusChange[];
 }
 
-export interface Advisor {
-  id:string;
-  name: string;
+// Replaces Advisor
+export interface Profile {
+  id:string; // This is the user's UUID from auth.users
+  full_name: string;
   email: string;
+  role: 'admin' | 'advisor';
 }
 
 export interface Status {

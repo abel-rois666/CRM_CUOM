@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Lead, Advisor, Status, FollowUp, Source, Appointment, Licenciatura } from '../types';
+import { Lead, Profile, Status, FollowUp, Source, Appointment, Licenciatura } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import CalendarIcon from './icons/CalendarIcon';
@@ -16,14 +16,14 @@ interface LeadDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead: Lead | null;
-  advisors: Advisor[];
+  advisors: Profile[];
   statuses: Status[];
   sources: Source[];
   licenciaturas: Licenciatura[];
-  onAddFollowUp: (leadId: string, followUp: Omit<FollowUp, 'id'>) => void;
+  onAddFollowUp: (leadId: string, followUp: Omit<FollowUp, 'id' | 'lead_id'>) => void;
   onDeleteFollowUp: (leadId: string, followUpId: string) => void;
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
-  onSaveAppointment: (leadId: string, appointment: Omit<Appointment, 'id' | 'status'>, appointmentIdToEdit?: string) => void;
+  onSaveAppointment: (leadId: string, appointment: Omit<Appointment, 'id' | 'status' | 'lead_id'>, appointmentIdToEdit?: string) => void;
   onUpdateAppointmentStatus: (leadId: string, appointmentId: string, status: 'completed' | 'canceled') => void;
   onDeleteAppointment: (leadId: string, appointmentId: string) => void;
 }
@@ -33,12 +33,12 @@ interface AppointmentFormModalProps {
   onClose: () => void;
   lead: Lead;
   appointment: Appointment | undefined;
-  onSave: (appointmentData: Omit<Appointment, 'id' | 'status'>) => void;
+  onSave: (appointmentData: Omit<Appointment, 'id' | 'status' | 'lead_id'>) => void;
   onDelete: () => void;
 }
 
 const AppointmentFormModal: React.FC<AppointmentFormModalProps> = ({ isOpen, onClose, lead, appointment, onSave, onDelete }) => {
-  const fullNameForAppointment = `${lead.firstName} ${lead.paternalLastName}`.trim();
+  const fullNameForAppointment = `${lead.first_name} ${lead.paternal_last_name}`.trim();
   const [formData, setFormData] = useState({
     title: appointment?.title || `Cita con ${fullNameForAppointment}`,
     date: appointment ? new Date(appointment.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -174,7 +174,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
 
   if (!lead) return null;
   
-  const fullName = `${lead.firstName} ${lead.paternalLastName} ${lead.maternalLastName || ''}`.trim();
+  const fullName = `${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim();
 
   const handleSaveFollowUp = (data: { date: string; notes: string }) => {
     onAddFollowUp(lead.id, {
@@ -212,34 +212,34 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Fecha de Registro</p>
-              <p className="text-gray-900">{new Date(lead.registrationDate).toLocaleDateString()}</p>
+              <p className="text-gray-900">{new Date(lead.registration_date).toLocaleDateString()}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Licenciatura de Interés</p>
-              <p className="text-gray-900">{licenciaturaMap.get(lead.programId) || 'N/A'}</p>
+              <p className="text-gray-900">{licenciaturaMap.get(lead.program_id) || 'N/A'}</p>
             </div>
              <div>
               <p className="text-sm font-medium text-gray-500">Origen del Lead</p>
-              <p className="text-gray-900">{sourceMap.get(lead.sourceId) || 'N/A'}</p>
+              <p className="text-gray-900">{sourceMap.get(lead.source_id) || 'N/A'}</p>
             </div>
             <div>
-              <label htmlFor="advisorId" className="text-sm font-medium text-gray-500">Asesor</label>
+              <label htmlFor="advisor_id" className="text-sm font-medium text-gray-500">Asesor</label>
               <select
-                id="advisorId"
-                name="advisorId"
-                value={lead.advisorId}
+                id="advisor_id"
+                name="advisor_id"
+                value={lead.advisor_id}
                 onChange={handleDetailChange}
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md"
               >
-                {advisors.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {advisors.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="statusId" className="text-sm font-medium text-gray-500">Estado</label>
+              <label htmlFor="status_id" className="text-sm font-medium text-gray-500">Estado</label>
               <select
-                id="statusId"
-                name="statusId"
-                value={lead.statusId}
+                id="status_id"
+                name="status_id"
+                value={lead.status_id}
                 onChange={handleDetailChange}
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md"
               >
@@ -274,7 +274,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                 <Button onClick={() => setAppointmentModalOpen(true)} leftIcon={<CalendarIcon />} className="w-full">
                   {activeAppointment ? 'Ver/Editar Cita' : 'Programar Cita'}
                 </Button>
-                 {pastAppointments.length > 0 && (
+                 {(pastAppointments || []).length > 0 && (
                   <div className="mt-2 text-sm">
                     <button onClick={() => setAppointmentHistoryOpen(!isAppointmentHistoryOpen)} className="flex items-center justify-between w-full text-left text-gray-500 hover:text-gray-800">
                       <span>Historial de Citas</span>
@@ -326,8 +326,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
             </div>
             {isFollowUpHistoryOpen && (
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-2 border-t pt-4 mt-2">
-                {lead.followUps.length > 0 ? (
-                    lead.followUps.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(followUp => (
+                {(lead.follow_ups || []).length > 0 ? (
+                    [...(lead.follow_ups || [])].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(followUp => (
                     <div key={followUp.id} className="bg-gray-50 p-3 rounded-md border border-gray-200">
                         <div className="flex justify-between items-center mb-1">
                             <p className="text-xs font-semibold text-brand-secondary">{new Date(followUp.date).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}</p>
@@ -356,10 +356,10 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                 </button>
                 {isStatusHistoryOpen && (
                     <div className="space-y-3 max-h-48 overflow-y-auto pr-2 border-t pt-4 mt-2">
-                        {(lead.statusHistory || []).length > 0 ? (
-                            [...lead.statusHistory].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(change => {
-                                const oldStatus = change.oldStatusId ? statusMap.get(change.oldStatusId) : null;
-                                const newStatus = statusMap.get(change.newStatusId);
+                        {(lead.status_history || []).length > 0 ? (
+                            [...lead.status_history].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(change => {
+                                const oldStatus = change.old_status_id ? statusMap.get(change.old_status_id) : null;
+                                const newStatus = statusMap.get(change.new_status_id);
                                 return (
                                     <div key={change.id} className="bg-gray-50 p-3 rounded-md border border-gray-200 text-sm">
                                         <p className="text-xs font-semibold text-brand-secondary">{new Date(change.date).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}</p>

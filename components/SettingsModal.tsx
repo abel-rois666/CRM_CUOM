@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Advisor, Status, Source, Licenciatura } from '../types';
+import { Profile, Status, Source, Licenciatura } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import PlusIcon from './icons/PlusIcon';
@@ -9,16 +9,16 @@ import UserIcon from './icons/UserIcon';
 import TagIcon from './icons/TagIcon';
 import ArrowDownTrayIcon from './icons/ArrowDownTrayIcon';
 import AcademicCapIcon from './icons/AcademicCapIcon';
+import { supabase } from '../lib/supabase';
 
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  advisors: Advisor[];
+  profiles: Profile[];
   statuses: Status[];
   sources: Source[];
   licenciaturas: Licenciatura[];
-  onAdvisorsUpdate: (advisors: Advisor[]) => void;
   onStatusesUpdate: (statuses: Status[]) => void;
   onSourcesUpdate: (sources: Source[]) => void;
   onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void;
@@ -32,41 +32,26 @@ const colors = [
   'bg-pink-500', 'bg-rose-500'
 ];
 
-const AdvisorSettings: React.FC<{ advisors: Advisor[], onAdvisorsUpdate: (advisors: Advisor[]) => void }> = ({ advisors, onAdvisorsUpdate }) => {
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-
-    const handleAdd = () => {
-        if (name.trim() && email.trim()) {
-            onAdvisorsUpdate([...advisors, { id: new Date().toISOString(), name: name.trim(), email: email.trim() }]);
-            setName('');
-            setEmail('');
-        }
-    };
-    
-    const handleDelete = (id: string) => {
-        onAdvisorsUpdate(advisors.filter(a => a.id !== id));
-    };
-
+const UserSettings: React.FC<{ profiles: Profile[] }> = ({ profiles }) => {
     return (
         <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Asesores</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Usuarios</h3>
             <div className="space-y-4">
-                <h4 className="font-semibold text-gray-700">Añadir Nuevo Asesor</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nombre del Asesor" className="w-full px-3 py-2 border border-gray-300 rounded-md" />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email del Asesor" className="w-full px-3 py-2 border border-gray-300 rounded-md" />
-                    <Button onClick={handleAdd} size="sm" leftIcon={<PlusIcon className="w-4 h-4"/>}>Añadir Asesor</Button>
-                </div>
+                <p className="text-sm text-gray-600">
+                    La creación y gestión de usuarios se realiza a través de la consola de Supabase para mayor seguridad. Aquí puedes ver los usuarios actuales del sistema.
+                </p>
                 <hr className="my-4"/>
-                <h4 className="font-semibold text-gray-700">Asesores Actuales</h4>
+                <h4 className="font-semibold text-gray-700">Usuarios Actuales</h4>
                 <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                    {advisors.map(advisor => (
-                        <li key={advisor.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
-                            <span>{advisor.name} ({advisor.email})</span>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(advisor.id)}>
-                                <TrashIcon className="w-4 h-4 text-red-500"/>
-                            </Button>
+                    {profiles.map(profile => (
+                        <li key={profile.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
+                            <div>
+                                <span className="font-medium">{profile.full_name}</span>
+                                <span className="text-gray-500 ml-2">({profile.email})</span>
+                            </div>
+                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${profile.role === 'admin' ? 'bg-indigo-200 text-indigo-800' : 'bg-green-200 text-green-800'}`}>
+                                {profile.role}
+                            </span>
                         </li>
                     ))}
                 </ul>
@@ -79,15 +64,23 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     const [name, setName] = useState('');
     const [color, setColor] = useState(colors[0]);
 
-    const handleAdd = () => {
+    const handleAdd = async () => {
         if(name.trim()) {
-            onStatusesUpdate([...statuses, { id: new Date().toISOString(), name: name.trim(), color }]);
+            const { data, error } = await supabase.from('statuses').insert({ name: name.trim(), color }).select().single();
+            if(error) { console.error(error); return; }
+            onStatusesUpdate([...statuses, data]);
             setName('');
         }
     }
     
-    const handleDelete = (id: string) => {
-        onStatusesUpdate(statuses.filter(s => s.id !== id));
+    const handleDelete = async (id: string) => {
+        const { error } = await supabase.from('statuses').delete().eq('id', id);
+        if(error) { 
+            alert('No se puede eliminar un estado si está siendo utilizado por algún lead.');
+            console.error(error); 
+        } else {
+            onStatusesUpdate(statuses.filter(s => s.id !== id));
+        }
     }
 
     return (
@@ -125,15 +118,23 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: Source[]) => void }> = ({ sources, onSourcesUpdate }) => {
     const [name, setName] = useState('');
 
-    const handleAdd = () => {
+    const handleAdd = async () => {
         if (name.trim()) {
-            onSourcesUpdate([...sources, { id: new Date().toISOString(), name: name.trim() }]);
+            const { data, error } = await supabase.from('sources').insert({ name: name.trim() }).select().single();
+            if(error) { console.error(error); return; }
+            onSourcesUpdate([...sources, data]);
             setName('');
         }
     };
     
-    const handleDelete = (id: string) => {
-        onSourcesUpdate(sources.filter(s => s.id !== id));
+    const handleDelete = async (id: string) => {
+        const { error } = await supabase.from('sources').delete().eq('id', id);
+        if(error) { 
+            alert('No se puede eliminar un origen si está siendo utilizado por algún lead.');
+            console.error(error); 
+        } else {
+            onSourcesUpdate(sources.filter(s => s.id !== id));
+        }
     };
 
     return (
@@ -165,15 +166,23 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
 const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void }> = ({ licenciaturas, onLicenciaturasUpdate }) => {
     const [name, setName] = useState('');
 
-    const handleAdd = () => {
+    const handleAdd = async () => {
         if (name.trim()) {
-            onLicenciaturasUpdate([...licenciaturas, { id: new Date().toISOString(), name: name.trim() }]);
+            const { data, error } = await supabase.from('licenciaturas').insert({ name: name.trim() }).select().single();
+            if (error) { console.error(error); return; }
+            onLicenciaturasUpdate([...licenciaturas, data]);
             setName('');
         }
     };
     
-    const handleDelete = (id: string) => {
-        onLicenciaturasUpdate(licenciaturas.filter(s => s.id !== id));
+    const handleDelete = async (id: string) => {
+        const { error } = await supabase.from('licenciaturas').delete().eq('id', id);
+        if(error) { 
+            alert('No se puede eliminar una licenciatura si está siendo utilizada por algún lead.');
+            console.error(error); 
+        } else {
+            onLicenciaturasUpdate(licenciaturas.filter(s => s.id !== id));
+        }
     };
 
     return (
@@ -203,12 +212,12 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {
-  const [activeTab, setActiveTab] = useState<'advisors' | 'statuses' | 'sources' | 'licenciaturas'>('advisors');
+  const [activeTab, setActiveTab] = useState<'users' | 'statuses' | 'sources' | 'licenciaturas'>('users');
 
   type SettingsTabId = typeof activeTab;
 
   const settingsTabs: { id: SettingsTabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'advisors', label: 'Asesores', icon: <UserIcon className="w-5 h-5" /> },
+    { id: 'users', label: 'Usuarios', icon: <UserIcon className="w-5 h-5" /> },
     { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5" /> },
     { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5" /> },
     { id: 'licenciaturas', label: 'Licenciaturas', icon: <AcademicCapIcon className="w-5 h-5" /> },
@@ -239,7 +248,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
 
         {/* Right Content */}
         <div className="w-full sm:w-2/3 md:w-3/4 p-6 overflow-y-auto">
-          {activeTab === 'advisors' && <AdvisorSettings advisors={props.advisors} onAdvisorsUpdate={props.onAdvisorsUpdate} />}
+          {activeTab === 'users' && <UserSettings profiles={props.profiles} />}
           {activeTab === 'statuses' && <StatusSettings statuses={props.statuses} onStatusesUpdate={props.onStatusesUpdate} />}
           {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}
           {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}

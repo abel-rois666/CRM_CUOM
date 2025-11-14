@@ -1,10 +1,10 @@
+
 import React, { useState, useRef } from 'react';
-import { Lead, Status, Advisor, Source } from '../types';
+import { Lead, Status, Profile, Source } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import PrinterIcon from './icons/PrinterIcon';
 
-// This declaration allows using the libraries loaded from CDN without TypeScript errors.
 declare global {
   interface Window {
     jspdf: any;
@@ -12,13 +12,12 @@ declare global {
   }
 }
 
-// FIX: Define ReportModalProps interface
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   leads: Lead[];
   statuses: Status[];
-  advisors: Advisor[];
+  advisors: Profile[];
   sources: Source[];
 }
 
@@ -31,6 +30,13 @@ interface StatusBreakdown {
 interface BreakdownItem {
     name: string;
     count: number;
+}
+
+interface ConversionBreakdownItem {
+    name: string;
+    convertedCount: number;
+    totalLeads: number;
+    rate: number; // 0 to 100
 }
 
 interface ReportSectionData {
@@ -51,6 +57,7 @@ interface ReportData {
   updatedLeads: ReportSectionData;
   leadsByAdvisor: BreakdownData;
   leadsBySource: BreakdownData;
+  conversionByAdvisor: ConversionBreakdownItem[];
 }
 
 const tailwindColorMap: { [key: string]: string } = {
@@ -133,6 +140,30 @@ const BreakdownBarChart: React.FC<{ data: BreakdownItem[] }> = ({ data }) => {
     );
 };
 
+const ConversionRateBarChart: React.FC<{ data: ConversionBreakdownItem[] }> = ({ data }) => {
+    const sortedData = [...data].sort((a, b) => b.rate - a.rate);
+    if (sortedData.length === 0) return null;
+
+    return (
+        <div className="mt-6 space-y-4">
+            {sortedData.map(item => (
+                <div key={item.name} className="grid grid-cols-3 items-center gap-4 text-sm">
+                    <span className="font-medium text-gray-800 truncate text-right col-span-1">{item.name}</span>
+                    <div className="col-span-2 bg-gray-200 rounded-full h-7 relative">
+                        <div
+                            className="bg-green-500 h-7 rounded-full flex items-center justify-end px-2 text-white font-bold text-xs"
+                            style={{ width: `${item.rate}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center font-bold text-gray-800 pointer-events-none" style={{ textShadow: '0 0 3px white' }}>
+                           {item.convertedCount} / {item.totalLeads} ({item.rate.toFixed(1)}%)
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 
 const ReportSection: React.FC<{ title: string; data: ReportSectionData }> = ({ title, data }) => (
   <div className="border border-gray-200 p-4 rounded-lg bg-gray-50 shadow-sm">
@@ -164,6 +195,30 @@ const BreakdownReportSection: React.FC<{ title: string; data: BreakdownData; tot
   </div>
 );
 
+const ConversionReportSection: React.FC<{ title: string; data: ConversionBreakdownItem[] }> = ({ title, data }) => {
+    const totalConversions = data.reduce((sum, item) => sum + item.convertedCount, 0);
+    const totalLeadsForConversion = data.reduce((sum, item) => sum + item.totalLeads, 0);
+    const overallRate = totalLeadsForConversion > 0 ? (totalConversions / totalLeadsForConversion) * 100 : 0;
+
+    return (
+        <div className="border border-gray-200 p-4 rounded-lg bg-gray-50 shadow-sm">
+            <h4 className="text-xl font-bold text-brand-primary mb-3 border-b border-gray-200 pb-2">{title}</h4>
+            <div className="text-gray-900 text-lg flex justify-between items-center">
+                <span>Tasa de Conversión General:</span>
+                <div className="text-right">
+                    <span className="font-extrabold text-4xl text-green-600">{overallRate.toFixed(1)}%</span>
+                    <p className="text-sm font-medium text-gray-600 -mt-1">({totalConversions} de {totalLeadsForConversion} leads)</p>
+                </div>
+            </div>
+            {data.length > 0 ? (
+                <ConversionRateBarChart data={data} />
+            ) : (
+                <p className="text-base text-gray-700 py-4 text-center">No se encontraron datos de conversión en el periodo seleccionado.</p>
+            )}
+        </div>
+    );
+};
+
 
 const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statuses, advisors, sources }) => {
   const today = new Date().toISOString().split('T')[0];
@@ -171,7 +226,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
   const [endDate, setEndDate] = useState(today);
   const [report, setReport] = useState<ReportData | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const reportContentRef = useRef<HTMLDivDivElement>(null);
+  const reportContentRef = useRef<HTMLDivElement>(null);
 
   const handleGenerateReport = () => {
     if (!startDate || !endDate) {
@@ -192,7 +247,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             statuses.map(s => [s.id, { name: s.name, color: s.color, count: 0 }])
         );
         leadsForBreakdown.forEach(lead => {
-            const statusData = statusMap.get(lead.statusId);
+            const statusData = statusMap.get(lead.status_id);
             if (statusData) {
                 statusData.count++;
             }
@@ -202,7 +257,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
 
     // 1. New Leads Registered
     const newLeads = leads.filter(lead => {
-      const regDate = new Date(lead.registrationDate);
+      const regDate = new Date(lead.registration_date);
       return regDate >= start && regDate <= end;
     });
     const newLeadsReport: ReportSectionData = {
@@ -213,7 +268,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
     // 2. Leads with Status Change
     const updatedLeadIds = new Set<string>();
     leads.forEach(lead => {
-        (lead.statusHistory || []).forEach(change => {
+        (lead.status_history || []).forEach(change => {
             const changeDate = new Date(change.date);
             if (changeDate >= start && changeDate <= end) {
                 updatedLeadIds.add(lead.id);
@@ -227,14 +282,13 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
     };
 
     // 3. Leads by Advisor
-    const advisorMap = new Map(advisors.map(a => [a.id, a.name]));
+    const advisorMap = new Map(advisors.map(a => [a.id, a.full_name]));
     const leadsByAdvisorMap = new Map<string, number>();
     newLeads.forEach(lead => {
-        const count = leadsByAdvisorMap.get(lead.advisorId) || 0;
-        leadsByAdvisorMap.set(lead.advisorId, count + 1);
+        const count = leadsByAdvisorMap.get(lead.advisor_id) || 0;
+        leadsByAdvisorMap.set(lead.advisor_id, count + 1);
     });
     const leadsByAdvisorBreakdown: BreakdownItem[] = Array.from(leadsByAdvisorMap.entries()).map(([advisorId, count]) => ({
-// FIX: Explicitly convert to string to resolve 'unknown' type error.
         name: String(advisorMap.get(advisorId) || 'Sin Asignar'),
         count,
     }));
@@ -248,12 +302,11 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
     const leadsBySourceMap = new Map<string, number>();
 
     newLeads.forEach(lead => {
-        const count = leadsBySourceMap.get(lead.sourceId) || 0;
-        leadsBySourceMap.set(lead.sourceId, count + 1);
+        const count = leadsBySourceMap.get(lead.source_id) || 0;
+        leadsBySourceMap.set(lead.source_id, count + 1);
     });
 
     const leadsBySourceBreakdown: BreakdownItem[] = Array.from(leadsBySourceMap.entries()).map(([sourceId, count]) => ({
-        // FIX: Explicitly convert to string to resolve 'unknown' type error.
         name: String(sourceMap.get(sourceId) || 'Desconocido'),
         count,
     }));
@@ -263,6 +316,35 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
         breakdown: leadsBySourceBreakdown
     };
 
+    // 5. Conversion Rate by Advisor
+    const inscritoStatusId = statuses.find(s => s.name === 'Inscrito')?.id;
+    const conversionsByAdvisor = new Map<string, number>();
+    if (inscritoStatusId) {
+        newLeads.forEach(lead => {
+            const wasConverted = (lead.status_history || []).some(
+                change => change.new_status_id === inscritoStatusId
+            );
+
+            if (wasConverted) {
+                const count = conversionsByAdvisor.get(lead.advisor_id) || 0;
+                conversionsByAdvisor.set(lead.advisor_id, count + 1);
+            }
+        });
+    }
+    
+    const conversionBreakdown: ConversionBreakdownItem[] = advisors.map(advisor => {
+        const convertedCount = conversionsByAdvisor.get(advisor.id) || 0;
+        const totalLeads = leadsByAdvisorMap.get(advisor.id) || 0;
+        const rate = totalLeads > 0 ? (convertedCount / totalLeads) * 100 : 0;
+        
+        return {
+            name: advisor.full_name,
+            convertedCount,
+            totalLeads,
+            rate
+        };
+    }).filter(item => item.totalLeads > 0 || item.convertedCount > 0);
+
     setReport({
       startDate,
       endDate,
@@ -270,6 +352,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
       updatedLeads: updatedLeadsReport,
       leadsByAdvisor: leadsByAdvisorReport,
       leadsBySource: leadsBySourceReport,
+      conversionByAdvisor: conversionBreakdown,
     });
   };
 
@@ -295,25 +378,24 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
         });
         
         const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
         
         const canvasWidth = canvas.width;
         const canvasHeight = canvas.height;
         
-        const ratio = canvasWidth / canvasHeight;
-        
-        let imgWidth = pdfWidth - 20;
-        let imgHeight = imgWidth / ratio;
-        
-        if (imgHeight > pdfHeight - 20) {
-            imgHeight = pdfHeight - 20;
-            imgWidth = imgHeight * ratio;
+        const totalPdfHeight = canvasHeight * (pdfWidth - 20) / canvasWidth;
+        let heightLeft = totalPdfHeight;
+        let position = 10;
+
+        pdf.addImage(imgData, 'PNG', 10, position, pdfWidth - 20, totalPdfHeight);
+        heightLeft -= (pdf.internal.pageSize.getHeight() - 20);
+
+        while (heightLeft > 0) {
+            position = -totalPdfHeight + heightLeft;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 10, position, pdfWidth - 20, totalPdfHeight);
+            heightLeft -= (pdf.internal.pageSize.getHeight() - 20);
         }
-        
-        const x = (pdfWidth - imgWidth) / 2;
-        const y = 10;
-        
-        pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+
         pdf.save(`reporte_leads_${report.startDate}_a_${report.endDate}.pdf`);
     } catch (error) {
         console.error("Error al exportar a PDF:", error);
@@ -359,6 +441,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
                         <ReportSection title="Nuevos Leads Registrados" data={report.newLeads} />
                         <ReportSection title="Leads con Cambio de Estatus en el Periodo" data={report.updatedLeads} />
                         <BreakdownReportSection title="Leads Asignados por Asesor en el Periodo" data={report.leadsByAdvisor} totalLabel="Total de leads nuevos" />
+                        <ConversionReportSection title="Índice de Conversión por Asesor (a Inscrito)" data={report.conversionByAdvisor} />
                         <BreakdownReportSection title="Leads por Origen en el Periodo" data={report.leadsBySource} totalLabel="Total de leads nuevos" />
                     </div>
                 </div>
