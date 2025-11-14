@@ -1,8 +1,19 @@
-import React, { useState } from 'react';
+
+import React, { useState, useRef } from 'react';
 import { Lead, Status } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
+import PrinterIcon from './icons/PrinterIcon';
 
+// This declaration allows using the libraries loaded from CDN without TypeScript errors.
+declare global {
+  interface Window {
+    jspdf: any;
+    html2canvas: any;
+  }
+}
+
+// FIX: Define ReportModalProps interface
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -10,23 +21,102 @@ interface ReportModalProps {
   statuses: Status[];
 }
 
+interface StatusBreakdown {
+    name: string;
+    color: string;
+    count: number;
+}
+
+interface ReportSectionData {
+    total: number;
+    breakdown: StatusBreakdown[];
+}
+
 interface ReportData {
   startDate: string;
   endDate: string;
-  totalNewLeads: number;
-  statusBreakdown: { name: string; color: string; count: number }[];
-  appointments: {
-    leadName: string;
-    title: string;
-    date: string;
-  }[];
+  newLeads: ReportSectionData;
+  updatedLeads: ReportSectionData;
+  workedLeads: ReportSectionData;
 }
+
+const tailwindColorMap: { [key: string]: string } = {
+    'bg-slate-500': '#64748b', 'bg-gray-500': '#6b7280', 'bg-zinc-500': '#71717a',
+    'bg-neutral-500': '#737373', 'bg-stone-500': '#78716c', 'bg-red-500': '#ef4444',
+    'bg-orange-500': '#f97316', 'bg-amber-500': '#f59e0b', 'bg-yellow-500': '#eab308',
+    'bg-lime-500': '#84cc16', 'bg-green-500': '#22c55e', 'bg-emerald-500': '#10b981',
+    'bg-teal-500': '#14b8a6', 'bg-cyan-500': '#06b6d4', 'bg-sky-500': '#0ea5e9',
+    'bg-blue-500': '#3b82f6', 'bg-indigo-500': '#6366f1', 'bg-violet-500': '#8b5cf6',
+    'bg-purple-500': '#a855f7', 'bg-fuchsia-500': '#d946ef', 'bg-pink-500': '#ec4899',
+    'bg-rose-500': '#f43f5e'
+};
+
+const StatusPieChart: React.FC<{ data: StatusBreakdown[] }> = ({ data }) => {
+    const filteredData = data.filter(d => d.count > 0);
+    if (filteredData.length === 0) return null;
+
+    const total = filteredData.reduce((sum, item) => sum + item.count, 0);
+
+    let cumulativePercentage = 0;
+    const gradientStops = filteredData.map(item => {
+        const percentage = (item.count / total) * 100;
+        const start = cumulativePercentage;
+        cumulativePercentage += percentage;
+        const end = cumulativePercentage;
+        const colorValue = tailwindColorMap[item.color] || '#cccccc';
+        return `${colorValue} ${start}% ${end}%`;
+    }).join(', ');
+
+    const gradientStyle = {
+        background: `conic-gradient(${gradientStops})`,
+    };
+
+    return (
+        <div className="mt-6 flex flex-col md:flex-row items-center gap-x-8 gap-y-6">
+            <div 
+                className="w-40 h-40 md:w-48 md:h-48 rounded-full flex-shrink-0 border-4 border-white shadow-md"
+                style={gradientStyle}
+                role="img"
+                aria-label="Gráfica de pastel de estados de leads"
+            ></div>
+            <ul className="space-y-2.5 flex-1 w-full">
+                {filteredData.map(item => (
+                    <li key={item.name} className="flex items-baseline justify-between text-sm">
+                         <div className="flex items-center gap-3">
+                            <span className={`w-3.5 h-3.5 rounded-full ${item.color} flex-shrink-0`}></span>
+                            <span className="font-medium text-gray-800">{item.name}</span>
+                        </div>
+                        <span className="font-bold text-gray-900">{item.count} <span className="text-xs font-normal text-gray-600">({((item.count / total) * 100).toFixed(1)}%)</span></span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+const ReportSection: React.FC<{ title: string; data: ReportSectionData }> = ({ title, data }) => (
+  <div className="border border-gray-200 p-4 rounded-lg bg-gray-50 shadow-sm">
+    <h4 className="text-xl font-bold text-brand-primary mb-3 border-b border-gray-200 pb-2">{title}</h4>
+    <p className="text-gray-900 text-lg flex justify-between items-center">
+      <span>Total de leads:</span>
+      <span className="font-extrabold text-4xl text-brand-secondary">{data.total}</span>
+    </p>
+    {data.breakdown.filter(s => s.count > 0).length > 0 ? (
+      <StatusPieChart data={data.breakdown} />
+    ) : (
+      <p className="text-base text-gray-700 py-4 text-center">No hay leads que cumplan estos criterios en el periodo seleccionado.</p>
+    )}
+  </div>
+);
+
 
 const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statuses }) => {
   const today = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [report, setReport] = useState<ReportData | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const reportContentRef = useRef<HTMLDivElement>(null);
 
   const handleGenerateReport = () => {
     if (!startDate || !endDate) {
@@ -42,37 +132,112 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
       return;
     }
 
-    const registeredLeads = leads.filter(lead => {
+    const getStatusBreakdown = (leadsForBreakdown: Lead[]): StatusBreakdown[] => {
+        const statusMap = new Map<string, StatusBreakdown>(
+            statuses.map(s => [s.id, { name: s.name, color: s.color, count: 0 }])
+        );
+        leadsForBreakdown.forEach(lead => {
+            const statusData = statusMap.get(lead.statusId);
+            if (statusData) {
+                statusData.count++;
+            }
+        });
+        return Array.from(statusMap.values());
+    };
+
+    // 1. New Leads Registered
+    const newLeads = leads.filter(lead => {
       const regDate = new Date(lead.registrationDate);
       return regDate >= start && regDate <= end;
     });
+    const newLeadsReport: ReportSectionData = {
+        total: newLeads.length,
+        breakdown: getStatusBreakdown(newLeads),
+    };
 
-    const statusMap = new Map<string, { name: string; color: string; count: number }>(statuses.map(s => [s.id, { name: s.name, color: s.color, count: 0 }]));
-    
-    registeredLeads.forEach(lead => {
-      const statusData = statusMap.get(lead.statusId);
-      if (statusData) {
-        statusData.count++;
-      }
+    // 2. Leads with Status Change
+    const updatedLeadIds = new Set<string>();
+    leads.forEach(lead => {
+        (lead.statusHistory || []).forEach(change => {
+            const changeDate = new Date(change.date);
+            if (changeDate >= start && changeDate <= end) {
+                updatedLeadIds.add(lead.id);
+            }
+        });
     });
+    const updatedLeads = leads.filter(lead => updatedLeadIds.has(lead.id));
+    const updatedLeadsReport: ReportSectionData = {
+        total: updatedLeads.length,
+        breakdown: getStatusBreakdown(updatedLeads),
+    };
 
-    const scheduledAppointments = leads
-      .flatMap(lead => 
-        lead.appointments.map(appt => ({ ...appt, leadName: `${lead.firstName} ${lead.paternalLastName}` }))
-      )
-      .filter(appt => {
-        const apptDate = new Date(appt.date);
-        return apptDate >= start && apptDate <= end;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // 3. Total Worked Leads (Unique of New and Updated)
+    const workedLeadsMap = new Map<string, Lead>();
+    newLeads.forEach(lead => workedLeadsMap.set(lead.id, lead));
+    updatedLeads.forEach(lead => workedLeadsMap.set(lead.id, lead));
+    const workedLeads = Array.from(workedLeadsMap.values());
+    const workedLeadsReport: ReportSectionData = {
+        total: workedLeads.length,
+        breakdown: getStatusBreakdown(workedLeads),
+    };
 
     setReport({
       startDate,
       endDate,
-      totalNewLeads: registeredLeads.length,
-      statusBreakdown: Array.from(statusMap.values()),
-      appointments: scheduledAppointments,
+      newLeads: newLeadsReport,
+      updatedLeads: updatedLeadsReport,
+      workedLeads: workedLeadsReport,
     });
+  };
+
+  const handleExportPDF = async () => {
+    const reportElement = reportContentRef.current;
+    if (!reportElement || !report) return;
+
+    setIsExporting(true);
+    try {
+        const { jsPDF } = window.jspdf;
+        const canvas = await window.html2canvas(reportElement, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff'
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        
+        const pdf = new jsPDF({
+            orientation: 'p',
+            unit: 'mm',
+            format: 'a4'
+        });
+        
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        
+        const ratio = canvasWidth / canvasHeight;
+        
+        let imgWidth = pdfWidth - 20;
+        let imgHeight = imgWidth / ratio;
+        
+        if (imgHeight > pdfHeight - 20) {
+            imgHeight = pdfHeight - 20;
+            imgWidth = imgHeight * ratio;
+        }
+        
+        const x = (pdfWidth - imgWidth) / 2;
+        const y = 10;
+        
+        pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+        pdf.save(`reporte_leads_${report.startDate}_a_${report.endDate}.pdf`);
+    } catch (error) {
+        console.error("Error al exportar a PDF:", error);
+        alert("Ocurrió un error al intentar exportar el reporte a PDF.");
+    } finally {
+        setIsExporting(false);
+    }
   };
   
   const handleClose = () => {
@@ -81,10 +246,10 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Generador de Reportes" size="lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Generador de Reportes" size="4xl">
       <div className="space-y-6">
         <div className="p-4 border rounded-lg bg-gray-50">
-            <h3 className="font-semibold text-gray-800 mb-3">Seleccionar Periodo</h3>
+            <h3 className="font-semibold text-gray-900 mb-3">Seleccionar Periodo</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                 <div>
                     <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">Fecha de Inicio</label>
@@ -99,51 +264,32 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
         </div>
 
         {report && (
-          <div className="space-y-6 animate-fade-in">
-            <h3 className="text-xl font-bold text-center text-gray-800">
-              Reporte del {new Date(report.startDate).toLocaleDateString()} al {new Date(report.endDate).toLocaleDateString()}
-            </h3>
-            
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h4 className="font-semibold text-brand-primary mb-2">Resumen</h4>
-              <p className="text-gray-700">Total de nuevos leads registrados: <span className="font-bold text-2xl">{report.totalNewLeads}</span></p>
-            </div>
-
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h4 className="font-semibold text-brand-primary mb-3">Desglose de Estados (Nuevos Leads)</h4>
-              <ul className="space-y-2">
-                {report.statusBreakdown.filter(s => s.count > 0).map(status => (
-                  <li key={status.name} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                        <span className={`w-3 h-3 rounded-full ${status.color}`}></span>
-                        <span>{status.name}</span>
+          <>
+            <div className="animate-fade-in" ref={reportContentRef}>
+                <div className="p-4 sm:p-6 bg-white">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-center text-brand-primary mb-2">Reporte de Leads</h2>
+                     <h3 className="text-lg text-center text-gray-700 font-medium mb-8">
+                        Periodo del {new Date(report.startDate).toLocaleDateString()} al {new Date(report.endDate).toLocaleDateString()}
+                    </h3>
+                    
+                     <div className="space-y-8 mt-8">
+                        <ReportSection title="Nuevos Leads Registrados" data={report.newLeads} />
+                        <ReportSection title="Leads con Cambio de Estatus en el Periodo" data={report.updatedLeads} />
+                        <ReportSection title="Total de Leads Trabajados en el Periodo (Únicos)" data={report.workedLeads} />
                     </div>
-                    <span className="font-semibold bg-gray-200 px-2 py-0.5 rounded-full text-gray-700">{status.count}</span>
-                  </li>
-                ))}
-                {report.statusBreakdown.filter(s => s.count > 0).length === 0 && <p className="text-sm text-gray-500">No hay leads nuevos en estos estados para el periodo.</p>}
-              </ul>
+                </div>
             </div>
-            
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h4 className="font-semibold text-brand-primary mb-3">Citas Programadas en el Periodo</h4>
-               <div className="max-h-48 overflow-y-auto pr-2">
-                  {report.appointments.length > 0 ? (
-                    <ul className="space-y-3">
-                      {report.appointments.map((appt, index) => (
-                        <li key={index} className="text-sm border-b pb-2">
-                          <p className="font-semibold text-gray-800">{appt.leadName}</p>
-                          <p className="text-gray-600">{appt.title}</p>
-                          <p className="text-xs text-gray-500">{new Date(appt.date).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-gray-500">No se programaron citas en este periodo.</p>
-                  )}
-               </div>
+            <div className="pt-4 flex justify-end">
+                <Button 
+                    onClick={handleExportPDF} 
+                    variant="secondary" 
+                    leftIcon={<PrinterIcon className="w-5 h-5"/>}
+                    disabled={isExporting}
+                >
+                    {isExporting ? 'Exportando...' : 'Exportar a PDF'}
+                </Button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </Modal>

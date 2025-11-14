@@ -115,6 +115,17 @@ export interface InitialData {
     leads: Lead[];
 }
 
+const demoCsvData = `firstName,paternalLastName,maternalLastName,email,phone,programName,statusName,advisorName,advisorEmail,sourceName,registrationDate
+Javier,Morales,Santos,javier.morales@example.com,555-0101,"Ingeniería en Sistemas",Nuevo,"Ana García",ana.garcia@university.edu,Facebook,2024-05-01T09:15:00Z
+Sofia,Hernández,Vega,sofia.hernandez@example.com,555-0102,"Administración de Empresas",Contactado,"Carlos Rodríguez",carlos.rodriguez@university.edu,Sitio Web,2024-05-02T11:00:00Z
+Mateo,Jiménez,Rojas,mateo.jimenez@example.com,555-0103,"Diseño Gráfico",Interesado,"Laura Martinez",laura.martinez@university.edu,Referido,2024-05-03T14:30:00Z
+Valentina,López,Mendoza,valentina.lopez@example.com,555-0104,Psicología,Citado,"David Fernández",david.fernandez@university.edu,"Informe Presencial",2024-05-04T16:45:00Z
+Leonardo,Díaz,Cruz,leonardo.diaz@example.com,555-0105,Derecho,Inscrito,"Sofía Pérez",sofia.perez@university.edu,Facebook,2024-05-05T10:00:00Z
+Camila,Sánchez,Flores,camila.sanchez@example.com,555-0106,"Ingeniería en Sistemas",Rechazado,"Ana García",ana.garcia@university.edu,Sitio Web,2024-05-06T13:20:00Z
+Sebastián,Ramírez,Gómez,sebastian.ramirez@example.com,555-0107,"Administración de Empresas",Nuevo,"Carlos Rodríguez",carlos.rodriguez@university.edu,Referido,2024-05-07T15:00:00Z
+"María José",Gutiérrez,Ortiz,mariajose.gutierrez@example.com,555-0108,"Diseño Gráfico",Contactado,"Laura Martinez",laura.martinez@university.edu,"Informe Presencial",2024-05-08T17:10:00Z
+`;
+
 const App: React.FC = () => {
   const [advisors, setAdvisors] = useLocalStorage<Advisor[]>('crm_advisors', []);
   const [statuses, setStatuses] = useLocalStorage<Status[]>('crm_statuses', []);
@@ -383,7 +394,7 @@ const handleDeleteAppointment = (leadId: string, appointmentId: string) => {
   }
 
   if (needsSetup) {
-    return <InitialSetup onSetupComplete={handleSetupComplete} demoData={demoData} />;
+    return <InitialSetup onSetupComplete={handleSetupComplete} demoData={demoData} demoCsvData={demoCsvData} />;
   }
 
 
