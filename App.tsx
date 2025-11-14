@@ -373,37 +373,23 @@ const handleDeleteAppointment = (leadId: string, appointmentId: string) => {
         }
         return lead;
     });
-
     setLeads(newLeads);
-    
     if (changedLead && selectedLead?.id === leadId) {
         setSelectedLead(changedLead);
     }
 };
 
-  const demoData: InitialData = {
-    advisors: initialAdvisors,
-    statuses: initialStatuses,
-    sources: initialSources,
-    licenciaturas: initialLicenciaturas,
-    leads: initialLeads,
-  };
-
-  if (loading) {
-    return <div className="min-h-screen bg-gray-100" />; // Empty screen while loading to prevent flashes
-  }
 
   if (needsSetup) {
-    return <InitialSetup onSetupComplete={handleSetupComplete} demoData={demoData} demoCsvData={demoCsvData} />;
+    return <InitialSetup onSetupComplete={handleSetupComplete} demoData={{ advisors: initialAdvisors, statuses: initialStatuses, sources: initialSources, licenciaturas: initialLicenciaturas, leads: initialLeads }} demoCsvData={demoCsvData} />;
   }
-
-
+  
   return (
     <div className="min-h-screen bg-gray-100">
       <Header onOpenSettings={() => setSettingsOpen(true)} />
       <main>
         <LeadList
-          loading={!advisors.length && !leads.length}
+          loading={loading}
           leads={leads}
           advisors={advisors}
           statuses={statuses}
@@ -429,10 +415,10 @@ const handleDeleteAppointment = (leadId: string, appointmentId: string) => {
         />
       )}
 
-      {selectedLead && isDetailViewOpen && (
+      {isDetailViewOpen && selectedLead && (
         <LeadDetailModal
           isOpen={isDetailViewOpen}
-          onClose={() => { setDetailViewOpen(false); setSelectedLead(null); }}
+          onClose={() => setDetailViewOpen(false)}
           lead={selectedLead}
           advisors={advisors}
           statuses={statuses}
@@ -447,25 +433,31 @@ const handleDeleteAppointment = (leadId: string, appointmentId: string) => {
         />
       )}
 
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        advisors={advisors}
-        statuses={statuses}
-        sources={sources}
-        licenciaturas={licenciaturas}
-        onAdvisorsUpdate={setAdvisors}
-        onStatusesUpdate={setStatuses}
-        onSourcesUpdate={setSources}
-        onLicenciaturasUpdate={setLicenciaturas}
-      />
+      {isSettingsOpen && (
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          advisors={advisors}
+          statuses={statuses}
+          sources={sources}
+          licenciaturas={licenciaturas}
+          onAdvisorsUpdate={setAdvisors}
+          onStatusesUpdate={setStatuses}
+          onSourcesUpdate={setSources}
+          onLicenciaturasUpdate={setLicenciaturas}
+        />
+      )}
 
-      <ReportModal
-        isOpen={isReportModalOpen}
-        onClose={() => setReportModalOpen(false)}
-        leads={leads}
-        statuses={statuses}
-      />
+      {isReportModalOpen && (
+        <ReportModal 
+            isOpen={isReportModalOpen}
+            onClose={() => setReportModalOpen(false)}
+            leads={leads}
+            statuses={statuses}
+            advisors={advisors}
+            sources={sources}
+        />
+      )}
     </div>
   );
 };

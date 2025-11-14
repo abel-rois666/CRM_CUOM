@@ -1,6 +1,5 @@
-
 import React, { useState, useRef } from 'react';
-import { Lead, Status } from '../types';
+import { Lead, Status, Advisor, Source } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import PrinterIcon from './icons/PrinterIcon';
@@ -19,6 +18,8 @@ interface ReportModalProps {
   onClose: () => void;
   leads: Lead[];
   statuses: Status[];
+  advisors: Advisor[];
+  sources: Source[];
 }
 
 interface StatusBreakdown {
@@ -27,17 +28,29 @@ interface StatusBreakdown {
     count: number;
 }
 
+interface BreakdownItem {
+    name: string;
+    count: number;
+}
+
 interface ReportSectionData {
     total: number;
     breakdown: StatusBreakdown[];
 }
+
+interface BreakdownData {
+    total: number;
+    breakdown: BreakdownItem[];
+}
+
 
 interface ReportData {
   startDate: string;
   endDate: string;
   newLeads: ReportSectionData;
   updatedLeads: ReportSectionData;
-  workedLeads: ReportSectionData;
+  leadsByAdvisor: BreakdownData;
+  leadsBySource: BreakdownData;
 }
 
 const tailwindColorMap: { [key: string]: string } = {
@@ -94,6 +107,33 @@ const StatusPieChart: React.FC<{ data: StatusBreakdown[] }> = ({ data }) => {
     );
 };
 
+const BreakdownBarChart: React.FC<{ data: BreakdownItem[] }> = ({ data }) => {
+    const filteredData = data.filter(d => d.count > 0).sort((a,b) => b.count - a.count);
+    if (filteredData.length === 0) return null;
+
+    const maxCount = Math.max(...filteredData.map(d => d.count), 0);
+
+    return (
+        <div className="mt-6 space-y-4">
+            {filteredData.map(item => (
+                <div key={item.name} className="grid grid-cols-3 items-center gap-4 text-sm">
+                    <span className="font-medium text-gray-800 truncate text-right col-span-1">{item.name}</span>
+                    <div className="col-span-2 bg-gray-200 rounded-full h-6">
+                        <div
+                            className="bg-brand-secondary h-6 rounded-full flex items-center justify-start px-2 text-white font-bold text-xs"
+                            style={{ width: `${maxCount > 0 ? (item.count / maxCount) * 100 : 0}%`, minWidth: '24px' }}
+                            title={`${item.count} leads`}
+                        >
+                            {item.count}
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+
 const ReportSection: React.FC<{ title: string; data: ReportSectionData }> = ({ title, data }) => (
   <div className="border border-gray-200 p-4 rounded-lg bg-gray-50 shadow-sm">
     <h4 className="text-xl font-bold text-brand-primary mb-3 border-b border-gray-200 pb-2">{title}</h4>
@@ -109,14 +149,29 @@ const ReportSection: React.FC<{ title: string; data: ReportSectionData }> = ({ t
   </div>
 );
 
+const BreakdownReportSection: React.FC<{ title: string; data: BreakdownData; totalLabel: string }> = ({ title, data, totalLabel }) => (
+  <div className="border border-gray-200 p-4 rounded-lg bg-gray-50 shadow-sm">
+    <h4 className="text-xl font-bold text-brand-primary mb-3 border-b border-gray-200 pb-2">{title}</h4>
+     <p className="text-gray-900 text-lg flex justify-between items-center">
+      <span>{totalLabel}:</span>
+      <span className="font-extrabold text-4xl text-brand-secondary">{data.total}</span>
+    </p>
+    {data.breakdown.filter(s => s.count > 0).length > 0 ? (
+      <BreakdownBarChart data={data.breakdown} />
+    ) : (
+      <p className="text-base text-gray-700 py-4 text-center">No se encontraron datos en el periodo seleccionado.</p>
+    )}
+  </div>
+);
 
-const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statuses }) => {
+
+const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statuses, advisors, sources }) => {
   const today = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [report, setReport] = useState<ReportData | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const reportContentRef = useRef<HTMLDivElement>(null);
+  const reportContentRef = useRef<HTMLDivDivElement>(null);
 
   const handleGenerateReport = () => {
     if (!startDate || !endDate) {
@@ -171,14 +226,41 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
         breakdown: getStatusBreakdown(updatedLeads),
     };
 
-    // 3. Total Worked Leads (Unique of New and Updated)
-    const workedLeadsMap = new Map<string, Lead>();
-    newLeads.forEach(lead => workedLeadsMap.set(lead.id, lead));
-    updatedLeads.forEach(lead => workedLeadsMap.set(lead.id, lead));
-    const workedLeads = Array.from(workedLeadsMap.values());
-    const workedLeadsReport: ReportSectionData = {
-        total: workedLeads.length,
-        breakdown: getStatusBreakdown(workedLeads),
+    // 3. Leads by Advisor
+    const advisorMap = new Map(advisors.map(a => [a.id, a.name]));
+    const leadsByAdvisorMap = new Map<string, number>();
+    newLeads.forEach(lead => {
+        const count = leadsByAdvisorMap.get(lead.advisorId) || 0;
+        leadsByAdvisorMap.set(lead.advisorId, count + 1);
+    });
+    const leadsByAdvisorBreakdown: BreakdownItem[] = Array.from(leadsByAdvisorMap.entries()).map(([advisorId, count]) => ({
+// FIX: Explicitly convert to string to resolve 'unknown' type error.
+        name: String(advisorMap.get(advisorId) || 'Sin Asignar'),
+        count,
+    }));
+    const leadsByAdvisorReport: BreakdownData = {
+        total: newLeads.length,
+        breakdown: leadsByAdvisorBreakdown,
+    };
+    
+    // 4. Leads by source in period
+    const sourceMap = new Map(sources.map(s => [s.id, s.name]));
+    const leadsBySourceMap = new Map<string, number>();
+
+    newLeads.forEach(lead => {
+        const count = leadsBySourceMap.get(lead.sourceId) || 0;
+        leadsBySourceMap.set(lead.sourceId, count + 1);
+    });
+
+    const leadsBySourceBreakdown: BreakdownItem[] = Array.from(leadsBySourceMap.entries()).map(([sourceId, count]) => ({
+        // FIX: Explicitly convert to string to resolve 'unknown' type error.
+        name: String(sourceMap.get(sourceId) || 'Desconocido'),
+        count,
+    }));
+    
+    const leadsBySourceReport: BreakdownData = {
+        total: newLeads.length,
+        breakdown: leadsBySourceBreakdown
     };
 
     setReport({
@@ -186,7 +268,8 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
       endDate,
       newLeads: newLeadsReport,
       updatedLeads: updatedLeadsReport,
-      workedLeads: workedLeadsReport,
+      leadsByAdvisor: leadsByAdvisorReport,
+      leadsBySource: leadsBySourceReport,
     });
   };
 
@@ -275,7 +358,8 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
                      <div className="space-y-8 mt-8">
                         <ReportSection title="Nuevos Leads Registrados" data={report.newLeads} />
                         <ReportSection title="Leads con Cambio de Estatus en el Periodo" data={report.updatedLeads} />
-                        <ReportSection title="Total de Leads Trabajados en el Periodo (Únicos)" data={report.workedLeads} />
+                        <BreakdownReportSection title="Leads Asignados por Asesor en el Periodo" data={report.leadsByAdvisor} totalLabel="Total de leads nuevos" />
+                        <BreakdownReportSection title="Leads por Origen en el Periodo" data={report.leadsBySource} totalLabel="Total de leads nuevos" />
                     </div>
                 </div>
             </div>
