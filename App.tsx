@@ -186,10 +186,13 @@ const AppContent: React.FC = () => {
 
     if (error) {
         console.error("Error al actualizar detalles del lead:", error);
-        const userFriendlyMessage = error.message.includes('Could not find the function')
-            ? "Error de configuración: La función 'update_lead_details' no existe en la base de datos. Contacta al administrador."
-            : `Error al actualizar: ${error.message}`;
-        alert(userFriendlyMessage);
+        let alertMessage = 'Ocurrió un error al actualizar el lead. Por favor, inténtalo de nuevo.';
+        
+        if (error && typeof error.message === 'string' && error.message.includes('Could not find the function')) {
+          alertMessage = "Error de configuración: La función 'update_lead_details' no existe en la base de datos. Contacta al administrador.";
+        }
+        
+        alert(alertMessage);
         return;
     }
     
