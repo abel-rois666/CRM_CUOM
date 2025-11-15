@@ -317,7 +317,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
     };
 
     // 5. Conversion Rate by Advisor
-    const inscritoStatusId = statuses.find(s => s.name === 'Inscrito')?.id;
+    const inscritoStatusId = statuses.find(s => s.name === 'Inscrito (a)')?.id;
     const conversionsByAdvisor = new Map<string, number>();
     if (inscritoStatusId) {
         newLeads.forEach(lead => {

@@ -168,13 +168,32 @@ const AppContent: React.FC = () => {
     setLeadFormOpen(false);
   };
 
-  const handleUpdateLeadDetails = async (leadId: string, updates: Partial<Lead>) => {
+  const handleUpdateLeadDetails = async (leadId: string, updates: Partial<Pick<Lead, 'advisor_id' | 'status_id'>>) => {
     const oldLead = leads.find(l => l.id === leadId);
-    if(!oldLead) return;
+    if (!oldLead) {
+        console.error("No se encontró el lead original para actualizar.");
+        return;
+    }
 
-    const { data: updatedLead, error } = await supabase.from('leads').update(updates).eq('id', leadId).select().single();
-    if(error) { console.error("Error updating lead details:", error); return; }
+    // Prepara el payload para la función RPC, asegurando que ambos parámetros se envíen siempre.
+    const payload = {
+        lead_id_to_update: leadId,
+        new_advisor_id: updates.advisor_id || oldLead.advisor_id,
+        new_status_id: updates.status_id || oldLead.status_id,
+    };
 
+    const { data: updatedLeadData, error } = await supabase.rpc('update_lead_details', payload).single();
+
+    if (error) {
+        console.error("Error al actualizar detalles del lead:", error);
+        const userFriendlyMessage = error.message.includes('Could not find the function')
+            ? "Error de configuración: La función 'update_lead_details' no existe en la base de datos. Contacta al administrador."
+            : `Error al actualizar: ${error.message}`;
+        alert(userFriendlyMessage);
+        return;
+    }
+    
+    // Registrar el cambio de estado si ocurrió
     if (updates.status_id && updates.status_id !== oldLead.status_id) {
         await supabase.from('status_history').insert({
             old_status_id: oldLead.status_id,
@@ -183,12 +202,16 @@ const AppContent: React.FC = () => {
         });
     }
 
-    const newLeads = leads.map(l => l.id === leadId ? updatedLead : l);
+    // Actualizar el estado local con los datos devueltos por la función
+    const newLeads = leads.map(l => l.id === leadId ? { ...l, ...updatedLeadData } : l);
     setLeads(newLeads);
-    
+
+    // Si el lead detallado es el que se actualizó, recargamos sus detalles completos
     if (selectedLead?.id === leadId) {
-        // refetch details to get history
-        await handleViewDetails(updatedLead!);
+        const leadForRefetch = newLeads.find(l => l.id === leadId);
+        if (leadForRefetch) {
+            await handleViewDetails(leadForRefetch);
+        }
     }
   };
 
@@ -211,7 +234,7 @@ const AppContent: React.FC = () => {
   };
   
    const handleSaveAppointment = async (leadId: string, appointmentData: Omit<Appointment, 'id' | 'status' | 'lead_id'>, appointmentIdToEdit?: string) => {
-    const citadoStatusId = statuses.find(s => s.name === 'Citado')?.id;
+    const citadoStatusId = statuses.find(s => s.name === 'Con Cita')?.id;
     let newAppointmentData;
 
     if (appointmentIdToEdit) {
@@ -298,9 +321,11 @@ const AppContent: React.FC = () => {
           statuses={statuses}
           sources={sources}
           licenciaturas={licenciaturas}
-          onStatusesUpdate={(updated) => { setStatuses(updated); fetchData(); }}
-          onSourcesUpdate={(updated) => { setSources(updated); fetchData(); }}
-          onLicenciaturasUpdate={(updated) => { setLicenciaturas(updated); fetchData(); }}
+          currentUserProfile={profile}
+          onProfilesUpdate={(updated) => setProfiles(updated)}
+          onStatusesUpdate={(updated) => setStatuses(updated)}
+          onSourcesUpdate={(updated) => setSources(updated)}
+          onLicenciaturasUpdate={(updated) => setLicenciaturas(updated)}
         />
       )}
 

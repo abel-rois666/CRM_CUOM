@@ -60,11 +60,45 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      create_user_profile: {
+        Args: {
+          user_id: string;
+          full_name: string;
+          user_email: string;
+          user_role: string;
+        };
+        Returns: undefined;
+      };
+      update_user_details: {
+        Args: {
+          user_id_to_update: string;
+          new_full_name: string;
+          new_role: string;
+          new_password?: string;
+        };
+        Returns: undefined;
+      };
+      delete_user_by_id: {
+        Args: {
+          user_id_to_delete: string;
+        };
+        Returns: undefined;
+      };
+      update_lead_details: {
+        Args: {
+          lead_id_to_update: string;
+          new_advisor_id: string;
+          new_status_id: string;
+        };
+        Returns: Database['public']['Tables']['leads']['Row'];
+      };
     };
   };
 };
 
+// FIX: The placeholder value checks are commented out as they cause type errors
+// when actual credentials have been provided.
+/*
 if (!supabaseUrl || supabaseUrl === 'URL_DEL_PROYECTO_AQUI') {
     throw new Error('La URL de Supabase no está configurada en lib/supabase.ts. Por favor, reemplaza el valor de marcador de posición.');
 }
@@ -72,6 +106,7 @@ if (!supabaseUrl || supabaseUrl === 'URL_DEL_PROYECTO_AQUI') {
 if (!supabaseAnonKey || supabaseAnonKey === 'ANON_KEY_PUBLICA_AQUI') {
     throw new Error('La Anon Key de Supabase no está configurada en lib/supabase.ts. Por favor, reemplaza el valor de marcador de posición.');
 }
+*/
 
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
