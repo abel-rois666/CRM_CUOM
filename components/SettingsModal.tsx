@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Profile, Status, Source, Licenciatura } from '../types';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Profile, Status, Source, Licenciatura, WhatsAppTemplate } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import PlusIcon from './icons/PlusIcon';
@@ -8,6 +9,7 @@ import UserIcon from './icons/UserIcon';
 import TagIcon from './icons/TagIcon';
 import ArrowDownTrayIcon from './icons/ArrowDownTrayIcon';
 import AcademicCapIcon from './icons/AcademicCapIcon';
+import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
 import { supabase } from '../lib/supabase';
 import EditIcon from './icons/EditIcon';
 import ConfirmationModal from './common/ConfirmationModal';
@@ -22,11 +24,13 @@ interface SettingsModalProps {
   statuses: Status[];
   sources: Source[];
   licenciaturas: Licenciatura[];
+  whatsappTemplates: WhatsAppTemplate[];
   currentUserProfile: Profile | null;
   onProfilesUpdate: (profiles: Profile[]) => void;
   onStatusesUpdate: (statuses: Status[]) => void;
   onSourcesUpdate: (sources: Source[]) => void;
   onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void;
+  onWhatsappTemplatesUpdate: (templates: WhatsAppTemplate[]) => void;
 }
 
 const colors = [
@@ -140,7 +144,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 
         if (error) {
             console.error("Error updating user:", error);
-            setActionError(`Error al actualizar: ${error.message}`);
+            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            setActionError(`Error al actualizar: ${errorMessage}`);
         } else {
             onProfilesUpdate(profiles.map(p => p.id === userId ? { ...p, full_name: updates.fullName, role: updates.role } : p));
             setUserToEdit(null); // Close modal on success
@@ -157,7 +162,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 
         if (error) {
             console.error("Error deleting user:", error);
-            setActionError(`Error al eliminar: ${error.message}`);
+            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            setActionError(`Error al eliminar: ${errorMessage}`);
         } else {
             onProfilesUpdate(profiles.filter(p => p.id !== userToDelete.id));
             setUserToDelete(null); // Close modal on success
@@ -296,7 +302,8 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     
         if (error) {
             console.error('Error seeding statuses:', error);
-            alert(`Error: ${error.message}`);
+            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            alert(`Error: ${errorMessage}`);
         } else if (insertedData) {
             onStatusesUpdate([...statuses, ...insertedData]);
             setSeedSuccess(`¡Se añadieron ${insertedData.length} nuevos estados!`);
@@ -316,9 +323,28 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     }
     
     const handleDelete = async (id: string) => {
+        // Verificar si hay leads asignados a este estado
+        const { count, error: checkError } = await supabase
+            .from('leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('status_id', id);
+
+        if (checkError) {
+            console.error("Error al verificar el uso del estado:", checkError);
+            alert("Hubo un error al intentar verificar si este estado está en uso.");
+            return;
+        }
+
+        if (count && count > 0) {
+            alert(`No se puede eliminar este estado porque actualmente está asignado a ${count} lead(s). Debes reasignar estos leads a otro estado antes de poder eliminarlo.`);
+            return;
+        }
+
+        if (!window.confirm('¿Estás seguro de que quieres eliminar este estado?')) return;
+
         const { error } = await supabase.from('statuses').delete().eq('id', id);
         if(error) { 
-            alert('No se puede eliminar un estado si está siendo utilizado por algún lead.');
+            alert('Ocurrió un error al intentar eliminar el estado.');
             console.error(error); 
         } else {
             onStatusesUpdate(statuses.filter(s => s.id !== id));
@@ -380,9 +406,28 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
     };
     
     const handleDelete = async (id: string) => {
+         // Verificar si hay leads con este origen
+         const { count, error: checkError } = await supabase
+            .from('leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('source_id', id);
+
+        if (checkError) {
+            console.error("Error al verificar el uso del origen:", checkError);
+            alert("Hubo un error al intentar verificar si este origen está en uso.");
+            return;
+        }
+
+        if (count && count > 0) {
+            alert(`No se puede eliminar este origen porque actualmente está asignado a ${count} lead(s).`);
+            return;
+        }
+
+        if (!window.confirm('¿Estás seguro de que quieres eliminar este origen?')) return;
+
         const { error } = await supabase.from('sources').delete().eq('id', id);
         if(error) { 
-            alert('No se puede eliminar un origen si está siendo utilizado por algún lead.');
+            alert('Ocurrió un error al eliminar el origen.');
             console.error(error); 
         } else {
             onSourcesUpdate(sources.filter(s => s.id !== id));
@@ -428,9 +473,28 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
     };
     
     const handleDelete = async (id: string) => {
+        // Verificar si hay leads interesados en esta licenciatura
+        const { count, error: checkError } = await supabase
+            .from('leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('program_id', id);
+
+        if (checkError) {
+            console.error("Error al verificar el uso de la licenciatura:", checkError);
+            alert("Hubo un error al intentar verificar si esta licenciatura está en uso.");
+            return;
+        }
+
+        if (count && count > 0) {
+            alert(`No se puede eliminar esta licenciatura porque actualmente hay ${count} lead(s) interesados en ella.`);
+            return;
+        }
+
+        if (!window.confirm('¿Estás seguro de que quieres eliminar esta licenciatura?')) return;
+
         const { error } = await supabase.from('licenciaturas').delete().eq('id', id);
         if(error) { 
-            alert('No se puede eliminar una licenciatura si está siendo utilizada por algún lead.');
+            alert('Ocurrió un error al eliminar la licenciatura.');
             console.error(error); 
         } else {
             onLicenciaturasUpdate(licenciaturas.filter(s => s.id !== id));
@@ -463,17 +527,189 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
     );
 }
 
+const WhatsappTemplateSettings: React.FC<{ 
+    templates: WhatsAppTemplate[], 
+    onTemplatesUpdate: (t: WhatsAppTemplate[]) => void,
+    userProfile: Profile | null 
+}> = ({ templates, onTemplatesUpdate, userProfile }) => {
+    const [name, setName] = useState('');
+    const [content, setContent] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [templateToDelete, setTemplateToDelete] = useState<WhatsAppTemplate | null>(null);
+
+    const handleSave = async () => {
+        if (!name.trim() || !content.trim()) return;
+        setSaving(true);
+
+        if (editingId) {
+            const { data, error } = await supabase
+                .from('whatsapp_templates')
+                .update({ name: name.trim(), content: content.trim() })
+                .eq('id', editingId)
+                .select()
+                .single();
+            
+            if (error) {
+                console.error('Error updating template:', error);
+                alert('Error al actualizar la plantilla.');
+            } else if (data) {
+                const updatedTemplates = templates.map(t => t.id === editingId ? data : t);
+                onTemplatesUpdate(updatedTemplates);
+                setEditingId(null);
+                setName('');
+                setContent('');
+            }
+        } else {
+            if (templates.length >= 5) {
+                alert("Solo puedes tener un máximo de 5 plantillas.");
+                setSaving(false);
+                return;
+            }
+            
+            const { data, error } = await supabase
+                .from('whatsapp_templates')
+                .insert({ name: name.trim(), content: content.trim() })
+                .select()
+                .single();
+            
+             if (error) {
+                console.error('Error creating template:', error);
+                alert('Error al crear la plantilla.');
+            } else if (data) {
+                onTemplatesUpdate([...templates, data]);
+                setName('');
+                setContent('');
+            }
+        }
+        setSaving(false);
+    };
+
+    const handleEdit = (template: WhatsAppTemplate) => {
+        setName(template.name);
+        setContent(template.content);
+        setEditingId(template.id);
+    };
+
+    const handleCancelEdit = () => {
+        setName('');
+        setContent('');
+        setEditingId(null);
+    };
+
+    const handleDeleteClick = (template: WhatsAppTemplate) => {
+        setTemplateToDelete(template);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!templateToDelete) return;
+        
+        const { error } = await supabase.from('whatsapp_templates').delete().eq('id', templateToDelete.id);
+        if (error) {
+             console.error('Error deleting template:', error);
+             alert('Error al eliminar la plantilla.');
+        } else {
+            onTemplatesUpdate(templates.filter(t => t.id !== templateToDelete.id));
+            setTemplateToDelete(null);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de WhatsApp</h3>
+            <div className="p-4 border rounded-lg bg-green-50/50 border-green-200">
+                <h4 className="font-semibold text-gray-700 mb-2">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
+                <div className="space-y-3">
+                    <div>
+                         <label className="block text-xs font-medium text-gray-500 mb-1">Nombre de la Plantilla</label>
+                        <input 
+                            type="text" 
+                            value={name} 
+                            onChange={e => setName(e.target.value)} 
+                            placeholder="Ej: Saludo Inicial" 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Contenido del Mensaje</label>
+                        <textarea 
+                            value={content} 
+                            onChange={e => setContent(e.target.value)} 
+                            placeholder="Hola, te contacto para..." 
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        {editingId && <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>Cancelar</Button>}
+                        <Button onClick={handleSave} size="sm" disabled={!name || !content || saving}>
+                            {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            <hr className="my-4"/>
+            
+            <h4 className="font-semibold text-gray-700">Plantillas Guardadas ({templates.length}/5)</h4>
+            <div className="space-y-3">
+                {templates.map(t => (
+                    <div key={t.id} className="border border-gray-200 rounded-md p-3 bg-white shadow-sm relative group">
+                        <div className="flex justify-between items-start mb-1">
+                            <h5 className="font-bold text-gray-800 text-sm">{t.name}</h5>
+                            <div className="flex gap-1">
+                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1">
+                                    <EditIcon className="w-4 h-4"/>
+                                </button>
+                                {userProfile?.role === 'admin' && (
+                                    <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1">
+                                        <TrashIcon className="w-4 h-4"/>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-2">{t.content}</p>
+                    </div>
+                ))}
+                {templates.length === 0 && <p className="text-sm text-gray-500 italic">No hay plantillas configuradas.</p>}
+            </div>
+
+            <ConfirmationModal
+                isOpen={!!templateToDelete}
+                onClose={() => setTemplateToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="Eliminar Plantilla"
+                message={`¿Estás seguro de que quieres eliminar la plantilla "${templateToDelete?.name}"? Esta acción no se puede deshacer.`}
+                confirmButtonText="Sí, Eliminar"
+                confirmButtonVariant="danger"
+            />
+        </div>
+    );
+};
+
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'statuses' | 'sources' | 'licenciaturas'>('users');
+  const [activeTab, setActiveTab] = useState<string>('');
 
-  type SettingsTabId = typeof activeTab;
+  // Define tabs with permission requirements
+  const allTabs = useMemo(() => [
+    { id: 'users', label: 'Usuarios', icon: <UserIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
+    { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
+    { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
+    { id: 'licenciaturas', label: 'Licenciaturas', icon: <AcademicCapIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
+    { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor'] },
+  ], []);
 
-  const settingsTabs: { id: SettingsTabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'users', label: 'Usuarios', icon: <UserIcon className="w-5 h-5" /> },
-    { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5" /> },
-    { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5" /> },
-    { id: 'licenciaturas', label: 'Licenciaturas', icon: <AcademicCapIcon className="w-5 h-5" /> },
-  ];
+  const visibleTabs = useMemo(() => {
+      return allTabs.filter(tab => props.currentUserProfile && tab.allowedRoles.includes(props.currentUserProfile.role));
+  }, [allTabs, props.currentUserProfile]);
+
+  // Initialize active tab to the first visible one if current selection is invalid
+  useEffect(() => {
+      if (visibleTabs.length > 0 && !visibleTabs.find(t => t.id === activeTab)) {
+          setActiveTab(visibleTabs[0].id);
+      }
+  }, [visibleTabs, activeTab]);
+
 
   return (
     <Modal isOpen={props.isOpen} onClose={props.onClose} title="Configuración" size="2xl">
@@ -481,7 +717,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         {/* Left Navigation */}
         <div className="w-full sm:w-1/3 md:w-1/4 bg-gray-50/70 p-4 border-b sm:border-b-0 sm:border-r border-gray-200">
           <nav className="flex flex-row flex-wrap sm:flex-col gap-1">
-            {settingsTabs.map(tab => (
+            {visibleTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -504,6 +740,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
           {activeTab === 'statuses' && <StatusSettings statuses={props.statuses} onStatusesUpdate={props.onStatusesUpdate} />}
           {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}
           {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}
+          {activeTab === 'whatsapp' && <WhatsappTemplateSettings templates={props.whatsappTemplates} onTemplatesUpdate={props.onWhatsappTemplatesUpdate} userProfile={props.currentUserProfile} />}
         </div>
       </div>
     </Modal>

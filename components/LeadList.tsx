@@ -14,6 +14,8 @@ import BellAlertIcon from './icons/BellAlertIcon';
 import ChevronLeftIcon from './icons/ChevronLeftIcon';
 import ChevronRightIcon from './icons/ChevronRightIcon';
 import ArrowDownTrayIcon from './icons/ArrowDownTrayIcon';
+import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
+import EnvelopeIcon from './icons/EnvelopeIcon';
 
 interface LeadListProps {
   loading: boolean;
@@ -26,12 +28,13 @@ interface LeadListProps {
   onDelete: (leadId: string) => void;
   onViewDetails: (lead: Lead) => void;
   onOpenReports: () => void;
+  onOpenWhatsApp: (lead: Lead) => void;
 }
 
 type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date';
 type SortDirection = 'asc' | 'desc';
 
-const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports }) => {
+const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenWhatsApp }) => {
   const [filterAdvisor, setFilterAdvisor] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterProgram, setFilterProgram] = useState<string>('all');
@@ -275,6 +278,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                 <SortableHeader column="program_id" label="Licenciatura" />
                 <SortableHeader column="registration_date" label="Fecha Registro" />
                 <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Cita</th>
+                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
                 <th scope="col" className="relative px-6 py-3"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
@@ -316,6 +320,26 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                         <span className="text-sm text-gray-400">-</span>
                       )}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                            <button 
+                                onClick={() => onOpenWhatsApp(lead)}
+                                className="text-green-500 hover:text-green-700 transition-colors"
+                                title="Enviar WhatsApp"
+                            >
+                                <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                            </button>
+                            {lead.email && (
+                                <a 
+                                    href={`mailto:${lead.email}`}
+                                    className="text-blue-500 hover:text-blue-700 transition-colors"
+                                    title="Enviar Correo"
+                                >
+                                    <EnvelopeIcon className="w-5 h-5" />
+                                </a>
+                            )}
+                        </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       <button onClick={() => onEdit(lead)} className="text-indigo-600 hover:text-indigo-900"><EditIcon /></button>
                       <button onClick={() => onDelete(lead.id)} className="text-red-600 hover:text-red-900"><TrashIcon /></button>
@@ -325,7 +349,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
               })}
                {paginatedLeads.length === 0 && (
                 <tr>
-                    <td colSpan={7} className="text-center py-10 text-gray-500">
+                    <td colSpan={8} className="text-center py-10 text-gray-500">
                         No se encontraron leads con los criterios seleccionados.
                     </td>
                 </tr>

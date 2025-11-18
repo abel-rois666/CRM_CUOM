@@ -64,3 +64,9 @@ export interface Source {
   id: string;
   name: string;
 }
+
+export interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  content: string;
+}

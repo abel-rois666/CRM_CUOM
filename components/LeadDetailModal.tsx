@@ -26,6 +26,7 @@ interface LeadDetailModalProps {
   onSaveAppointment: (leadId: string, appointment: Omit<Appointment, 'id' | 'status' | 'lead_id'>, appointmentIdToEdit?: string) => void;
   onUpdateAppointmentStatus: (leadId: string, appointmentId: string, status: 'completed' | 'canceled') => void;
   onDeleteAppointment: (leadId: string, appointmentId: string) => void;
+  currentUser: Profile | null;
 }
 
 interface AppointmentFormModalProps {
@@ -138,7 +139,7 @@ const AppointmentFormModal: React.FC<AppointmentFormModalProps> = ({ isOpen, onC
   );
 };
 
-const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment }) => {
+const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, currentUser }) => {
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [isFollowUpModalOpen, setFollowUpModalOpen] = useState(false);
   const [isFollowUpHistoryOpen, setFollowUpHistoryOpen] = useState(true);
@@ -229,7 +230,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                 name="advisor_id"
                 value={lead.advisor_id}
                 onChange={handleDetailChange}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md"
+                disabled={currentUser?.role !== 'admin'}
+                className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md ${currentUser?.role !== 'admin' ? 'bg-gray-100 text-gray-500' : ''}`}
               >
                 {advisors.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
               </select>

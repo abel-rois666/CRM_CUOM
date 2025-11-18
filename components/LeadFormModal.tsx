@@ -13,9 +13,10 @@ interface LeadFormModalProps {
   statuses: Status[];
   sources: Source[];
   licenciaturas: Licenciatura[];
+  currentUser: Profile | null;
 }
 
-const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, leadToEdit, advisors, statuses, sources, licenciaturas }) => {
+const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, leadToEdit, advisors, statuses, sources, licenciaturas, currentUser }) => {
   const [formData, setFormData] = useState({
     first_name: '',
     paternal_last_name: '',
@@ -42,6 +43,11 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         source_id: leadToEdit.source_id,
       });
     } else {
+      // Default advisor logic: If advisor, default to self. If admin, default to first in list.
+      const defaultAdvisorId = currentUser?.role === 'advisor' 
+        ? currentUser.id 
+        : (advisors[0]?.id || '');
+
       setFormData({
         first_name: '',
         paternal_last_name: '',
@@ -50,11 +56,11 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         phone: '',
         program_id: licenciaturas[0]?.id || '',
         status_id: statuses[0]?.id || '',
-        advisor_id: advisors[0]?.id || '',
+        advisor_id: defaultAdvisorId,
         source_id: sources[0]?.id || '',
       });
     }
-  }, [leadToEdit, isOpen, advisors, statuses, sources, licenciaturas]);
+  }, [leadToEdit, isOpen, advisors, statuses, sources, licenciaturas, currentUser]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -75,6 +81,11 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
   };
   
   const formIsInvalid = !formData.first_name || !formData.paternal_last_name || !formData.phone || !formData.advisor_id || !formData.status_id || !formData.source_id || !formData.program_id;
+
+  // Filter advisors available for selection
+  const availableAdvisors = currentUser?.role === 'admin' 
+    ? advisors 
+    : advisors.filter(a => a.id === currentUser?.id);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={leadToEdit ? 'Editar Lead' : 'Añadir Nuevo Lead'}>
@@ -115,8 +126,16 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         </div>
         <div>
           <label htmlFor="advisor_id" className="block text-sm font-medium text-gray-700">Asesor Asignado</label>
-          <select name="advisor_id" id="advisor_id" value={formData.advisor_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
-            {advisors.map(advisor => <option key={advisor.id} value={advisor.id}>{advisor.full_name}</option>)}
+          <select 
+            name="advisor_id" 
+            id="advisor_id" 
+            value={formData.advisor_id} 
+            onChange={handleChange} 
+            required 
+            disabled={currentUser?.role === 'advisor'}
+            className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md ${currentUser?.role === 'advisor' ? 'bg-gray-100 text-gray-500' : ''}`}
+          >
+            {availableAdvisors.map(advisor => <option key={advisor.id} value={advisor.id}>{advisor.full_name}</option>)}
           </select>
         </div>
         <div>

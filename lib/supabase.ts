@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange } from '../types';
+import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate } from '../types';
 
 // --- ¡ACCIÓN REQUERIDA! ---
 // Pega tus credenciales de Supabase aquí.
@@ -54,6 +54,11 @@ export type Database = {
         Row: StatusChange;
         Insert: Omit<StatusChange, 'id'>;
         Update: Partial<Omit<StatusChange, 'id'>>;
+      };
+      whatsapp_templates: {
+        Row: WhatsAppTemplate;
+        Insert: Omit<WhatsAppTemplate, 'id'>;
+        Update: Partial<Omit<WhatsAppTemplate, 'id'>>;
       };
     };
     Views: {

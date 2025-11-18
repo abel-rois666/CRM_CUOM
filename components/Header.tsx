@@ -1,3 +1,4 @@
+
 import React from 'react';
 import CogIcon from './icons/CogIcon';
 import Button from './common/Button';
@@ -21,7 +22,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, userProfile, onLogout }
             <h1 className="text-2xl font-bold text-white ml-3">CUOM CRM</h1>
           </div>
           <div className="flex items-center space-x-2">
-            {userProfile?.role === 'admin' && (
+            {userProfile && (
                 <Button 
                 variant="ghost" 
                 onClick={onOpenSettings}

@@ -8,7 +8,8 @@ import LeadFormModal from './components/LeadFormModal';
 import LeadDetailModal from './components/LeadDetailModal';
 import SettingsModal from './components/SettingsModal';
 import ReportModal from './components/ReportModal';
-import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange } from './types';
+import WhatsAppModal from './components/WhatsAppModal';
+import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate } from './types';
 import LoginPage from './components/auth/LoginPage';
 import LeadListSkeleton from './components/LeadListSkeleton';
 
@@ -20,12 +21,16 @@ const AppContent: React.FC = () => {
   const [sources, setSources] = useState<Source[]>([]);
   const [licenciaturas, setLicenciaturas] = useState<Licenciatura[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
 
   const [isLeadFormOpen, setLeadFormOpen] = useState(false);
   const [isDetailViewOpen, setDetailViewOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isReportModalOpen, setReportModalOpen] = useState(false);
+  const [isWhatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+  
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLeadForWhatsApp, setSelectedLeadForWhatsApp] = useState<Lead | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
   const fetchData = async () => {
@@ -37,12 +42,14 @@ const AppContent: React.FC = () => {
         { data: statusesData, error: statusesError },
         { data: sourcesData, error: sourcesError },
         { data: licenciaturasData, error: licenciaturasError },
+        { data: templatesData, error: templatesError },
       ] = await Promise.all([
         supabase.from('leads').select('*'),
         supabase.from('profiles').select('*'),
         supabase.from('statuses').select('*'),
         supabase.from('sources').select('*'),
-        supabase.from('licenciaturas').select('*')
+        supabase.from('licenciaturas').select('*'),
+        supabase.from('whatsapp_templates').select('*')
       ]);
 
       if (leadsError) throw leadsError;
@@ -50,12 +57,14 @@ const AppContent: React.FC = () => {
       if (statusesError) throw statusesError;
       if (sourcesError) throw sourcesError;
       if (licenciaturasError) throw licenciaturasError;
+      if (templatesError) throw templatesError;
 
       setLeads(leadsData || []);
       setProfiles(profilesData || []);
       setStatuses(statusesData || []);
       setSources(sourcesData || []);
       setLicenciaturas(licenciaturasData || []);
+      setWhatsappTemplates(templatesData || []);
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -141,6 +150,7 @@ const AppContent: React.FC = () => {
           old_status_id: oldLead.status_id,
           new_status_id: lead.status_id,
           lead_id: leadIdToEdit,
+          date: new Date().toISOString()
         });
       }
 
@@ -154,12 +164,12 @@ const AppContent: React.FC = () => {
       const { data, error } = await supabase.from('leads').insert(newLeadPayload).select().single();
       if (error) { console.error('Error creating lead:', error); return; }
       
-      // FIX: Check if data is not null before accessing its properties.
       if (data) {
         await supabase.from('status_history').insert({
             old_status_id: null,
             new_status_id: lead.status_id,
             lead_id: data.id,
+            date: new Date().toISOString()
         });
 
         setLeads([...leads, data]);
@@ -175,38 +185,44 @@ const AppContent: React.FC = () => {
         return;
     }
 
-    // Prepara el payload para la función RPC, asegurando que ambos parámetros se envíen siempre.
-    const payload = {
-        lead_id_to_update: leadId,
-        new_advisor_id: updates.advisor_id || oldLead.advisor_id,
-        new_status_id: updates.status_id || oldLead.status_id,
-    };
+    const updatePayload: any = {};
+    if (updates.advisor_id !== undefined) updatePayload.advisor_id = updates.advisor_id;
+    if (updates.status_id !== undefined) updatePayload.status_id = updates.status_id;
 
-    const { data: updatedLeadData, error } = await supabase.rpc('update_lead_details', payload).single();
+    // Ensure we are using a direct update query, NOT an RPC call, to avoid object errors.
+    const { data: updatedLeadData, error } = await supabase
+        .from('leads')
+        .update(updatePayload)
+        .eq('id', leadId)
+        .select()
+        .single();
 
     if (error) {
         console.error("Error al actualizar detalles del lead:", error);
-        let alertMessage = 'Ocurrió un error al actualizar el lead. Por favor, inténtalo de nuevo.';
-        
-        if (error && typeof error.message === 'string' && error.message.includes('Could not find the function')) {
-          alertMessage = "Error de configuración: La función 'update_lead_details' no existe en la base de datos. Contacta al administrador.";
-        }
-        
-        alert(alertMessage);
+        // Safe error alerting to avoid [object Object]
+        const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+        alert(`Error al actualizar: ${errorMessage}`);
         return;
     }
     
+    if (!updatedLeadData) {
+        console.error("Error: No se recibieron datos actualizados del lead.");
+        return;
+    }
+
     // Registrar el cambio de estado si ocurrió
     if (updates.status_id && updates.status_id !== oldLead.status_id) {
-        await supabase.from('status_history').insert({
+        const { error: historyError } = await supabase.from('status_history').insert({
             old_status_id: oldLead.status_id,
             new_status_id: updates.status_id,
             lead_id: leadId,
+            date: new Date().toISOString()
         });
+        if(historyError) console.error("Error creating history", historyError);
     }
 
     // Actualizar el estado local con los datos devueltos por la función
-    const newLeads = leads.map(l => l.id === leadId ? { ...l, ...updatedLeadData } : l);
+    const newLeads = leads.map(l => l.id === leadId ? updatedLeadData : l);
     setLeads(newLeads);
 
     // Si el lead detallado es el que se actualizó, recargamos sus detalles completos
@@ -266,6 +282,11 @@ const AppContent: React.FC = () => {
       await supabase.from('appointments').delete().eq('id', appointmentId);
       await handleViewDetails(leads.find(l => l.id === leadId)!); // Refresh details
   };
+  
+  const handleOpenWhatsApp = (lead: Lead) => {
+      setSelectedLeadForWhatsApp(lead);
+      setWhatsAppModalOpen(true);
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -282,6 +303,7 @@ const AppContent: React.FC = () => {
           onDelete={handleDelete}
           onViewDetails={handleViewDetails}
           onOpenReports={() => setReportModalOpen(true)}
+          onOpenWhatsApp={handleOpenWhatsApp}
         />
       </main>
 
@@ -295,6 +317,7 @@ const AppContent: React.FC = () => {
           statuses={statuses}
           sources={sources}
           licenciaturas={licenciaturas}
+          currentUser={profile}
         />
       )}
 
@@ -313,6 +336,7 @@ const AppContent: React.FC = () => {
           onSaveAppointment={handleSaveAppointment}
           onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
           onDeleteAppointment={handleDeleteAppointment}
+          currentUser={profile}
         />
       )}
       
@@ -324,11 +348,13 @@ const AppContent: React.FC = () => {
           statuses={statuses}
           sources={sources}
           licenciaturas={licenciaturas}
+          whatsappTemplates={whatsappTemplates}
           currentUserProfile={profile}
           onProfilesUpdate={(updated) => setProfiles(updated)}
           onStatusesUpdate={(updated) => setStatuses(updated)}
           onSourcesUpdate={(updated) => setSources(updated)}
           onLicenciaturasUpdate={(updated) => setLicenciaturas(updated)}
+          onWhatsappTemplatesUpdate={(updated) => setWhatsappTemplates(updated)}
         />
       )}
 
@@ -341,6 +367,15 @@ const AppContent: React.FC = () => {
             advisors={profiles.filter(p => p.role === 'advisor')}
             sources={sources}
         />
+      )}
+
+      {isWhatsAppModalOpen && (
+          <WhatsAppModal 
+            isOpen={isWhatsAppModalOpen} 
+            onClose={() => setWhatsAppModalOpen(false)} 
+            lead={selectedLeadForWhatsApp} 
+            templates={whatsappTemplates} 
+          />
       )}
     </div>
   );
