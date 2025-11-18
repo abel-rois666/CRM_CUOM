@@ -258,6 +258,7 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     const [color, setColor] = useState(colors[0]);
     const [seeding, setSeeding] = useState(false);
     const [seedSuccess, setSeedSuccess] = useState<string | null>(null);
+    const [statusToDelete, setStatusToDelete] = useState<Status | null>(null);
 
     const recommendedStatuses = [
         { name: 'Primer Contacto (Respuesta Pendiente)', color: 'bg-yellow-500' },
@@ -322,32 +323,43 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         }
     }
     
-    const handleDelete = async (id: string) => {
-        // Verificar si hay leads asignados a este estado
+    const handleVerifyAndDelete = async (status: Status) => {
+        // 1. Verificar si hay leads asignados a este estado
         const { count, error: checkError } = await supabase
             .from('leads')
             .select('id', { count: 'exact', head: true })
-            .eq('status_id', id);
+            .eq('status_id', status.id);
 
         if (checkError) {
             console.error("Error al verificar el uso del estado:", checkError);
-            alert("Hubo un error al intentar verificar si este estado está en uso.");
-            return;
+            // Continue to attempt delete, let DB constraint handle it if check fails
         }
 
+        // 2. MENSAJE QUE IMPIDE BORRAR (Pre-check)
         if (count && count > 0) {
-            alert(`No se puede eliminar este estado porque actualmente está asignado a ${count} lead(s). Debes reasignar estos leads a otro estado antes de poder eliminarlo.`);
+            alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar el estado "${status.name}" porque actualmente está asignado a ${count} lead(s).\n\nPara eliminarlo, primero debes reasignar esos leads a otro estado.`);
             return;
         }
 
-        if (!window.confirm('¿Estás seguro de que quieres eliminar este estado?')) return;
+        // 3. Si está libre (o check falló), abrimos el modal de confirmación
+        setStatusToDelete(status);
+    }
 
-        const { error } = await supabase.from('statuses').delete().eq('id', id);
+    const handleConfirmDelete = async () => {
+        if (!statusToDelete) return;
+
+        const { error } = await supabase.from('statuses').delete().eq('id', statusToDelete.id);
         if(error) { 
-            alert('Ocurrió un error al intentar eliminar el estado.');
+             // Fallback específico para violación de llave foránea (si el pre-check falló)
+             if (error.code === '23503') {
+                alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar el estado "${statusToDelete.name}" porque hay leads asignados a él en la base de datos.\n\nPor favor, reasigna los leads antes de intentar eliminar.`);
+            } else {
+                alert(`Ocurrió un error al intentar eliminar el estado: ${error.message}`);
+            }
             console.error(error); 
         } else {
-            onStatusesUpdate(statuses.filter(s => s.id !== id));
+            onStatusesUpdate(statuses.filter(s => s.id !== statusToDelete.id));
+            setStatusToDelete(null);
         }
     }
 
@@ -382,12 +394,30 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
                                 <span className={`w-4 h-4 rounded-full ${status.color}`}></span>
                                 <span>{status.name}</span>
                             </div>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(status.id)}>
+                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(status)}>
                                 <TrashIcon className="w-4 h-4 text-red-500"/>
                             </Button>
                         </li>
                     ))}
                 </ul>
+
+                <ConfirmationModal
+                    isOpen={!!statusToDelete}
+                    onClose={() => setStatusToDelete(null)}
+                    onConfirm={handleConfirmDelete}
+                    title="¿Eliminar Estado?"
+                    message={
+                        <>
+                            Estás a punto de eliminar el estado <strong>{statusToDelete?.name}</strong>.
+                            <br /><br />
+                            <span className="text-red-600 font-semibold">Esta acción es irreversible.</span>
+                            <br />
+                            ¿Estás seguro de que deseas continuar?
+                        </>
+                    }
+                    confirmButtonText="Sí, Eliminar"
+                    confirmButtonVariant="danger"
+                />
             </div>
         </div>
     );
@@ -395,6 +425,7 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 
 const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: Source[]) => void }> = ({ sources, onSourcesUpdate }) => {
     const [name, setName] = useState('');
+    const [sourceToDelete, setSourceToDelete] = useState<Source | null>(null);
 
     const handleAdd = async () => {
         if (name.trim()) {
@@ -405,32 +436,39 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
         }
     };
     
-    const handleDelete = async (id: string) => {
+    const handleVerifyAndDelete = async (source: Source) => {
          // Verificar si hay leads con este origen
          const { count, error: checkError } = await supabase
             .from('leads')
             .select('id', { count: 'exact', head: true })
-            .eq('source_id', id);
+            .eq('source_id', source.id);
 
         if (checkError) {
             console.error("Error al verificar el uso del origen:", checkError);
-            alert("Hubo un error al intentar verificar si este origen está en uso.");
-            return;
         }
 
         if (count && count > 0) {
-            alert(`No se puede eliminar este origen porque actualmente está asignado a ${count} lead(s).`);
+            alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar el origen "${source.name}" porque actualmente está asignado a ${count} lead(s).`);
             return;
         }
 
-        if (!window.confirm('¿Estás seguro de que quieres eliminar este origen?')) return;
+        setSourceToDelete(source);
+    };
 
-        const { error } = await supabase.from('sources').delete().eq('id', id);
+    const handleConfirmDelete = async () => {
+        if (!sourceToDelete) return;
+
+        const { error } = await supabase.from('sources').delete().eq('id', sourceToDelete.id);
         if(error) { 
-            alert('Ocurrió un error al eliminar el origen.');
+            if (error.code === '23503') {
+                alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar el origen "${sourceToDelete.name}" porque está siendo utilizado por leads existentes.`);
+            } else {
+                alert(`Ocurrió un error al eliminar el origen: ${error.message}`);
+            }
             console.error(error); 
         } else {
-            onSourcesUpdate(sources.filter(s => s.id !== id));
+            onSourcesUpdate(sources.filter(s => s.id !== sourceToDelete.id));
+            setSourceToDelete(null);
         }
     };
 
@@ -449,12 +487,28 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
                     {sources.map(source => (
                         <li key={source.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
                             <span>{source.name}</span>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(source.id)}>
+                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(source)}>
                                 <TrashIcon className="w-4 h-4 text-red-500"/>
                             </Button>
                         </li>
                     ))}
                 </ul>
+
+                <ConfirmationModal
+                    isOpen={!!sourceToDelete}
+                    onClose={() => setSourceToDelete(null)}
+                    onConfirm={handleConfirmDelete}
+                    title="¿Eliminar Origen?"
+                    message={
+                        <>
+                            Vas a eliminar el origen <strong>{sourceToDelete?.name}</strong>.
+                            <br /><br />
+                            <span className="text-red-600 font-bold">Esta acción no se puede deshacer.</span>
+                        </>
+                    }
+                    confirmButtonText="Eliminar Definitivamente"
+                    confirmButtonVariant="danger"
+                />
             </div>
         </div>
     );
@@ -462,6 +516,7 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
 
 const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void }> = ({ licenciaturas, onLicenciaturasUpdate }) => {
     const [name, setName] = useState('');
+    const [licenciaturaToDelete, setLicenciaturaToDelete] = useState<Licenciatura | null>(null);
 
     const handleAdd = async () => {
         if (name.trim()) {
@@ -472,32 +527,39 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
         }
     };
     
-    const handleDelete = async (id: string) => {
+    const handleVerifyAndDelete = async (lic: Licenciatura) => {
         // Verificar si hay leads interesados en esta licenciatura
         const { count, error: checkError } = await supabase
             .from('leads')
             .select('id', { count: 'exact', head: true })
-            .eq('program_id', id);
+            .eq('program_id', lic.id);
 
         if (checkError) {
             console.error("Error al verificar el uso de la licenciatura:", checkError);
-            alert("Hubo un error al intentar verificar si esta licenciatura está en uso.");
-            return;
         }
 
         if (count && count > 0) {
-            alert(`No se puede eliminar esta licenciatura porque actualmente hay ${count} lead(s) interesados en ella.`);
+            alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar la licenciatura "${lic.name}" porque hay ${count} lead(s) interesados en ella.`);
             return;
         }
 
-        if (!window.confirm('¿Estás seguro de que quieres eliminar esta licenciatura?')) return;
+        setLicenciaturaToDelete(lic);
+    };
 
-        const { error } = await supabase.from('licenciaturas').delete().eq('id', id);
+    const handleConfirmDelete = async () => {
+        if (!licenciaturaToDelete) return;
+
+        const { error } = await supabase.from('licenciaturas').delete().eq('id', licenciaturaToDelete.id);
         if(error) { 
-            alert('Ocurrió un error al eliminar la licenciatura.');
+            if (error.code === '23503') {
+                alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar la licenciatura "${licenciaturaToDelete.name}" porque está siendo utilizada por leads existentes.`);
+            } else {
+                alert(`Ocurrió un error al eliminar la licenciatura: ${error.message}`);
+            }
             console.error(error); 
         } else {
-            onLicenciaturasUpdate(licenciaturas.filter(s => s.id !== id));
+            onLicenciaturasUpdate(licenciaturas.filter(s => s.id !== licenciaturaToDelete.id));
+            setLicenciaturaToDelete(null);
         }
     };
 
@@ -516,12 +578,28 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
                     {licenciaturas.map(lic => (
                         <li key={lic.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
                             <span>{lic.name}</span>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(lic.id)}>
+                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(lic)}>
                                 <TrashIcon className="w-4 h-4 text-red-500"/>
                             </Button>
                         </li>
                     ))}
                 </ul>
+
+                <ConfirmationModal
+                    isOpen={!!licenciaturaToDelete}
+                    onClose={() => setLicenciaturaToDelete(null)}
+                    onConfirm={handleConfirmDelete}
+                    title="¿Eliminar Licenciatura?"
+                    message={
+                        <>
+                            Se eliminará la licenciatura <strong>{licenciaturaToDelete?.name}</strong> del catálogo.
+                            <br /><br />
+                            <span className="text-red-600 font-bold">Esta acción es permanente.</span>
+                        </>
+                    }
+                    confirmButtonText="Eliminar"
+                    confirmButtonVariant="danger"
+                />
             </div>
         </div>
     );
