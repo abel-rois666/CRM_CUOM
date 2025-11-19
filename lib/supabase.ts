@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate } from '../types';
+import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate, EmailTemplate } from '../types';
 
 // --- ¡ACCIÓN REQUERIDA! ---
 // Pega tus credenciales de Supabase aquí.
@@ -60,6 +60,11 @@ export type Database = {
         Insert: Omit<WhatsAppTemplate, 'id'>;
         Update: Partial<Omit<WhatsAppTemplate, 'id'>>;
       };
+      email_templates: {
+        Row: EmailTemplate;
+        Insert: Omit<EmailTemplate, 'id'>;
+        Update: Partial<Omit<EmailTemplate, 'id'>>;
+      };
     };
     Views: {
       [_ in never]: never;
@@ -96,6 +101,13 @@ export type Database = {
           new_status_id: string;
         };
         Returns: Database['public']['Tables']['leads']['Row'];
+      };
+      transfer_lead: {
+        Args: {
+          lead_id: string;
+          new_advisor_id: string;
+        };
+        Returns: undefined;
       };
     };
   };

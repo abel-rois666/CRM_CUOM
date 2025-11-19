@@ -180,7 +180,8 @@ const AppContent: React.FC = () => {
       
       if (error) { 
         console.error('Error updating lead:', error); 
-        toastError("Error al actualizar el lead.");
+        const msg = getErrorMessage(error);
+        toastError(`Error al actualizar el lead: ${msg}`);
         return; 
       }
 
@@ -204,8 +205,9 @@ const AppContent: React.FC = () => {
       };
       const { data, error } = await supabase.from('leads').insert(newLeadPayload).select('*, appointments(*), follow_ups(*), status_history(*)').single();
       if (error) { 
-        console.error('Error creating lead:', error); 
-        toastError("Error al crear el lead.");
+        console.error('Error creating lead:', error);
+        const msg = getErrorMessage(error);
+        toastError(`Error al crear el lead: ${msg}`);
         return; 
       }
       
@@ -271,6 +273,76 @@ const AppContent: React.FC = () => {
     if (selectedLead?.id === leadId) {
         // No need to re-fetch if we already got the full object back from update
         setSelectedLead(updatedLeadData);
+    }
+  };
+
+  const handleTransferLead = async (leadId: string, newAdvisorId: string, reason: string) => {
+    const oldLead = leads.find(l => l.id === leadId);
+    if (!oldLead) return;
+
+    const oldAdvisorName = profiles.find(p => p.id === oldLead.advisor_id)?.full_name || 'Desconocido';
+    const newAdvisorName = profiles.find(p => p.id === newAdvisorId)?.full_name || 'Desconocido';
+
+    const transferNote = `🔄 TRANSICIÓN DE ASESOR\nDe: ${oldAdvisorName}\nA: ${newAdvisorName}\nMotivo: ${reason}`;
+
+    // 1. STEP 1 (CRITICAL FIX): Insert Follow up log BEFORE transferring ownership.
+    // If we transfer first, the current advisor loses "write" permission to this lead (RLS),
+    // and the log insertion would fail or be blocked.
+    const { data: followUpData, error: logError } = await supabase
+      .from('follow_ups')
+      .insert({
+        lead_id: leadId,
+        date: new Date().toISOString(),
+        notes: transferNote
+      })
+      .select()
+      .single();
+
+    if (logError) {
+      console.error("Error logging transfer:", logError);
+      const msg = getErrorMessage(logError);
+      toastError(`Error al guardar el historial de transferencia: ${msg}`);
+      // We stop here to ensure we don't transfer without a log
+      return; 
+    }
+
+    // 2. STEP 2: Update advisor via RPC to bypass RLS restrictions on reassignment
+    const { error: updateError } = await supabase.rpc('transfer_lead', {
+        lead_id: leadId,
+        new_advisor_id: newAdvisorId
+    });
+
+    if (updateError) {
+      const errorMessage = getErrorMessage(updateError);
+      console.error("Error transferring lead:", errorMessage);
+      toastError(`Error al transferir el lead: ${errorMessage}.`);
+      
+      // Optional: We could try to delete the log created in Step 1 if Step 2 fails, 
+      // but leaving it is safer (audit trail of attempted transfer).
+      return;
+    }
+
+    // 3. Update local state
+    const updatedLeadLocal = {
+       ...oldLead,
+       advisor_id: newAdvisorId,
+       follow_ups: followUpData ? [...(oldLead.follow_ups || []), followUpData] : oldLead.follow_ups
+    };
+
+    setLeads(leads.map(l => l.id === leadId ? updatedLeadLocal : l));
+    
+    if (selectedLead?.id === leadId) {
+       setSelectedLead(updatedLeadLocal);
+    }
+
+    success("Lead transferido exitosamente.");
+    
+    // If I am the advisor who transferred it, I might lose visibility.
+    // Close the modal if I no longer have access (basic check)
+    if (profile?.role === 'advisor' && profile.id !== newAdvisorId) {
+        setDetailViewOpen(false);
+        // Also remove from local list since I can't see it anymore
+        setLeads(leads.filter(l => l.id !== leadId));
     }
   };
 
@@ -511,6 +583,7 @@ const AppContent: React.FC = () => {
           onSaveAppointment={handleSaveAppointment}
           onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
           onDeleteAppointment={handleDeleteAppointment}
+          onTransferLead={handleTransferLead}
           currentUser={profile}
         />
       )}

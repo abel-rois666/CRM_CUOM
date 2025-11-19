@@ -11,6 +11,8 @@ import ChevronDownIcon from './icons/ChevronDownIcon';
 import ConfirmationModal from './common/ConfirmationModal';
 import ArrowPathIcon from './icons/ArrowPathIcon';
 import BellAlertIcon from './icons/BellAlertIcon';
+import TransferIcon from './icons/TransferIcon';
+import TransferLeadModal from './TransferLeadModal';
 
 interface LeadDetailModalProps {
   isOpen: boolean;
@@ -26,6 +28,7 @@ interface LeadDetailModalProps {
   onSaveAppointment: (leadId: string, appointment: Omit<Appointment, 'id' | 'status' | 'lead_id'>, appointmentIdToEdit?: string) => void;
   onUpdateAppointmentStatus: (leadId: string, appointmentId: string, status: 'completed' | 'canceled') => void;
   onDeleteAppointment: (leadId: string, appointmentId: string) => void;
+  onTransferLead: (leadId: string, newAdvisorId: string, reason: string) => void;
   currentUser: Profile | null;
 }
 
@@ -64,8 +67,6 @@ const AppointmentFormModal: React.FC<AppointmentFormModalProps> = ({ isOpen, onC
     onClose();
   };
   
-  // Removed handleDelete function usage as the button is being removed
-
   const createGoogleCalendarLink = () => {
     const { title, date, time, duration, details } = formData;
     const startTime = new Date(`${date}T${time}`);
@@ -127,9 +128,10 @@ const AppointmentFormModal: React.FC<AppointmentFormModalProps> = ({ isOpen, onC
   );
 };
 
-const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, currentUser }) => {
+const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser }) => {
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [isFollowUpModalOpen, setFollowUpModalOpen] = useState(false);
+  const [isTransferModalOpen, setTransferModalOpen] = useState(false);
   const [isFollowUpHistoryOpen, setFollowUpHistoryOpen] = useState(true);
   const [isAppointmentHistoryOpen, setAppointmentHistoryOpen] = useState(false);
   const [isStatusHistoryOpen, setStatusHistoryOpen] = useState(false);
@@ -213,16 +215,27 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
             </div>
             <div>
               <label htmlFor="advisor_id" className="text-sm font-medium text-gray-500">Asesor</label>
-              <select
-                id="advisor_id"
-                name="advisor_id"
-                value={lead.advisor_id}
-                onChange={handleDetailChange}
-                disabled={currentUser?.role !== 'admin'}
-                className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md ${currentUser?.role !== 'admin' ? 'bg-gray-100 text-gray-500' : ''}`}
-              >
-                {advisors.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
-              </select>
+              <div className="flex gap-2 items-center mt-1">
+                <select
+                    id="advisor_id"
+                    name="advisor_id"
+                    value={lead.advisor_id}
+                    onChange={handleDetailChange}
+                    disabled={currentUser?.role !== 'admin'}
+                    className={`block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md ${currentUser?.role !== 'admin' ? 'bg-gray-100 text-gray-500' : ''}`}
+                >
+                    {advisors.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                </select>
+                <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={() => setTransferModalOpen(true)}
+                    className="p-2"
+                    title="Transferir Lead a otro Asesor"
+                >
+                    <TransferIcon className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
             <div>
               <label htmlFor="status_id" className="text-sm font-medium text-gray-500">Estado</label>
@@ -317,17 +330,22 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
             {isFollowUpHistoryOpen && (
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-2 border-t pt-4 mt-2">
                 {(lead.follow_ups || []).length > 0 ? (
-                    [...(lead.follow_ups || [])].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(followUp => (
-                    <div key={followUp.id} className="bg-gray-50 p-3 rounded-md border border-gray-200">
-                        <div className="flex justify-between items-center mb-1">
-                            <p className="text-xs font-semibold text-brand-secondary">{new Date(followUp.date).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}</p>
-                            <Button variant="ghost" size="sm" onClick={() => onDeleteFollowUp(lead.id, followUp.id)}>
-                                <TrashIcon className="w-4 h-4 text-gray-400 hover:text-red-500"/>
-                            </Button>
+                    [...(lead.follow_ups || [])].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(followUp => {
+                      const isTransferLog = followUp.notes.includes('TRANSICIÓN DE ASESOR') || followUp.notes.includes('🔄');
+                      return (
+                        <div key={followUp.id} className={`p-3 rounded-md border ${isTransferLog ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className="flex justify-between items-center mb-1">
+                                <p className={`text-xs font-semibold ${isTransferLog ? 'text-blue-600' : 'text-brand-secondary'}`}>
+                                  {isTransferLog && <span className="mr-1">🔄</span>}
+                                  {new Date(followUp.date).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}
+                                </p>
+                                <Button variant="ghost" size="sm" onClick={() => onDeleteFollowUp(lead.id, followUp.id)}>
+                                    <TrashIcon className="w-4 h-4 text-gray-400 hover:text-red-500"/>
+                                </Button>
+                            </div>
+                            <p className={`text-sm whitespace-pre-wrap ${isTransferLog ? 'text-blue-900 font-medium' : 'text-gray-800'}`}>{followUp.notes}</p>
                         </div>
-                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{followUp.notes}</p>
-                    </div>
-                    ))
+                    )})
                 ) : (
                     <p className="text-sm text-gray-500 text-center py-4">No hay seguimientos registrados.</p>
                 )}
@@ -407,6 +425,15 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
             onClose={() => setFollowUpModalOpen(false)} 
             onSave={handleSaveFollowUp}
           />
+      )}
+      {isTransferModalOpen && (
+        <TransferLeadModal 
+          isOpen={isTransferModalOpen}
+          onClose={() => setTransferModalOpen(false)}
+          onTransfer={(newAdvisorId, reason) => onTransferLead(lead.id, newAdvisorId, reason)}
+          advisors={advisors}
+          currentAdvisorId={lead.advisor_id}
+        />
       )}
     </>
   );
