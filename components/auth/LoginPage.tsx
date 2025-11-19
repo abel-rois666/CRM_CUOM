@@ -14,13 +14,19 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
       setError(error.message);
+    } else if (data.user) {
+      // Record login history
+      await supabase.from('login_history').insert({
+        user_id: data.user.id,
+        user_agent: navigator.userAgent,
+      });
     }
     
     setLoading(false);

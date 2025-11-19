@@ -77,3 +77,10 @@ export interface EmailTemplate {
   subject: string;
   body: string;
 }
+
+export interface LoginHistory {
+  id: string;
+  user_id: string;
+  login_at: string;
+  user_agent: string | null;
+}

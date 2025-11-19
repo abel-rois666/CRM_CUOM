@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate, EmailTemplate } from '../types';
+import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate, EmailTemplate, LoginHistory } from '../types';
 
 // --- ¡ACCIÓN REQUERIDA! ---
 // Pega tus credenciales de Supabase aquí.
@@ -65,6 +65,11 @@ export type Database = {
         Insert: Omit<EmailTemplate, 'id'>;
         Update: Partial<Omit<EmailTemplate, 'id'>>;
       };
+      login_history: {
+        Row: LoginHistory;
+        Insert: Omit<LoginHistory, 'id' | 'login_at'>;
+        Update: Partial<Omit<LoginHistory, 'id' | 'login_at'>>;
+      }
     };
     Views: {
       [_ in never]: never;

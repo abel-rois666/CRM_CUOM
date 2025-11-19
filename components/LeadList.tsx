@@ -302,6 +302,8 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
       {/* Dashboard Summary */}
       <DashboardStats 
         leads={leads.filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)} 
+        statuses={statuses}
+        advisors={advisors}
         activeFilter={quickFilter} 
         onFilterChange={setQuickFilter} 
       />
