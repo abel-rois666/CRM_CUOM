@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate } from '../types';
+import { Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, StatusCategory } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import PlusIcon from './icons/PlusIcon';
@@ -249,28 +249,30 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses: Status[]) => void }> = ({ statuses, onStatusesUpdate }) => {
     const [name, setName] = useState('');
     const [color, setColor] = useState(colors[0]);
+    const [category, setCategory] = useState<StatusCategory>('active');
     const [seeding, setSeeding] = useState(false);
     const [statusToDelete, setStatusToDelete] = useState<Status | null>(null);
+    const [statusToEdit, setStatusToEdit] = useState<Status | null>(null);
     
     const { success, error: toastError } = useToast();
 
-    const recommendedStatuses = [
-        { name: 'Primer Contacto (Respuesta Pendiente)', color: 'bg-yellow-500' },
-        { name: 'En Seguimiento', color: 'bg-sky-500' },
-        { name: 'Cita en Negociación', color: 'bg-cyan-500' },
-        { name: 'Con Cita', color: 'bg-blue-500' },
-        { name: 'Siguiente ciclo', color: 'bg-violet-500' },
-        { name: 'Sin Respuesta (No hay interacción por parte del prospecto)', color: 'bg-orange-500' },
-        { name: 'Sin Interés', color: 'bg-red-500' },
-        { name: 'Fase de Cierre/Solo Solicitud', color: 'bg-lime-500' },
-        { name: 'Fase de Cierre/Solo Pago Parcial', color: 'bg-lime-500' },
-        { name: 'Fase de Cierre/Solicitud y Documentos', color: 'bg-lime-500' },
-        { name: 'Fase de Cierre/Solicitud y Pago Parcial', color: 'bg-emerald-500' },
-        { name: 'Fase de Cierre/Solicitud, Pago Parcial y Documentos', color: 'bg-emerald-500' },
-        { name: 'Inscrito (a)', color: 'bg-green-500' },
-        { name: 'Número Equivocado/Inexistente', color: 'bg-stone-500' },
-        { name: 'Contactar después', color: 'bg-purple-500' },
-        { name: 'Sin Contactar', color: 'bg-gray-500' },
+    const recommendedStatuses: {name: string, color: string, category: StatusCategory}[] = [
+        { name: 'Primer Contacto (Respuesta Pendiente)', color: 'bg-yellow-500', category: 'active' },
+        { name: 'En Seguimiento', color: 'bg-sky-500', category: 'active' },
+        { name: 'Cita en Negociación', color: 'bg-cyan-500', category: 'active' },
+        { name: 'Con Cita', color: 'bg-blue-500', category: 'active' },
+        { name: 'Siguiente ciclo', color: 'bg-violet-500', category: 'active' },
+        { name: 'Sin Respuesta (No hay interacción)', color: 'bg-orange-500', category: 'active' },
+        { name: 'Sin Interés', color: 'bg-red-500', category: 'lost' },
+        { name: 'Fase de Cierre/Solo Solicitud', color: 'bg-lime-500', category: 'active' },
+        { name: 'Fase de Cierre/Solo Pago Parcial', color: 'bg-lime-500', category: 'active' },
+        { name: 'Fase de Cierre/Solicitud y Documentos', color: 'bg-lime-500', category: 'active' },
+        { name: 'Fase de Cierre/Solicitud y Pago Parcial', color: 'bg-emerald-500', category: 'active' },
+        { name: 'Fase de Cierre/Solicitud, Pago Parcial y Documentos', color: 'bg-emerald-500', category: 'active' },
+        { name: 'Inscrito (a)', color: 'bg-green-500', category: 'won' },
+        { name: 'Número Equivocado/Inexistente', color: 'bg-stone-500', category: 'lost' },
+        { name: 'Contactar después', color: 'bg-purple-500', category: 'active' },
+        { name: 'Sin Contactar', color: 'bg-gray-500', category: 'active' },
     ];
 
     const handleSeedStatuses = async () => {
@@ -304,9 +306,21 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         setSeeding(false);
     };
 
-    const handleAdd = async () => {
-        if(name.trim()) {
-            const { data, error } = await supabase.from('statuses').insert({ name: name.trim(), color }).select().single();
+    const handleSave = async () => {
+        if(!name.trim()) return;
+
+        if (statusToEdit) {
+             const { data, error } = await supabase.from('statuses').update({ name: name.trim(), color, category }).eq('id', statusToEdit.id).select().single();
+            if(error) { 
+                console.error(error); 
+                toastError("Error al actualizar estado");
+                return; 
+            }
+            onStatusesUpdate(statuses.map(s => s.id === statusToEdit.id ? data : s));
+            success("Estado actualizado");
+            setStatusToEdit(null);
+        } else {
+            const { data, error } = await supabase.from('statuses').insert({ name: name.trim(), color, category }).select().single();
             if(error) { 
                 console.error(error); 
                 toastError("Error al crear estado");
@@ -314,9 +328,17 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
             }
             onStatusesUpdate([...statuses, data]);
             success("Estado creado");
-            setName('');
         }
+        setName('');
+        setCategory('active');
     }
+    
+    const handleEditClick = (status: Status) => {
+        setStatusToEdit(status);
+        setName(status.name);
+        setColor(status.color);
+        setCategory(status.category || 'active'); // Default to active if null
+    };
     
     const handleVerifyAndDelete = async (status: Status) => {
         const { count, error: checkError } = await supabase
@@ -354,61 +376,102 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         }
     }
 
+    const getCategoryLabel = (cat: StatusCategory) => {
+        switch(cat) {
+            case 'won': return 'Inscritos (Ganados)';
+            case 'lost': return 'Bajas (Perdidos)';
+            default: return 'En Proceso (Activos)';
+        }
+    };
+
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Estados</h3>
 
-            <div className="p-4 border rounded-lg bg-gray-50/70">
-                <h4 className="font-semibold text-gray-700">Estados Predefinidos</h4>
-                <p className="text-sm text-gray-600 mt-1 mb-3">Carga una lista de estados recomendados para empezar a organizar tus leads rápidamente.</p>
-                <Button onClick={handleSeedStatuses} disabled={seeding} variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
-                    {seeding ? 'Cargando...' : 'Cargar Estados Recomendados'}
-                </Button>
-            </div>
-
-            <div className="space-y-4">
-                <h4 className="font-semibold text-gray-700">Añadir Nuevo Estado</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nombre del Estado" className="w-full px-3 py-2 border border-gray-300 rounded-md" />
-                    <select value={color} onChange={e => setColor(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                        {colors.map(c => <option key={c} value={c}>{c.replace('bg-', '').replace('-500', '')}</option>)}
-                    </select>
-                    <Button onClick={handleAdd} size="sm" leftIcon={<PlusIcon className="w-4 h-4"/>}>Añadir Estado</Button>
+            {!statusToEdit && (
+                <div className="p-4 border rounded-lg bg-gray-50/70 mb-4">
+                    <h4 className="font-semibold text-gray-700">Estados Predefinidos</h4>
+                    <p className="text-sm text-gray-600 mt-1 mb-3">Carga una lista de estados recomendados para empezar a organizar tus leads rápidamente.</p>
+                    <Button onClick={handleSeedStatuses} disabled={seeding} variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
+                        {seeding ? 'Cargando...' : 'Cargar Estados Recomendados'}
+                    </Button>
                 </div>
-                <hr className="my-4"/>
-                <h4 className="font-semibold text-gray-700">Estados Actuales</h4>
-                <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                    {statuses.map(status => (
-                        <li key={status.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
-                            <div className="flex items-center gap-2">
-                                <span className={`w-4 h-4 rounded-full ${status.color}`}></span>
-                                <span>{status.name}</span>
+            )}
+
+            <div className="space-y-4 border rounded-lg p-4 bg-white shadow-sm">
+                <h4 className="font-semibold text-gray-700">{statusToEdit ? 'Editar Estado' : 'Añadir Nuevo Estado'}</h4>
+                <div className="grid grid-cols-1 gap-3">
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Nombre</label>
+                        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Interesado" className="w-full px-3 py-2 border border-gray-300 rounded-md" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Color</label>
+                            <select value={color} onChange={e => setColor(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md">
+                                {colors.map(c => <option key={c} value={c}>{c.replace('bg-', '').replace('-500', '')}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                             <label className="block text-xs font-medium text-gray-500 mb-1">Categoría (Vista)</label>
+                             <select value={category} onChange={e => setCategory(e.target.value as StatusCategory)} className="w-full px-3 py-2 border border-gray-300 rounded-md">
+                                <option value="active">En Proceso (Activos)</option>
+                                <option value="won">Inscritos (Ganados)</option>
+                                <option value="lost">Bajas (Perdidos)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        {statusToEdit && (
+                            <Button variant="ghost" onClick={() => { setStatusToEdit(null); setName(''); setCategory('active'); }}>Cancelar</Button>
+                        )}
+                        <Button onClick={handleSave} leftIcon={!statusToEdit ? <PlusIcon className="w-4 h-4"/> : undefined}>
+                            {statusToEdit ? 'Actualizar' : 'Añadir Estado'}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+                
+            <h4 className="font-semibold text-gray-700 mt-6">Estados Actuales</h4>
+            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                {statuses.map(status => (
+                    <li key={status.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
+                        <div className="flex items-center gap-2">
+                            <span className={`w-4 h-4 rounded-full ${status.color}`}></span>
+                            <div>
+                                <span className="font-medium block">{status.name}</span>
+                                <span className="text-xs text-gray-500">{getCategoryLabel(status.category || 'active')}</span>
                             </div>
+                        </div>
+                        <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(status)}>
+                                <EditIcon className="w-4 h-4 text-blue-500"/>
+                            </Button>
                             <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(status)}>
                                 <TrashIcon className="w-4 h-4 text-red-500"/>
                             </Button>
-                        </li>
-                    ))}
-                </ul>
+                        </div>
+                    </li>
+                ))}
+            </ul>
 
-                <ConfirmationModal
-                    isOpen={!!statusToDelete}
-                    onClose={() => setStatusToDelete(null)}
-                    onConfirm={handleConfirmDelete}
-                    title="¿Eliminar Estado?"
-                    message={
-                        <>
-                            Estás a punto de eliminar el estado <strong>{statusToDelete?.name}</strong>.
-                            <br /><br />
-                            <span className="text-red-600 font-semibold">Esta acción es irreversible.</span>
-                            <br />
-                            ¿Estás seguro de que deseas continuar?
-                        </>
-                    }
-                    confirmButtonText="Sí, Eliminar"
-                    confirmButtonVariant="danger"
-                />
-            </div>
+            <ConfirmationModal
+                isOpen={!!statusToDelete}
+                onClose={() => setStatusToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="¿Eliminar Estado?"
+                message={
+                    <>
+                        Estás a punto de eliminar el estado <strong>{statusToDelete?.name}</strong>.
+                        <br /><br />
+                        <span className="text-red-600 font-semibold">Esta acción es irreversible.</span>
+                        <br />
+                        ¿Estás seguro de que deseas continuar?
+                    </>
+                }
+                confirmButtonText="Sí, Eliminar"
+                confirmButtonVariant="danger"
+            />
         </div>
     );
 };
@@ -941,6 +1004,72 @@ const EmailTemplateSettings: React.FC<{
     );
 };
 
+const LoginHistorySettings: React.FC = () => {
+    const [history, setHistory] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { error: toastError } = useToast();
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('login_history')
+                .select('*, profiles:user_id(full_name, email)')
+                .order('login_at', { ascending: false })
+                .limit(50);
+
+            if (error) {
+                const msg = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+                console.error("Error fetching login history:", error);
+                toastError(`Error cargando historial: ${msg}`);
+            } else {
+                setHistory(data || []);
+            }
+            setLoading(false);
+        };
+        fetchHistory();
+    }, []);
+
+    return (
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Historial de Accesos</h3>
+            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                <table className="min-w-full divide-y divide-gray-300">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Usuario</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Fecha y Hora</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Dispositivo / Navegador</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                        {loading ? (
+                             <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500">Cargando historial...</td></tr>
+                        ) : history.length === 0 ? (
+                            <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500">No hay registros.</td></tr>
+                        ) : (
+                            history.map((record) => (
+                                <tr key={record.id}>
+                                    <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm">
+                                        <div className="font-medium text-gray-900">{record.profiles?.full_name || 'Desconocido'}</div>
+                                        <div className="text-gray-500">{record.profiles?.email}</div>
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                        {new Date(record.login_at).toLocaleString()}
+                                    </td>
+                                    <td className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate" title={record.user_agent}>
+                                        {record.user_agent}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {
   const [activeTab, setActiveTab] = useState<string>('');
 
@@ -951,6 +1080,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     { id: 'licenciaturas', label: 'Licenciaturas', icon: <AcademicCapIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
     { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor'] },
     { id: 'email', label: 'Plantillas Email', icon: <EnvelopeIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor'] },
+    { id: 'audit', label: 'Historial de Accesos', icon: <ArrowUpTrayIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
   ], []);
 
   const visibleTabs = useMemo(() => {
@@ -995,6 +1125,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
           {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}
           {activeTab === 'whatsapp' && <WhatsappTemplateSettings templates={props.whatsappTemplates} onTemplatesUpdate={props.onWhatsappTemplatesUpdate} userProfile={props.currentUserProfile} />}
           {activeTab === 'email' && <EmailTemplateSettings templates={props.emailTemplates} onTemplatesUpdate={props.onEmailTemplatesUpdate} userProfile={props.currentUserProfile} />}
+          {activeTab === 'audit' && <LoginHistorySettings />}
         </div>
       </div>
     </Modal>

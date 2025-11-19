@@ -54,10 +54,13 @@ export interface Profile {
   role: 'admin' | 'advisor';
 }
 
+export type StatusCategory = 'active' | 'won' | 'lost';
+
 export interface Status {
   id: string;
   name: string;
   color: string; // e.g., 'bg-blue-500'
+  category: StatusCategory;
 }
 
 export interface Source {

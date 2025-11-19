@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Lead, Profile, Status, Licenciatura } from '../types';
+import { Lead, Profile, Status, Licenciatura, StatusCategory } from '../types';
 import Button from './common/Button';
 import EditIcon from './icons/EditIcon';
 import TrashIcon from './icons/TrashIcon';
@@ -49,6 +49,7 @@ type ViewMode = 'list' | 'kanban';
 const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenImport, onOpenWhatsApp, onUpdateLead }) => {
   // UI States
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
@@ -69,7 +70,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
-  const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color }])), [statuses]);
+  const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color, category: s.category || 'active' }])), [statuses]);
   const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
 
   const activeFilterCount = useMemo(() => {
@@ -96,7 +97,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, searchTerm, itemsPerPage, quickFilter]);
+  }, [filters, searchTerm, itemsPerPage, quickFilter, activeCategoryTab]);
 
   const filteredAndSortedLeads = useMemo(() => {
     const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : null;
@@ -114,6 +115,14 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
     const searchTerms = searchTerm.toLowerCase().split(/\s+/).filter(t => t.length > 0);
 
     const filtered = leads
+      // 0. Category Filter (The big tabs)
+      .filter(lead => {
+          const status = statusMap.get(lead.status_id);
+          // If status is missing (rare), default to 'active'
+          const category = status ? status.category : 'active';
+          return category === activeCategoryTab;
+      })
+
       // 1. Strict Dropdown Filters
       .filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)
       .filter(lead => filters.statusId === 'all' || lead.status_id === filters.statusId)
@@ -208,7 +217,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
       return 0;
     });
 
-  }, [leads, filters, searchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter]);
+  }, [leads, filters, searchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter, activeCategoryTab]);
   
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage);
@@ -292,6 +301,12 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
       onUpdateLead(leadId, { status_id: newStatusId });
   };
 
+  // Filter statuses passed to Kanban to only show columns relevant to current view
+  const relevantStatuses = useMemo(() => {
+    return statuses.filter(s => (s.category || 'active') === activeCategoryTab);
+  }, [statuses, activeCategoryTab]);
+
+
   if (loading) {
     return <LeadListSkeleton viewMode={viewMode} />;
   }
@@ -299,7 +314,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
-      {/* Dashboard Summary */}
+      {/* Dashboard Summary - Only show in Active tab for relevance, or all? Let's keep it top level */}
       <DashboardStats 
         leads={leads.filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)} 
         statuses={statuses}
@@ -333,6 +348,46 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                 <Button onClick={onAddNew} leftIcon={<PlusIcon />}>Nuevo Lead</Button>
             </div>
           </div>
+
+          {/* MAIN CATEGORY TABS */}
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              <button
+                onClick={() => setActiveCategoryTab('active')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${activeCategoryTab === 'active'
+                    ? 'border-brand-secondary text-brand-secondary'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                `}
+              >
+                En Proceso (Activos)
+              </button>
+              <button
+                onClick={() => setActiveCategoryTab('won')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${activeCategoryTab === 'won'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                `}
+              >
+                Inscritos (Ganados)
+              </button>
+              <button
+                onClick={() => setActiveCategoryTab('lost')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${activeCategoryTab === 'lost'
+                    ? 'border-red-500 text-red-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                `}
+              >
+                Bajas / Archivo (Perdidos)
+              </button>
+            </nav>
+          </div>
+
 
           {/* Main Toolbar: Search + Filters + View Toggle */}
           <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-3 items-center">
@@ -425,7 +480,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
       )}
       
       {/* Conditional Rendering based on viewMode with Animation */}
-      <div key={viewMode} className="animate-fade-in">
+      <div key={`${viewMode}-${activeCategoryTab}`} className="animate-fade-in">
         {viewMode === 'list' ? (
           <div className="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
               <div className="overflow-x-auto">
@@ -511,8 +566,8 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                       <tr>
                           <td colSpan={8} className="text-center py-16 text-gray-500">
                               <MagnifyingGlassIcon className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                              <p className="text-lg font-medium text-gray-900">No se encontraron resultados</p>
-                              <p className="text-sm text-gray-500">Intenta ajustar tus términos de búsqueda o filtros.</p>
+                              <p className="text-lg font-medium text-gray-900">No se encontraron leads en esta vista</p>
+                              <p className="text-sm text-gray-500">Prueba cambiar de pestaña o limpiar filtros.</p>
                               <Button 
                                   variant="ghost" 
                                   className="mt-4 text-brand-secondary" 
@@ -521,7 +576,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                                       setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' });
                                   }}
                               >
-                                  Limpiar búsqueda
+                                  Limpiar filtros
                               </Button>
                           </td>
                       </tr>
@@ -534,7 +589,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
           /* Kanban View */
           <KanbanBoard 
               leads={paginatedLeads} 
-              statuses={statuses} 
+              statuses={relevantStatuses} 
               advisors={advisors}
               licenciaturas={licenciaturas}
               onEdit={onEdit}
