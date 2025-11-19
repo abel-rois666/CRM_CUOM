@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Lead, Profile, Status, Licenciatura } from '../types';
 import Button from './common/Button';
 import EditIcon from './icons/EditIcon';
@@ -24,35 +24,13 @@ import XIcon from './icons/XIcon';
 import FilterDrawer, { FilterState } from './FilterDrawer';
 import FunnelIcon from './icons/FunnelIcon';
 import MagnifyingGlassIcon from './icons/MagnifyingGlassIcon';
-import { DashboardStatsData } from '../hooks/useLeads';
 
 interface LeadListProps {
   loading: boolean;
   leads: Lead[];
-  totalCount: number;
   advisors: Profile[];
   statuses: Status[];
   licenciaturas: Licenciatura[];
-  dashboardStats?: DashboardStatsData;
-  dashboardLoading: boolean;
-  
-  // State & Handlers for Server Side Logic
-  currentPage: number;
-  itemsPerPage: number;
-  searchTerm: string;
-  filters: FilterState;
-  sortColumn: string;
-  sortDirection: 'asc' | 'desc';
-  quickFilter: QuickFilterType;
-
-  onPageChange: (page: number) => void;
-  onItemsPerPageChange: (count: number) => void;
-  onSearchChange: (term: string) => void;
-  onFiltersChange: (filters: FilterState) => void;
-  onSortChange: (column: string) => void;
-  onQuickFilterChange: (filter: QuickFilterType) => void;
-
-  // Actions
   onAddNew: () => void;
   onEdit: (lead: Lead) => void;
   onDelete: (leadId: string) => void;
@@ -62,18 +40,32 @@ interface LeadListProps {
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
 }
 
+type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date';
+type SortDirection = 'asc' | 'desc';
 type ViewMode = 'list' | 'kanban';
 
-const LeadList: React.FC<LeadListProps> = ({ 
-    loading, leads, totalCount, advisors, statuses, licenciaturas, dashboardStats, dashboardLoading,
-    currentPage, itemsPerPage, searchTerm, filters, sortColumn, sortDirection, quickFilter,
-    onPageChange, onItemsPerPageChange, onSearchChange, onFiltersChange, onSortChange, onQuickFilterChange,
-    onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenWhatsApp, onUpdateLead 
-}) => {
-  
+const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenWhatsApp, onUpdateLead }) => {
+  // UI States
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
   
+  // Filter State (Moved to object for Drawer)
+  const [filters, setFilters] = useState<FilterState>({
+    advisorId: 'all',
+    statusId: 'all',
+    programId: 'all',
+    startDate: '',
+    endDate: ''
+  });
+
+  // Sorting & Pagination
+  const [sortColumn, setSortColumn] = useState<SortableColumn>('registration_date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color }])), [statuses]);
   const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
@@ -100,7 +92,142 @@ const LeadList: React.FC<LeadListProps> = ({
     return appointmentDate > now && appointmentDate <= fortyEightHoursFromNow;
   };
   
-  const totalPages = Math.ceil(totalCount / itemsPerPage);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, searchTerm, itemsPerPage, quickFilter]);
+
+  const filteredAndSortedLeads = useMemo(() => {
+    const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : null;
+    const end = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : null;
+    
+    // Quick Filter Logic Dates
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    // Fuzzy Search / Global Search Terms
+    const searchTerms = searchTerm.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+
+    const filtered = leads
+      // 1. Strict Dropdown Filters
+      .filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)
+      .filter(lead => filters.statusId === 'all' || lead.status_id === filters.statusId)
+      .filter(lead => filters.programId === 'all' || lead.program_id === filters.programId)
+      
+      // 2. Date Range Filter
+      .filter(lead => {
+        if (!start && !end) return true;
+        const regDate = new Date(lead.registration_date);
+        if (start && regDate < start) return false;
+        if (end && regDate > end) return false;
+        return true;
+      })
+
+      // 3. Global "Fuzzy" Search
+      .filter(lead => {
+          if (searchTerms.length === 0) return true;
+          
+          const leadFullName = `${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.toLowerCase();
+          const leadEmail = (lead.email || '').toLowerCase();
+          const leadPhone = lead.phone.toLowerCase();
+          const leadProgram = (licenciaturaMap.get(lead.program_id) || '').toLowerCase();
+          const leadStatus = (statusMap.get(lead.status_id)?.name || '').toLowerCase();
+          const leadAdvisor = (advisorMap.get(lead.advisor_id) || '').toLowerCase();
+
+          // Combine all searchable text into one "document"
+          const searchableText = `${leadFullName} ${leadEmail} ${leadPhone} ${leadProgram} ${leadStatus} ${leadAdvisor}`;
+
+          // Check if EVERY term in the search query exists somewhere in the lead's data
+          return searchTerms.every(term => searchableText.includes(term));
+      })
+
+      // 4. Dashboard Quick Filters
+      .filter(lead => {
+        if (!quickFilter) return true;
+
+        if (quickFilter === 'appointments_today') {
+            return lead.appointments?.some(appt => {
+                const apptDate = new Date(appt.date);
+                apptDate.setHours(0,0,0,0);
+                return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
+            });
+        }
+
+        if (quickFilter === 'no_followup') {
+             const regDate = new Date(lead.registration_date);
+             const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
+             return hasNoFollowUps && regDate < threeDaysAgo;
+        }
+
+        if (quickFilter === 'stale_followup') {
+            if (!lead.follow_ups || lead.follow_ups.length === 0) return false;
+            const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+            const lastDate = new Date(lastFollowUp.date);
+            return lastDate < sevenDaysAgo;
+        }
+        return true;
+      });
+
+    // Sorting
+    return filtered.sort((a, b) => {
+      let valA: string | number;
+      let valB: string | number;
+
+      switch (sortColumn) {
+        case 'name':
+          valA = `${a.first_name} ${a.paternal_last_name}`.toLowerCase();
+          valB = `${b.first_name} ${b.paternal_last_name}`.toLowerCase();
+          break;
+        case 'advisor_id':
+          valA = advisorMap.get(a.advisor_id)?.toLowerCase() || '';
+          valB = advisorMap.get(b.advisor_id)?.toLowerCase() || '';
+          break;
+        case 'status_id':
+          valA = statusMap.get(a.status_id)?.name.toLowerCase() || '';
+          valB = statusMap.get(b.status_id)?.name.toLowerCase() || '';
+          break;
+        case 'program_id':
+            valA = licenciaturaMap.get(a.program_id)?.toLowerCase() || '';
+            valB = licenciaturaMap.get(b.program_id)?.toLowerCase() || '';
+            break;
+        case 'registration_date':
+          valA = new Date(a.registration_date).getTime();
+          valB = new Date(b.registration_date).getTime();
+          break;
+        default:
+          return 0;
+      }
+      
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+  }, [leads, filters, searchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter]);
+  
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage);
+  const paginatedLeads = useMemo(() => {
+    if (viewMode === 'kanban') return filteredAndSortedLeads;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredAndSortedLeads.slice(startIndex, startIndex + itemsPerPage);
+  }, [currentPage, itemsPerPage, filteredAndSortedLeads, viewMode]);
+
+  const startItem = filteredAndSortedLeads.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endItem = Math.min(currentPage * itemsPerPage, filteredAndSortedLeads.length);
+
+
+  const handleSort = (column: SortableColumn) => {
+    if (column === sortColumn) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
   const escapeCsvField = (field: string | undefined | null): string => {
     if (field === null || field === undefined) {
@@ -114,15 +241,12 @@ const LeadList: React.FC<LeadListProps> = ({
   };
 
   const handleExportCSV = () => {
-      // Note: This only exports the CURRENT PAGE because that's all we have.
-      // To export ALL, we would need a separate API call in App.tsx to fetch all without pagination.
-      // For now, we export what's visible.
     const headers = [
         'Nombre Completo', 'Email', 'Teléfono', 'Asesor', 
         'Estado', 'Licenciatura', 'Fecha Registro'
     ];
 
-    const rows = leads.map(lead => [
+    const rows = filteredAndSortedLeads.map(lead => [
         escapeCsvField(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim()),
         escapeCsvField(lead.email),
         escapeCsvField(lead.phone),
@@ -140,13 +264,13 @@ const LeadList: React.FC<LeadListProps> = ({
     }
     const url = URL.createObjectURL(blob);
     link.href = url;
-    link.setAttribute('download', `leads_export_page_${currentPage}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
   
-  const SortableHeader: React.FC<{ column: string; label: string; className?: string }> = ({ column, label, className }) => {
+  const SortableHeader: React.FC<{ column: SortableColumn; label: string; className?: string }> = ({ column, label, className }) => {
     const isSorted = sortColumn === column;
     const icon = isSorted 
         ? <ChevronDownIcon className={`w-4 h-4 text-gray-700 transition-transform ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
@@ -154,7 +278,7 @@ const LeadList: React.FC<LeadListProps> = ({
 
     return (
         <th scope="col" className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${className}`}>
-            <button onClick={() => onSortChange(column)} className="flex items-center gap-1 group">
+            <button onClick={() => handleSort(column)} className="flex items-center gap-1 group">
                 <span className="group-hover:text-gray-800">{label}</span>
                 {icon}
             </button>
@@ -166,7 +290,7 @@ const LeadList: React.FC<LeadListProps> = ({
       onUpdateLead(leadId, { status_id: newStatusId });
   };
 
-  if (loading && leads.length === 0) {
+  if (loading) {
     return <LeadListSkeleton viewMode={viewMode} />;
   }
 
@@ -175,10 +299,9 @@ const LeadList: React.FC<LeadListProps> = ({
       
       {/* Dashboard Summary */}
       <DashboardStats 
-        stats={dashboardStats} 
-        isLoading={dashboardLoading}
+        leads={leads.filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)} 
         activeFilter={quickFilter} 
-        onFilterChange={onQuickFilterChange} 
+        onFilterChange={setQuickFilter} 
       />
 
       {/* Header & Toolbar */}
@@ -190,7 +313,7 @@ const LeadList: React.FC<LeadListProps> = ({
                     {quickFilter ? (
                         <span className="text-brand-secondary font-semibold flex items-center gap-1">
                             <span className="bg-brand-secondary/10 px-2 py-0.5 rounded">Filtrado por resumen</span>
-                            <button onClick={() => onQuickFilterChange(null)} className="ml-2 text-gray-400 hover:text-gray-600" title="Quitar filtro rápido">
+                            <button onClick={() => setQuickFilter(null)} className="ml-2 text-gray-400 hover:text-gray-600" title="Quitar filtro rápido">
                                 <XIcon className="w-4 h-4" />
                             </button>
                         </span>
@@ -201,7 +324,7 @@ const LeadList: React.FC<LeadListProps> = ({
             </div>
              <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={onOpenReports} leftIcon={<ChartBarIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Reporte</Button>
-                <Button onClick={handleExportCSV} leftIcon={<ArrowDownTrayIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Exportar Pagina</Button>
+                <Button onClick={handleExportCSV} leftIcon={<ArrowDownTrayIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Exportar</Button>
                 <Button onClick={onAddNew} leftIcon={<PlusIcon />}>Nuevo Lead</Button>
             </div>
           </div>
@@ -216,9 +339,9 @@ const LeadList: React.FC<LeadListProps> = ({
                 <input
                     type="text"
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm transition duration-150 ease-in-out"
-                    placeholder="Buscar por nombre, email, teléfono..."
+                    placeholder="Buscar por nombre, email, programa, estado..."
                     value={searchTerm}
-                    onChange={(e) => onSearchChange(e.target.value)}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                 />
              </div>
 
@@ -264,7 +387,7 @@ const LeadList: React.FC<LeadListProps> = ({
           </div>
       </div>
       
-      {/* Active Filters Pills */}
+      {/* Active Filters Pills (Optional visual feedback) */}
       {activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
               {filters.advisorId !== 'all' && (
@@ -288,7 +411,7 @@ const LeadList: React.FC<LeadListProps> = ({
                   </span>
               )}
                <button 
-                  onClick={() => onFiltersChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
+                  onClick={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
                   className="text-xs text-gray-500 hover:text-red-600 underline ml-2"
                >
                    Limpiar filtros
@@ -296,18 +419,18 @@ const LeadList: React.FC<LeadListProps> = ({
           </div>
       )}
       
-      {/* Content with Animation */}
-      <div key={viewMode} className={`animate-fade-in ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+      {/* Conditional Rendering based on viewMode with Animation */}
+      <div key={viewMode} className="animate-fade-in">
         {viewMode === 'list' ? (
           <div className="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
               <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                   <tr>
-                      <SortableHeader column="first_name" label="Nombre" />
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asesor</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Licenciatura</th>
+                      <SortableHeader column="name" label="Nombre" />
+                      <SortableHeader column="advisor_id" label="Asesor" />
+                      <SortableHeader column="status_id" label="Estado" />
+                      <SortableHeader column="program_id" label="Licenciatura" />
                       <SortableHeader column="registration_date" label="Fecha Registro" />
                       <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Cita</th>
                       <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
@@ -315,7 +438,7 @@ const LeadList: React.FC<LeadListProps> = ({
                   </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                  {leads.map((lead) => {
+                  {paginatedLeads.map((lead) => {
                       const isUrgent = isAppointmentUrgent(lead);
                       return (
                       <tr key={lead.id} className={`hover:bg-gray-50 transition-colors duration-150 ${isUrgent ? 'bg-yellow-50' : ''}`}>
@@ -379,7 +502,7 @@ const LeadList: React.FC<LeadListProps> = ({
                       </tr>
                       )
                   })}
-                  {leads.length === 0 && (
+                  {paginatedLeads.length === 0 && (
                       <tr>
                           <td colSpan={8} className="text-center py-16 text-gray-500">
                               <MagnifyingGlassIcon className="w-12 h-12 mx-auto text-gray-300 mb-2" />
@@ -389,8 +512,8 @@ const LeadList: React.FC<LeadListProps> = ({
                                   variant="ghost" 
                                   className="mt-4 text-brand-secondary" 
                                   onClick={() => {
-                                      onSearchChange('');
-                                      onFiltersChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' });
+                                      setSearchTerm('');
+                                      setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' });
                                   }}
                               >
                                   Limpiar búsqueda
@@ -404,31 +527,28 @@ const LeadList: React.FC<LeadListProps> = ({
           </div>
         ) : (
           /* Kanban View */
-          <div className="relative">
-            {loading && <div className="absolute inset-0 bg-white/50 z-20 flex justify-center items-start pt-10"><span className="bg-white px-4 py-2 rounded shadow text-sm font-medium">Actualizando...</span></div>}
-            <KanbanBoard 
-                leads={leads} 
-                statuses={statuses} 
-                advisors={advisors}
-                licenciaturas={licenciaturas}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onViewDetails={onViewDetails}
-                onOpenWhatsApp={onOpenWhatsApp}
-                onLeadMove={handleLeadMove}
-            />
-          </div>
+          <KanbanBoard 
+              leads={paginatedLeads} 
+              statuses={statuses} 
+              advisors={advisors}
+              licenciaturas={licenciaturas}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onViewDetails={onViewDetails}
+              onOpenWhatsApp={onOpenWhatsApp}
+              onLeadMove={handleLeadMove}
+          />
         )}
       </div>
       
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
+      {/* Pagination Controls (Only for List View) */}
+      {viewMode === 'list' && totalPages > 1 && (
         <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-4">
             <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-700">Mostrar:</span>
                 <select 
                     value={itemsPerPage} 
-                    onChange={e => onItemsPerPageChange(Number(e.target.value))} 
+                    onChange={e => setItemsPerPage(Number(e.target.value))} 
                     className="pl-2 pr-8 py-1 text-sm border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary rounded-md"
                 >
                     <option value={10}>10</option>
@@ -441,8 +561,8 @@ const LeadList: React.FC<LeadListProps> = ({
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
-              disabled={currentPage === 1 || loading}
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
               leftIcon={<ChevronLeftIcon className="w-4 h-4"/>}
             >
               Anterior
@@ -453,8 +573,8 @@ const LeadList: React.FC<LeadListProps> = ({
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
-              disabled={currentPage === totalPages || loading}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
             >
                 Siguiente
                 <ChevronRightIcon className="w-4 h-4 ml-2"/>
@@ -471,8 +591,8 @@ const LeadList: React.FC<LeadListProps> = ({
         statuses={statuses}
         licenciaturas={licenciaturas}
         currentFilters={filters}
-        onApplyFilters={onFiltersChange}
-        onClearFilters={() => onFiltersChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
+        onApplyFilters={setFilters}
+        onClearFilters={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
       />
     </div>
   );

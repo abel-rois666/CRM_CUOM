@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Profile, Status, Source, Licenciatura, WhatsAppTemplate } from '../types';
 import Modal from './common/Modal';
@@ -292,8 +291,7 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     
         if (error) {
             console.error('Error seeding statuses:', error);
-            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            toastError(`Error: ${errorMessage}`);
+            toastError(`Error: ${error.message}`);
         } else if (insertedData) {
             onStatusesUpdate([...statuses, ...insertedData]);
             success(`¡Se añadieron ${insertedData.length} nuevos estados!`);
@@ -342,8 +340,7 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
              if (error.code === '23503') {
                 toastError(`No se puede eliminar "${statusToDelete.name}" porque está en uso.`);
             } else {
-                const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-                toastError(`Error al eliminar estado: ${errorMessage}`);
+                toastError(`Error al eliminar estado: ${error.message}`);
             }
             console.error(error); 
         } else {
@@ -455,8 +452,7 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
             if (error.code === '23503') {
                 toastError(`No se puede eliminar "${sourceToDelete.name}" porque está en uso.`);
             } else {
-                const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-                toastError(`Error al eliminar origen: ${errorMessage}`);
+                toastError(`Error al eliminar origen: ${error.message}`);
             }
             console.error(error); 
         } else {
@@ -551,8 +547,7 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
             if (error.code === '23503') {
                 toastError(`No se puede eliminar "${licenciaturaToDelete.name}" porque está en uso.`);
             } else {
-                const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-                toastError(`Error al eliminar licenciatura: ${errorMessage}`);
+                toastError(`Error al eliminar licenciatura: ${error.message}`);
             }
             console.error(error); 
         } else {
@@ -687,8 +682,7 @@ const WhatsappTemplateSettings: React.FC<{
         const { error } = await supabase.from('whatsapp_templates').delete().eq('id', templateToDelete.id);
         if (error) {
              console.error('Error deleting template:', error);
-             const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-             toastError(`Error al eliminar la plantilla: ${errorMessage}`);
+             toastError('Error al eliminar la plantilla.');
         } else {
             onTemplatesUpdate(templates.filter(t => t.id !== templateToDelete.id));
             success("Plantilla eliminada");
