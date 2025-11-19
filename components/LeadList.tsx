@@ -14,6 +14,7 @@ import BellAlertIcon from './icons/BellAlertIcon';
 import ChevronLeftIcon from './icons/ChevronLeftIcon';
 import ChevronRightIcon from './icons/ChevronRightIcon';
 import ArrowDownTrayIcon from './icons/ArrowDownTrayIcon';
+import ArrowUpTrayIcon from './icons/ArrowUpTrayIcon';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
 import EnvelopeIcon from './icons/EnvelopeIcon';
 import KanbanBoard from './KanbanBoard';
@@ -36,6 +37,7 @@ interface LeadListProps {
   onDelete: (leadId: string) => void;
   onViewDetails: (lead: Lead) => void;
   onOpenReports: () => void;
+  onOpenImport: () => void;
   onOpenWhatsApp: (lead: Lead) => void;
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
 }
@@ -44,7 +46,7 @@ type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'regi
 type SortDirection = 'asc' | 'desc';
 type ViewMode = 'list' | 'kanban';
 
-const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenWhatsApp, onUpdateLead }) => {
+const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenImport, onOpenWhatsApp, onUpdateLead }) => {
   // UI States
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
@@ -323,6 +325,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                 </p>
             </div>
              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={onOpenImport} leftIcon={<ArrowUpTrayIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Importar</Button>
                 <Button onClick={onOpenReports} leftIcon={<ChartBarIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Reporte</Button>
                 <Button onClick={handleExportCSV} leftIcon={<ArrowDownTrayIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Exportar</Button>
                 <Button onClick={onAddNew} leftIcon={<PlusIcon />}>Nuevo Lead</Button>
@@ -387,7 +390,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
           </div>
       </div>
       
-      {/* Active Filters Pills (Optional visual feedback) */}
+      {/* Active Filters Pills */}
       {activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
               {filters.advisorId !== 'all' && (

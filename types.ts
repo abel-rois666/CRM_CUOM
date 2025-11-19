@@ -70,3 +70,10 @@ export interface WhatsAppTemplate {
   name: string;
   content: string;
 }
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+}

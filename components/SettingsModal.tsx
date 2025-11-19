@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { Profile, Status, Source, Licenciatura, WhatsAppTemplate } from '../types';
+import { Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import PlusIcon from './icons/PlusIcon';
@@ -15,6 +16,7 @@ import ConfirmationModal from './common/ConfirmationModal';
 import UserEditModal from './UserEditModal';
 import ArrowUpTrayIcon from './icons/ArrowUpTrayIcon';
 import { useToast } from '../context/ToastContext';
+import EnvelopeIcon from './icons/EnvelopeIcon';
 
 
 interface SettingsModalProps {
@@ -25,12 +27,14 @@ interface SettingsModalProps {
   sources: Source[];
   licenciaturas: Licenciatura[];
   whatsappTemplates: WhatsAppTemplate[];
+  emailTemplates: EmailTemplate[];
   currentUserProfile: Profile | null;
   onProfilesUpdate: (profiles: Profile[]) => void;
   onStatusesUpdate: (statuses: Status[]) => void;
   onSourcesUpdate: (sources: Source[]) => void;
   onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void;
   onWhatsappTemplatesUpdate: (templates: WhatsAppTemplate[]) => void;
+  onEmailTemplatesUpdate: (templates: EmailTemplate[]) => void;
 }
 
 const colors = [
@@ -763,6 +767,180 @@ const WhatsappTemplateSettings: React.FC<{
     );
 };
 
+const EmailTemplateSettings: React.FC<{ 
+    templates: EmailTemplate[], 
+    onTemplatesUpdate: (t: EmailTemplate[]) => void,
+    userProfile: Profile | null 
+}> = ({ templates, onTemplatesUpdate, userProfile }) => {
+    const [name, setName] = useState('');
+    const [subject, setSubject] = useState('');
+    const [body, setBody] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [templateToDelete, setTemplateToDelete] = useState<EmailTemplate | null>(null);
+    const { success, error: toastError } = useToast();
+
+    const handleSave = async () => {
+        if (!name.trim() || !subject.trim() || !body.trim()) return;
+        setSaving(true);
+
+        if (editingId) {
+            const { data, error } = await supabase
+                .from('email_templates')
+                .update({ name: name.trim(), subject: subject.trim(), body: body.trim() })
+                .eq('id', editingId)
+                .select()
+                .single();
+            
+            if (error) {
+                console.error('Error updating template:', error);
+                toastError('Error al actualizar la plantilla.');
+            } else if (data) {
+                const updatedTemplates = templates.map(t => t.id === editingId ? data : t);
+                onTemplatesUpdate(updatedTemplates);
+                success("Plantilla actualizada");
+                setEditingId(null);
+                setName('');
+                setSubject('');
+                setBody('');
+            }
+        } else {
+            const { data, error } = await supabase
+                .from('email_templates')
+                .insert({ name: name.trim(), subject: subject.trim(), body: body.trim() })
+                .select()
+                .single();
+            
+             if (error) {
+                console.error('Error creating template:', error);
+                toastError('Error al crear la plantilla.');
+            } else if (data) {
+                onTemplatesUpdate([...templates, data]);
+                success("Plantilla creada");
+                setName('');
+                setSubject('');
+                setBody('');
+            }
+        }
+        setSaving(false);
+    };
+
+    const handleEdit = (template: EmailTemplate) => {
+        setName(template.name);
+        setSubject(template.subject);
+        setBody(template.body);
+        setEditingId(template.id);
+    };
+
+    const handleCancelEdit = () => {
+        setName('');
+        setSubject('');
+        setBody('');
+        setEditingId(null);
+    };
+
+    const handleDeleteClick = (template: EmailTemplate) => {
+        setTemplateToDelete(template);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!templateToDelete) return;
+        
+        const { error } = await supabase.from('email_templates').delete().eq('id', templateToDelete.id);
+        if (error) {
+             console.error('Error deleting template:', error);
+             toastError('Error al eliminar la plantilla.');
+        } else {
+            onTemplatesUpdate(templates.filter(t => t.id !== templateToDelete.id));
+            success("Plantilla eliminada");
+            setTemplateToDelete(null);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de Correo</h3>
+            <div className="p-4 border rounded-lg bg-blue-50/50 border-blue-200">
+                <h4 className="font-semibold text-gray-700 mb-2">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
+                <div className="space-y-3">
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Nombre de la Plantilla</label>
+                        <input 
+                            type="text" 
+                            value={name} 
+                            onChange={e => setName(e.target.value)} 
+                            placeholder="Ej: Bienvenida" 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                        />
+                    </div>
+                     <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Asunto del Correo</label>
+                        <input 
+                            type="text" 
+                            value={subject} 
+                            onChange={e => setSubject(e.target.value)} 
+                            placeholder="Bienvenido a la universidad..." 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Cuerpo del Correo (HTML Soportado)</label>
+                        <textarea 
+                            value={body} 
+                            onChange={e => setBody(e.target.value)} 
+                            placeholder="<p>Hola...</p>" 
+                            rows={5}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono text-xs" 
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        {editingId && <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>Cancelar</Button>}
+                        <Button onClick={handleSave} size="sm" disabled={!name || !subject || !body || saving}>
+                            {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            <hr className="my-4"/>
+            
+            <h4 className="font-semibold text-gray-700">Plantillas Guardadas</h4>
+            <div className="space-y-3">
+                {templates.map(t => (
+                    <div key={t.id} className="border border-gray-200 rounded-md p-3 bg-white shadow-sm relative group">
+                        <div className="flex justify-between items-start mb-1">
+                            <h5 className="font-bold text-gray-800 text-sm">{t.name}</h5>
+                            <div className="flex gap-1">
+                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1">
+                                    <EditIcon className="w-4 h-4"/>
+                                </button>
+                                {userProfile?.role === 'admin' && (
+                                    <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1">
+                                        <TrashIcon className="w-4 h-4"/>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-1 font-semibold">Asunto: {t.subject}</p>
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-2">{t.body.replace(/<[^>]*>/g, '')}</p>
+                    </div>
+                ))}
+                {templates.length === 0 && <p className="text-sm text-gray-500 italic">No hay plantillas de correo configuradas.</p>}
+            </div>
+
+            <ConfirmationModal
+                isOpen={!!templateToDelete}
+                onClose={() => setTemplateToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="Eliminar Plantilla"
+                message={`¿Estás seguro de que quieres eliminar la plantilla "${templateToDelete?.name}"? Esta acción no se puede deshacer.`}
+                confirmButtonText="Sí, Eliminar"
+                confirmButtonVariant="danger"
+            />
+        </div>
+    );
+};
+
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {
   const [activeTab, setActiveTab] = useState<string>('');
 
@@ -772,6 +950,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
     { id: 'licenciaturas', label: 'Licenciaturas', icon: <AcademicCapIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
     { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor'] },
+    { id: 'email', label: 'Plantillas Email', icon: <EnvelopeIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor'] },
   ], []);
 
   const visibleTabs = useMemo(() => {
@@ -815,6 +994,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
           {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}
           {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}
           {activeTab === 'whatsapp' && <WhatsappTemplateSettings templates={props.whatsappTemplates} onTemplatesUpdate={props.onWhatsappTemplatesUpdate} userProfile={props.currentUserProfile} />}
+          {activeTab === 'email' && <EmailTemplateSettings templates={props.emailTemplates} onTemplatesUpdate={props.onEmailTemplatesUpdate} userProfile={props.currentUserProfile} />}
         </div>
       </div>
     </Modal>

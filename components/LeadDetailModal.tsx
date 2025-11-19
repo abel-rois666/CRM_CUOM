@@ -64,11 +64,7 @@ const AppointmentFormModal: React.FC<AppointmentFormModalProps> = ({ isOpen, onC
     onClose();
   };
   
-  const handleDelete = () => {
-    if (window.confirm('¿Estás seguro de que quieres borrar permanentemente esta cita?')) {
-        onDelete();
-    }
-  };
+  // Removed handleDelete function usage as the button is being removed
 
   const createGoogleCalendarLink = () => {
     const { title, date, time, duration, details } = formData;
@@ -116,16 +112,8 @@ const AppointmentFormModal: React.FC<AppointmentFormModalProps> = ({ isOpen, onC
                 <label className="block text-sm font-medium text-gray-700">Detalles</label>
                 <textarea name="details" value={formData.details} onChange={handleChange} rows={3} className={inputFieldClasses} />
             </div>
-            <div className="pt-4 flex justify-between items-center">
-                <div>
-                    {appointment && (
-                        <Button variant="danger" onClick={handleDelete} leftIcon={<TrashIcon className="w-4 h-4" />}>
-                            Borrar Cita
-                        </Button>
-                    )}
-                </div>
+            <div className="pt-4 flex justify-end items-center">
                 <div className="flex space-x-2">
-                    <Button variant="secondary" onClick={onClose}>Cancelar</Button>
                     <Button variant="secondary" onClick={createGoogleCalendarLink} leftIcon={<CalendarIcon />}>
                         Calendario
                     </Button>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
@@ -8,7 +9,9 @@ import LeadDetailModal from './components/LeadDetailModal';
 import SettingsModal from './components/SettingsModal';
 import ReportModal from './components/ReportModal';
 import WhatsAppModal from './components/WhatsAppModal';
-import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate } from './types';
+import EmailModal from './components/EmailModal';
+import BulkImportModal from './components/BulkImportModal';
+import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate, EmailTemplate } from './types';
 import LoginPage from './components/auth/LoginPage';
 import LeadListSkeleton from './components/LeadListSkeleton';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -23,16 +26,29 @@ const AppContent: React.FC = () => {
   const [licenciaturas, setLicenciaturas] = useState<Licenciatura[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
 
   const [isLeadFormOpen, setLeadFormOpen] = useState(false);
   const [isDetailViewOpen, setDetailViewOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isReportModalOpen, setReportModalOpen] = useState(false);
   const [isWhatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isBulkImportOpen, setBulkImportOpen] = useState(false);
   
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedLeadForWhatsApp, setSelectedLeadForWhatsApp] = useState<Lead | null>(null);
+  const [selectedLeadForEmail, setSelectedLeadForEmail] = useState<Lead | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        return String((error as any).message);
+    }
+    if (typeof error === 'string') return error;
+    return JSON.stringify(error);
+  };
 
   const fetchData = async () => {
     setLoadingData(true);
@@ -44,13 +60,15 @@ const AppContent: React.FC = () => {
         { data: sourcesData, error: sourcesError },
         { data: licenciaturasData, error: licenciaturasError },
         { data: templatesData, error: templatesError },
+        { data: emailTemplatesData, error: emailTemplatesError },
       ] = await Promise.all([
-        supabase.from('leads').select('*'),
+        supabase.from('leads').select('*, appointments(*), follow_ups(*), status_history(*)'),
         supabase.from('profiles').select('*'),
         supabase.from('statuses').select('*'),
         supabase.from('sources').select('*'),
         supabase.from('licenciaturas').select('*'),
-        supabase.from('whatsapp_templates').select('*')
+        supabase.from('whatsapp_templates').select('*'),
+        supabase.from('email_templates').select('*'),
       ]);
 
       if (leadsError) throw leadsError;
@@ -66,14 +84,20 @@ const AppContent: React.FC = () => {
       setSources(sourcesData || []);
       setLicenciaturas(licenciaturasData || []);
       setWhatsappTemplates(templatesData || []);
+      
+      // Optional email templates
+      if (emailTemplatesData) setEmailTemplates(emailTemplatesData);
+      if (emailTemplatesError && emailTemplatesError.code !== '42P01') { // Ignore "relation does not exist" for seamless degradation
+          console.warn("Error fetching email templates", emailTemplatesError);
+      }
 
     } catch (error) {
       console.error('Error fetching data:', error);
-      const errorMessage = (error as any).message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+      const errorMessage = getErrorMessage(error);
       
-      if (String(errorMessage).includes("relation \"public.email_templates\" does not exist")) {
+      if (errorMessage.includes("relation \"public.email_templates\" does not exist")) {
           console.warn("Tabla email_templates no encontrada. Saltando...");
-      } else if (String(errorMessage).includes("relation \"public.whatsapp_templates\" does not exist")) {
+      } else if (errorMessage.includes("relation \"public.whatsapp_templates\" does not exist")) {
            console.warn("Tabla whatsapp_templates no encontrada. Saltando...");
       } else {
          toastError(`Error al cargar datos: ${errorMessage}`);
@@ -151,7 +175,7 @@ const AppContent: React.FC = () => {
         .from('leads')
         .update({ ...lead })
         .eq('id', leadIdToEdit)
-        .select()
+        .select('*, appointments(*), follow_ups(*), status_history(*)')
         .single();
       
       if (error) { 
@@ -178,7 +202,7 @@ const AppContent: React.FC = () => {
         ...lead,
         registration_date: new Date().toISOString(),
       };
-      const { data, error } = await supabase.from('leads').insert(newLeadPayload).select().single();
+      const { data, error } = await supabase.from('leads').insert(newLeadPayload).select('*, appointments(*), follow_ups(*), status_history(*)').single();
       if (error) { 
         console.error('Error creating lead:', error); 
         toastError("Error al crear el lead.");
@@ -215,12 +239,12 @@ const AppContent: React.FC = () => {
         .from('leads')
         .update(updatePayload)
         .eq('id', leadId)
-        .select()
+        .select('*, appointments(*), follow_ups(*), status_history(*)')
         .single();
 
     if (error) {
         console.error("Error al actualizar detalles del lead:", error);
-        const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+        const errorMessage = getErrorMessage(error);
         toastError(`Error al actualizar: ${errorMessage}`);
         return;
     }
@@ -245,13 +269,9 @@ const AppContent: React.FC = () => {
     setLeads(newLeads);
 
     if (selectedLead?.id === leadId) {
-        const leadForRefetch = newLeads.find(l => l.id === leadId);
-        if (leadForRefetch) {
-            await handleViewDetails(leadForRefetch);
-        }
+        // No need to re-fetch if we already got the full object back from update
+        setSelectedLead(updatedLeadData);
     }
-    // Omit success toast for drag and drop to prevent spam, or keep it subtle.
-    // success("Detalles actualizados."); 
   };
 
   const handleAddFollowUp = async (leadId: string, followUp: Omit<FollowUp, 'id' | 'lead_id'>) => {
@@ -262,6 +282,14 @@ const AppContent: React.FC = () => {
       return; 
     }
     
+    // Update leads state to include the new follow-up
+    setLeads(prevLeads => prevLeads.map(l => {
+        if (l.id === leadId) {
+            return { ...l, follow_ups: [...(l.follow_ups || []), data] };
+        }
+        return l;
+    }));
+
     if(selectedLead?.id === leadId) {
       setSelectedLead({ ...selectedLead, follow_ups: [...(selectedLead.follow_ups || []), data!] });
       success("Seguimiento añadido.");
@@ -275,6 +303,14 @@ const AppContent: React.FC = () => {
       toastError("Error al eliminar el seguimiento.");
       return; 
     }
+
+    // Update leads state
+    setLeads(prevLeads => prevLeads.map(l => {
+        if (l.id === leadId) {
+            return { ...l, follow_ups: (l.follow_ups || []).filter(f => f.id !== followUpId) };
+        }
+        return l;
+    }));
 
     if(selectedLead?.id === leadId) {
       setSelectedLead({ ...selectedLead, follow_ups: (selectedLead.follow_ups || []).filter(f => f.id !== followUpId) });
@@ -294,6 +330,16 @@ const AppContent: React.FC = () => {
         return; 
       }
       newAppointmentData = data;
+      
+      // Update local state
+       setLeads(prevLeads => prevLeads.map(l => {
+          if (l.id === leadId) {
+              const updatedApps = (l.appointments || []).map(a => a.id === appointmentIdToEdit ? data : a);
+              return { ...l, appointments: updatedApps };
+          }
+          return l;
+      }));
+
       success("Cita actualizada.");
     } else {
       const { data, error } = await supabase.from('appointments').insert({ ...appointmentData, lead_id: leadId, status: 'scheduled' }).select().single();
@@ -303,23 +349,55 @@ const AppContent: React.FC = () => {
         return; 
       }
       newAppointmentData = data;
+      
+       // Update local state
+       setLeads(prevLeads => prevLeads.map(l => {
+          if (l.id === leadId) {
+              return { ...l, appointments: [...(l.appointments || []), data] };
+          }
+          return l;
+      }));
+
       success("Cita programada exitosamente.");
     }
 
     if (citadoStatusId) {
       await handleUpdateLeadDetails(leadId, { status_id: citadoStatusId });
     }
-
-    await handleViewDetails(leads.find(l => l.id === leadId)!); 
+    
+    // Update selected lead if open
+    if (selectedLead?.id === leadId) {
+         const { data } = await supabase
+            .from('leads')
+            .select(`*, follow_ups(*), appointments(*), status_history(*)`)
+            .eq('id', leadId)
+            .single();
+         if (data) setSelectedLead(data);
+    }
   };
 
   const handleUpdateAppointmentStatus = async (leadId: string, appointmentId: string, status: 'completed' | 'canceled') => {
-      const { error } = await supabase.from('appointments').update({ status }).eq('id', appointmentId);
+      const { data, error } = await supabase.from('appointments').update({ status }).eq('id', appointmentId).select().single();
       if (error) {
         toastError("Error al actualizar el estado de la cita.");
         return;
       }
-      await handleViewDetails(leads.find(l => l.id === leadId)!);
+      
+      // Update local state
+       setLeads(prevLeads => prevLeads.map(l => {
+          if (l.id === leadId) {
+              const updatedApps = (l.appointments || []).map(a => a.id === appointmentId ? data : a);
+              return { ...l, appointments: updatedApps };
+          }
+          return l;
+      }));
+
+      // Update selected lead if open
+      if (selectedLead?.id === leadId) {
+            const updatedApps = (selectedLead.appointments || []).map(a => a.id === appointmentId ? data : a);
+            setSelectedLead({ ...selectedLead, appointments: updatedApps });
+      }
+
       if (status === 'completed') success("Cita marcada como completada.");
       if (status === 'canceled') info("Cita cancelada.");
   };
@@ -330,7 +408,22 @@ const AppContent: React.FC = () => {
         toastError("Error al eliminar la cita.");
         return;
       }
-      await handleViewDetails(leads.find(l => l.id === leadId)!);
+      
+       // Update local state
+       setLeads(prevLeads => prevLeads.map(l => {
+          if (l.id === leadId) {
+              const updatedApps = (l.appointments || []).filter(a => a.id !== appointmentId);
+              return { ...l, appointments: updatedApps };
+          }
+          return l;
+      }));
+      
+       // Update selected lead if open
+      if (selectedLead?.id === leadId) {
+           const updatedApps = (selectedLead.appointments || []).filter(a => a.id !== appointmentId);
+           setSelectedLead({ ...selectedLead, appointments: updatedApps });
+      }
+
       success("Cita eliminada.");
   };
   
@@ -338,6 +431,35 @@ const AppContent: React.FC = () => {
       setSelectedLeadForWhatsApp(lead);
       setWhatsAppModalOpen(true);
   }
+  
+  // Edge Function Email Sending Logic
+  const handleSendEmail = async (to: string, subject: string, body: string) => {
+      if (!selectedLeadForEmail) return;
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('send-email', {
+            body: {
+                leadId: selectedLeadForEmail.id,
+                to,
+                subject,
+                html: body.replace(/\n/g, '<br>'), // Simple conversion for now
+                userId: profile?.id
+            }
+        });
+
+        if (error) throw error;
+        
+        success("Correo enviado exitosamente.");
+        // Refresh details to show new follow-up
+        await handleViewDetails(selectedLeadForEmail);
+        setIsEmailModalOpen(false);
+
+      } catch (error) {
+          console.error("Error sending email:", error);
+          const msg = getErrorMessage(error);
+          toastError(`Error al enviar correo: ${msg}`);
+      }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -354,6 +476,7 @@ const AppContent: React.FC = () => {
           onDelete={handleDelete}
           onViewDetails={handleViewDetails}
           onOpenReports={() => setReportModalOpen(true)}
+          onOpenImport={() => setBulkImportOpen(true)}
           onOpenWhatsApp={handleOpenWhatsApp}
           onUpdateLead={handleUpdateLeadDetails}
         />
@@ -401,12 +524,14 @@ const AppContent: React.FC = () => {
           sources={sources}
           licenciaturas={licenciaturas}
           whatsappTemplates={whatsappTemplates}
+          emailTemplates={emailTemplates}
           currentUserProfile={profile}
           onProfilesUpdate={(updated) => setProfiles(updated)}
           onStatusesUpdate={(updated) => setStatuses(updated)}
           onSourcesUpdate={(updated) => setSources(updated)}
           onLicenciaturasUpdate={(updated) => setLicenciaturas(updated)}
           onWhatsappTemplatesUpdate={(updated) => setWhatsappTemplates(updated)}
+          onEmailTemplatesUpdate={(updated) => setEmailTemplates(updated)}
         />
       )}
 
@@ -420,6 +545,21 @@ const AppContent: React.FC = () => {
             sources={sources}
         />
       )}
+      
+      {isBulkImportOpen && (
+          <BulkImportModal 
+            isOpen={isBulkImportOpen} 
+            onClose={() => setBulkImportOpen(false)}
+            onSuccess={() => {
+                fetchData(); // Reload leads
+                setBulkImportOpen(false);
+            }}
+            advisors={profiles.filter(p => p.role === 'advisor')}
+            statuses={statuses}
+            sources={sources}
+            licenciaturas={licenciaturas}
+          />
+      )}
 
       {isWhatsAppModalOpen && (
           <WhatsAppModal 
@@ -427,6 +567,16 @@ const AppContent: React.FC = () => {
             onClose={() => setWhatsAppModalOpen(false)} 
             lead={selectedLeadForWhatsApp} 
             templates={whatsappTemplates} 
+          />
+      )}
+
+      {isEmailModalOpen && selectedLeadForEmail && (
+          <EmailModal 
+            isOpen={isEmailModalOpen} 
+            onClose={() => setIsEmailModalOpen(false)} 
+            lead={selectedLeadForEmail}
+            templates={emailTemplates}
+            onSend={handleSendEmail}
           />
       )}
     </div>

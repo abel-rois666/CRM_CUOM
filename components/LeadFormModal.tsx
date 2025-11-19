@@ -43,10 +43,16 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         source_id: leadToEdit.source_id,
       });
     } else {
-      // Default advisor logic: If advisor, default to self. If admin, default to first in list.
+      // NEW LEAD DEFAULTS
+      
+      // 1. Advisor Logic: If 'advisor' role, default to self. If 'admin', default to empty (show placeholder).
       const defaultAdvisorId = currentUser?.role === 'advisor' 
         ? currentUser.id 
-        : (advisors[0]?.id || '');
+        : ''; 
+
+      // 2. Status Logic: Try to find "Sin Contactar". Fallback to first available if missing.
+      const defaultStatus = statuses.find(s => s.name === 'Sin Contactar');
+      const defaultStatusId = defaultStatus ? defaultStatus.id : (statuses[0]?.id || '');
 
       setFormData({
         first_name: '',
@@ -54,10 +60,10 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         maternal_last_name: '',
         email: '',
         phone: '',
-        program_id: licenciaturas[0]?.id || '',
-        status_id: statuses[0]?.id || '',
+        program_id: '', // Default empty to show "Sin seleccionar"
+        status_id: defaultStatusId,
         advisor_id: defaultAdvisorId,
-        source_id: sources[0]?.id || '',
+        source_id: '', // Default empty to show "Sin seleccionar"
       });
     }
   }, [leadToEdit, isOpen, advisors, statuses, sources, licenciaturas, currentUser]);
@@ -92,11 +98,15 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">Nombre(s)</label>
+              <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">
+                Nombre(s) <span className="text-red-500">*</span>
+              </label>
               <input type="text" name="first_name" id="first_name" value={formData.first_name} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
             </div>
             <div>
-              <label htmlFor="paternal_last_name" className="block text-sm font-medium text-gray-700">Apellido Paterno</label>
+              <label htmlFor="paternal_last_name" className="block text-sm font-medium text-gray-700">
+                Apellido Paterno <span className="text-red-500">*</span>
+              </label>
               <input type="text" name="paternal_last_name" id="paternal_last_name" value={formData.paternal_last_name} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
             </div>
         </div>
@@ -109,23 +119,33 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
           <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
         </div>
         <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Teléfono</label>
+          <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+            Teléfono <span className="text-red-500">*</span>
+          </label>
           <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
         </div>
         <div>
-          <label htmlFor="program_id" className="block text-sm font-medium text-gray-700">Licenciatura de Interés</label>
+          <label htmlFor="program_id" className="block text-sm font-medium text-gray-700">
+            Licenciatura de Interés <span className="text-red-500">*</span>
+          </label>
           <select name="program_id" id="program_id" value={formData.program_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
+            <option value="">Sin seleccionar</option>
             {licenciaturas.map(lic => <option key={lic.id} value={lic.id}>{lic.name}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor="source_id" className="block text-sm font-medium text-gray-700">Origen del Lead</label>
+          <label htmlFor="source_id" className="block text-sm font-medium text-gray-700">
+            Origen del Lead <span className="text-red-500">*</span>
+          </label>
           <select name="source_id" id="source_id" value={formData.source_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
+            <option value="">Sin seleccionar</option>
             {sources.map(source => <option key={source.id} value={source.id}>{source.name}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor="advisor_id" className="block text-sm font-medium text-gray-700">Asesor Asignado</label>
+          <label htmlFor="advisor_id" className="block text-sm font-medium text-gray-700">
+            Asesor Asignado <span className="text-red-500">*</span>
+          </label>
           <select 
             name="advisor_id" 
             id="advisor_id" 
@@ -135,12 +155,16 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
             disabled={currentUser?.role === 'advisor'}
             className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md ${currentUser?.role === 'advisor' ? 'bg-gray-100 text-gray-500' : ''}`}
           >
+            <option value="">Sin seleccionar</option>
             {availableAdvisors.map(advisor => <option key={advisor.id} value={advisor.id}>{advisor.full_name}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor="status_id" className="block text-sm font-medium text-gray-700">Estado</label>
+          <label htmlFor="status_id" className="block text-sm font-medium text-gray-700">
+            Estado <span className="text-red-500">*</span>
+          </label>
           <select name="status_id" id="status_id" value={formData.status_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
+            {/* Status usually needs a default valid value rather than "Unselected", but we allow it to change */}
             {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
           </select>
         </div>
