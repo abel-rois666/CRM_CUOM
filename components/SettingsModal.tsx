@@ -15,6 +15,7 @@ import EditIcon from './icons/EditIcon';
 import ConfirmationModal from './common/ConfirmationModal';
 import UserEditModal from './UserEditModal';
 import ArrowUpTrayIcon from './icons/ArrowUpTrayIcon';
+import { useToast } from '../context/ToastContext';
 
 
 interface SettingsModalProps {
@@ -53,11 +54,10 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<'advisor' | 'admin'>('advisor');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
     const [userToEdit, setUserToEdit] = useState<Profile | null>(null);
     const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
-    const [actionError, setActionError] = useState<string | null>(null);
+
+    const { success, error: toastError } = useToast();
 
     const inputClasses = "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm";
     const labelClasses = "block text-sm font-medium text-gray-700";
@@ -65,12 +65,10 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setError(null);
-        setSuccess(null);
 
         const { data: { session: adminSession } } = await supabase.auth.getSession();
         if (!adminSession) {
-            setError('No se pudo obtener la sesión de administrador. Vuelve a iniciar sesión.');
+            toastError('No se pudo obtener la sesión de administrador. Vuelve a iniciar sesión.');
             setLoading(false);
             return;
         }
@@ -78,21 +76,16 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         const { data: { user: newUser }, error: signUpError } = await supabase.auth.signUp({
             email,
             password,
-            options: {
-                // NOTA: Para desactivar la verificación por correo, debes desactivar
-                // la opción "Confirm email" en la configuración de Autenticación de tu
-                // proyecto de Supabase.
-            }
         });
         
         if (signUpError) {
-            setError(signUpError.message);
+            toastError(signUpError.message);
             setLoading(false);
             return;
         }
 
         if (!newUser) {
-            setError('No se pudo crear el usuario. El email podría ya estar en uso.');
+            toastError('No se pudo crear el usuario. El email podría ya estar en uso.');
             setLoading(false);
             return;
         }
@@ -110,12 +103,12 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         });
 
         if (profileError) {
-            setError(`Usuario de auth creado, pero error al crear perfil: ${profileError.message}. Se requiere corrección manual.`);
+            toastError(`Usuario Auth creado, pero error en perfil: ${profileError.message}`);
             setLoading(false);
             return;
         }
         
-        setSuccess(`¡Usuario ${email} creado con éxito!`);
+        success(`Usuario ${email} creado con éxito`);
         
         const newProfile: Profile = {
             id: newUser.id,
@@ -134,7 +127,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
     };
 
     const handleUpdateUser = async (userId: string, updates: { fullName: string; role: 'admin' | 'advisor'; newPassword?: string }) => {
-        setActionError(null);
         const { error } = await supabase.rpc('update_user_details', {
             user_id_to_update: userId,
             new_full_name: updates.fullName,
@@ -145,16 +137,16 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         if (error) {
             console.error("Error updating user:", error);
             const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            setActionError(`Error al actualizar: ${errorMessage}`);
+            toastError(`Error al actualizar: ${errorMessage}`);
         } else {
             onProfilesUpdate(profiles.map(p => p.id === userId ? { ...p, full_name: updates.fullName, role: updates.role } : p));
-            setUserToEdit(null); // Close modal on success
+            success(`Usuario actualizado correctamente`);
+            setUserToEdit(null);
         }
     };
 
     const handleDeleteUser = async () => {
         if (!userToDelete) return;
-        setActionError(null);
 
         const { error } = await supabase.rpc('delete_user_by_id', {
             user_id_to_delete: userToDelete.id
@@ -163,10 +155,11 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         if (error) {
             console.error("Error deleting user:", error);
             const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            setActionError(`Error al eliminar: ${errorMessage}`);
+            toastError(`Error al eliminar: ${errorMessage}`);
         } else {
             onProfilesUpdate(profiles.filter(p => p.id !== userToDelete.id));
-            setUserToDelete(null); // Close modal on success
+            success(`Usuario eliminado correctamente`);
+            setUserToDelete(null);
         }
     };
 
@@ -176,8 +169,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             
              <form onSubmit={handleCreateUser} className="p-4 border rounded-lg bg-gray-50/70 space-y-4">
                 <h4 className="font-semibold text-gray-700">Crear Nuevo Usuario</h4>
-                {error && <div className="p-3 my-2 bg-red-100 border-l-4 border-red-500 text-red-700 text-sm" role="alert">{error}</div>}
-                {success && <div className="p-3 my-2 bg-green-100 border-l-4 border-green-500 text-green-700 text-sm" role="alert">{success}</div>}
                 <div>
                     <label htmlFor="fullName" className={labelClasses}>Nombre Completo</label>
                     <input id="fullName" type="text" value={fullName} onChange={e => setFullName(e.target.value)} required className={inputClasses} />
@@ -207,7 +198,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             <hr className="my-4"/>
 
             <h4 className="font-semibold text-gray-700">Usuarios Actuales</h4>
-            {actionError && <div className="p-3 mb-2 bg-red-100 border-l-4 border-red-500 text-red-700 text-sm" role="alert">{actionError}</div>}
             <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
                 {profiles.map(profile => (
                     <li key={profile.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
@@ -257,8 +247,9 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     const [name, setName] = useState('');
     const [color, setColor] = useState(colors[0]);
     const [seeding, setSeeding] = useState(false);
-    const [seedSuccess, setSeedSuccess] = useState<string | null>(null);
     const [statusToDelete, setStatusToDelete] = useState<Status | null>(null);
+    
+    const { success, error: toastError } = useToast();
 
     const recommendedStatuses = [
         { name: 'Primer Contacto (Respuesta Pendiente)', color: 'bg-yellow-500' },
@@ -281,7 +272,6 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 
     const handleSeedStatuses = async () => {
         setSeeding(true);
-        setSeedSuccess(null);
         
         const existingStatusNames = new Set(statuses.map(s => s.name.toLowerCase()));
         
@@ -290,9 +280,8 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         );
     
         if (newStatusesToInsert.length === 0) {
-            setSeedSuccess('Todos los estados recomendados ya existen.');
+            success('Todos los estados recomendados ya existen.');
             setSeeding(false);
-            setTimeout(() => setSeedSuccess(null), 5000);
             return;
         }
         
@@ -304,11 +293,10 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         if (error) {
             console.error('Error seeding statuses:', error);
             const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            alert(`Error: ${errorMessage}`);
+            toastError(`Error: ${errorMessage}`);
         } else if (insertedData) {
             onStatusesUpdate([...statuses, ...insertedData]);
-            setSeedSuccess(`¡Se añadieron ${insertedData.length} nuevos estados!`);
-            setTimeout(() => setSeedSuccess(null), 5000);
+            success(`¡Se añadieron ${insertedData.length} nuevos estados!`);
         }
         
         setSeeding(false);
@@ -317,14 +305,18 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     const handleAdd = async () => {
         if(name.trim()) {
             const { data, error } = await supabase.from('statuses').insert({ name: name.trim(), color }).select().single();
-            if(error) { console.error(error); return; }
+            if(error) { 
+                console.error(error); 
+                toastError("Error al crear estado");
+                return; 
+            }
             onStatusesUpdate([...statuses, data]);
+            success("Estado creado");
             setName('');
         }
     }
     
     const handleVerifyAndDelete = async (status: Status) => {
-        // 1. Verificar si hay leads asignados a este estado
         const { count, error: checkError } = await supabase
             .from('leads')
             .select('id', { count: 'exact', head: true })
@@ -332,16 +324,13 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 
         if (checkError) {
             console.error("Error al verificar el uso del estado:", checkError);
-            // Continue to attempt delete, let DB constraint handle it if check fails
         }
 
-        // 2. MENSAJE QUE IMPIDE BORRAR (Pre-check)
         if (count && count > 0) {
-            alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar el estado "${status.name}" porque actualmente está asignado a ${count} lead(s).\n\nPara eliminarlo, primero debes reasignar esos leads a otro estado.`);
+            toastError(`No se puede eliminar. El estado "${status.name}" está asignado a ${count} lead(s).`);
             return;
         }
 
-        // 3. Si está libre (o check falló), abrimos el modal de confirmación
         setStatusToDelete(status);
     }
 
@@ -350,15 +339,16 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 
         const { error } = await supabase.from('statuses').delete().eq('id', statusToDelete.id);
         if(error) { 
-             // Fallback específico para violación de llave foránea (si el pre-check falló)
              if (error.code === '23503') {
-                alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar el estado "${statusToDelete.name}" porque hay leads asignados a él en la base de datos.\n\nPor favor, reasigna los leads antes de intentar eliminar.`);
+                toastError(`No se puede eliminar "${statusToDelete.name}" porque está en uso.`);
             } else {
-                alert(`Ocurrió un error al intentar eliminar el estado: ${error.message}`);
+                const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+                toastError(`Error al eliminar estado: ${errorMessage}`);
             }
             console.error(error); 
         } else {
             onStatusesUpdate(statuses.filter(s => s.id !== statusToDelete.id));
+            success("Estado eliminado");
             setStatusToDelete(null);
         }
     }
@@ -370,7 +360,6 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
             <div className="p-4 border rounded-lg bg-gray-50/70">
                 <h4 className="font-semibold text-gray-700">Estados Predefinidos</h4>
                 <p className="text-sm text-gray-600 mt-1 mb-3">Carga una lista de estados recomendados para empezar a organizar tus leads rápidamente.</p>
-                {seedSuccess && <div className="p-3 my-2 bg-green-100 border-l-4 border-green-500 text-green-700 text-sm animate-fade-in" role="alert">{seedSuccess}</div>}
                 <Button onClick={handleSeedStatuses} disabled={seeding} variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
                     {seeding ? 'Cargando...' : 'Cargar Estados Recomendados'}
                 </Button>
@@ -426,29 +415,32 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: Source[]) => void }> = ({ sources, onSourcesUpdate }) => {
     const [name, setName] = useState('');
     const [sourceToDelete, setSourceToDelete] = useState<Source | null>(null);
+    const { success, error: toastError } = useToast();
 
     const handleAdd = async () => {
         if (name.trim()) {
             const { data, error } = await supabase.from('sources').insert({ name: name.trim() }).select().single();
-            if(error) { console.error(error); return; }
+            if(error) { 
+                console.error(error); 
+                toastError("Error al crear origen");
+                return; 
+            }
             onSourcesUpdate([...sources, data]);
+            success("Origen creado");
             setName('');
         }
     };
     
     const handleVerifyAndDelete = async (source: Source) => {
-         // Verificar si hay leads con este origen
          const { count, error: checkError } = await supabase
             .from('leads')
             .select('id', { count: 'exact', head: true })
             .eq('source_id', source.id);
 
-        if (checkError) {
-            console.error("Error al verificar el uso del origen:", checkError);
-        }
+        if (checkError) console.error(checkError);
 
         if (count && count > 0) {
-            alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar el origen "${source.name}" porque actualmente está asignado a ${count} lead(s).`);
+            toastError(`No se puede eliminar "${source.name}" porque está en uso.`);
             return;
         }
 
@@ -461,13 +453,15 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
         const { error } = await supabase.from('sources').delete().eq('id', sourceToDelete.id);
         if(error) { 
             if (error.code === '23503') {
-                alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar el origen "${sourceToDelete.name}" porque está siendo utilizado por leads existentes.`);
+                toastError(`No se puede eliminar "${sourceToDelete.name}" porque está en uso.`);
             } else {
-                alert(`Ocurrió un error al eliminar el origen: ${error.message}`);
+                const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+                toastError(`Error al eliminar origen: ${errorMessage}`);
             }
             console.error(error); 
         } else {
             onSourcesUpdate(sources.filter(s => s.id !== sourceToDelete.id));
+            success("Origen eliminado");
             setSourceToDelete(null);
         }
     };
@@ -517,29 +511,32 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
 const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void }> = ({ licenciaturas, onLicenciaturasUpdate }) => {
     const [name, setName] = useState('');
     const [licenciaturaToDelete, setLicenciaturaToDelete] = useState<Licenciatura | null>(null);
+    const { success, error: toastError } = useToast();
 
     const handleAdd = async () => {
         if (name.trim()) {
             const { data, error } = await supabase.from('licenciaturas').insert({ name: name.trim() }).select().single();
-            if (error) { console.error(error); return; }
+            if (error) { 
+                console.error(error); 
+                toastError("Error al crear licenciatura");
+                return; 
+            }
             onLicenciaturasUpdate([...licenciaturas, data]);
+            success("Licenciatura creada");
             setName('');
         }
     };
     
     const handleVerifyAndDelete = async (lic: Licenciatura) => {
-        // Verificar si hay leads interesados en esta licenciatura
         const { count, error: checkError } = await supabase
             .from('leads')
             .select('id', { count: 'exact', head: true })
             .eq('program_id', lic.id);
 
-        if (checkError) {
-            console.error("Error al verificar el uso de la licenciatura:", checkError);
-        }
+        if (checkError) console.error(checkError);
 
         if (count && count > 0) {
-            alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar la licenciatura "${lic.name}" porque hay ${count} lead(s) interesados en ella.`);
+            toastError(`No se puede eliminar "${lic.name}" porque hay leads interesados en ella.`);
             return;
         }
 
@@ -552,13 +549,15 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
         const { error } = await supabase.from('licenciaturas').delete().eq('id', licenciaturaToDelete.id);
         if(error) { 
             if (error.code === '23503') {
-                alert(`⛔ ACCIÓN DENEGADA\n\nNo se puede eliminar la licenciatura "${licenciaturaToDelete.name}" porque está siendo utilizada por leads existentes.`);
+                toastError(`No se puede eliminar "${licenciaturaToDelete.name}" porque está en uso.`);
             } else {
-                alert(`Ocurrió un error al eliminar la licenciatura: ${error.message}`);
+                const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+                toastError(`Error al eliminar licenciatura: ${errorMessage}`);
             }
             console.error(error); 
         } else {
             onLicenciaturasUpdate(licenciaturas.filter(s => s.id !== licenciaturaToDelete.id));
+            success("Licenciatura eliminada");
             setLicenciaturaToDelete(null);
         }
     };
@@ -615,6 +614,7 @@ const WhatsappTemplateSettings: React.FC<{
     const [editingId, setEditingId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState<WhatsAppTemplate | null>(null);
+    const { success, error: toastError } = useToast();
 
     const handleSave = async () => {
         if (!name.trim() || !content.trim()) return;
@@ -630,17 +630,18 @@ const WhatsappTemplateSettings: React.FC<{
             
             if (error) {
                 console.error('Error updating template:', error);
-                alert('Error al actualizar la plantilla.');
+                toastError('Error al actualizar la plantilla.');
             } else if (data) {
                 const updatedTemplates = templates.map(t => t.id === editingId ? data : t);
                 onTemplatesUpdate(updatedTemplates);
+                success("Plantilla actualizada");
                 setEditingId(null);
                 setName('');
                 setContent('');
             }
         } else {
             if (templates.length >= 5) {
-                alert("Solo puedes tener un máximo de 5 plantillas.");
+                toastError("Solo puedes tener un máximo de 5 plantillas.");
                 setSaving(false);
                 return;
             }
@@ -653,9 +654,10 @@ const WhatsappTemplateSettings: React.FC<{
             
              if (error) {
                 console.error('Error creating template:', error);
-                alert('Error al crear la plantilla.');
+                toastError('Error al crear la plantilla.');
             } else if (data) {
                 onTemplatesUpdate([...templates, data]);
+                success("Plantilla creada");
                 setName('');
                 setContent('');
             }
@@ -685,9 +687,11 @@ const WhatsappTemplateSettings: React.FC<{
         const { error } = await supabase.from('whatsapp_templates').delete().eq('id', templateToDelete.id);
         if (error) {
              console.error('Error deleting template:', error);
-             alert('Error al eliminar la plantilla.');
+             const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+             toastError(`Error al eliminar la plantilla: ${errorMessage}`);
         } else {
             onTemplatesUpdate(templates.filter(t => t.id !== templateToDelete.id));
+            success("Plantilla eliminada");
             setTemplateToDelete(null);
         }
     };
@@ -768,7 +772,6 @@ const WhatsappTemplateSettings: React.FC<{
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {
   const [activeTab, setActiveTab] = useState<string>('');
 
-  // Define tabs with permission requirements
   const allTabs = useMemo(() => [
     { id: 'users', label: 'Usuarios', icon: <UserIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
     { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
@@ -781,7 +784,6 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
       return allTabs.filter(tab => props.currentUserProfile && tab.allowedRoles.includes(props.currentUserProfile.role));
   }, [allTabs, props.currentUserProfile]);
 
-  // Initialize active tab to the first visible one if current selection is invalid
   useEffect(() => {
       if (visibleTabs.length > 0 && !visibleTabs.find(t => t.id === activeTab)) {
           setActiveTab(visibleTabs[0].id);

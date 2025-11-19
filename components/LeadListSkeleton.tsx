@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 const SkeletonRow = () => (
@@ -30,7 +31,47 @@ const SkeletonRow = () => (
   </tr>
 );
 
-const LeadListSkeleton: React.FC = () => {
+const KanbanColumnSkeleton = () => (
+    <div className="flex-shrink-0 w-80 flex flex-col bg-gray-100 rounded-lg border border-gray-200 h-full animate-pulse">
+        <div className="p-3 border-b border-gray-200 bg-white rounded-t-lg h-12"></div>
+        <div className="p-2 space-y-2 flex-1">
+            <div className="h-24 bg-gray-200 rounded-md bg-white border border-gray-200"></div>
+            <div className="h-24 bg-gray-200 rounded-md bg-white border border-gray-200"></div>
+            <div className="h-24 bg-gray-200 rounded-md bg-white border border-gray-200"></div>
+        </div>
+    </div>
+);
+
+interface LeadListSkeletonProps {
+    viewMode?: 'list' | 'kanban';
+}
+
+const LeadListSkeleton: React.FC<LeadListSkeletonProps> = ({ viewMode = 'list' }) => {
+  if (viewMode === 'kanban') {
+      return (
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Header Skeleton */}
+             <div className="sm:flex sm:items-center sm:justify-between mb-6 animate-pulse">
+                <div>
+                  <div className="h-8 bg-gray-300 rounded w-64 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-96"></div>
+                </div>
+                <div className="mt-4 sm:mt-0 sm:ml-4 flex items-center space-x-2">
+                    <div className="h-10 bg-gray-300 rounded-md w-40"></div>
+                    <div className="h-10 bg-gray-300 rounded-md w-48"></div>
+                </div>
+            </div>
+             {/* Kanban Board Skeleton */}
+            <div className="flex overflow-x-auto pb-4 h-[calc(100vh-220px)] space-x-4">
+                <KanbanColumnSkeleton />
+                <KanbanColumnSkeleton />
+                <KanbanColumnSkeleton />
+                <KanbanColumnSkeleton />
+            </div>
+        </div>
+      );
+  }
+
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header Skeleton */}
