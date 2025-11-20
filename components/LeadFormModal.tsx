@@ -29,7 +29,10 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
     source_id: '',
   });
 
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   useEffect(() => {
+    setEmailError(null); // Clear errors when modal opens/changes context
     if (leadToEdit) {
       setFormData({
         first_name: leadToEdit.first_name,
@@ -68,14 +71,39 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
     }
   }, [leadToEdit, isOpen, advisors, statuses, sources, licenciaturas, currentUser]);
 
+  const validateEmailFormat = (email: string) => {
+    // Basic email regex
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Clear email error if user is correcting it
+    if (name === 'email' && emailError) {
+        if (!value || validateEmailFormat(value)) {
+            setEmailError(null);
+        }
+    }
+  };
+
+  const handleEmailBlur = () => {
+    if (formData.email && !validateEmailFormat(formData.email)) {
+        setEmailError('El formato del correo electrónico no es válido.');
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Final validation before submit
+    if (formData.email && !validateEmailFormat(formData.email)) {
+        setEmailError('El formato del correo electrónico no es válido.');
+        return;
+    }
+
     const leadPayload = {
         ...formData,
         email: formData.email || undefined,
@@ -86,7 +114,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
     onClose();
   };
   
-  const formIsInvalid = !formData.first_name || !formData.paternal_last_name || !formData.phone || !formData.advisor_id || !formData.status_id || !formData.source_id || !formData.program_id;
+  const formIsInvalid = !formData.first_name || !formData.paternal_last_name || !formData.phone || !formData.advisor_id || !formData.status_id || !formData.source_id || !formData.program_id || !!emailError;
 
   // Filter advisors available for selection
   const availableAdvisors = currentUser?.role === 'admin' 
@@ -116,7 +144,20 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         </div>
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo Electrónico (Opcional)</label>
-          <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
+          <input 
+            type="email" 
+            name="email" 
+            id="email" 
+            value={formData.email} 
+            onChange={handleChange} 
+            onBlur={handleEmailBlur}
+            className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none sm:text-sm ${
+                emailError 
+                ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                : 'border-gray-300 focus:ring-brand-secondary focus:border-brand-secondary'
+            }`}
+          />
+          {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
         </div>
         <div>
           <label htmlFor="phone" className="block text-sm font-medium text-gray-700">

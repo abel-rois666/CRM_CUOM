@@ -76,7 +76,15 @@ const AppContent: React.FC = () => {
       if (statusesError) throw statusesError;
       if (sourcesError) throw sourcesError;
       if (licenciaturasError) throw licenciaturasError;
-      if (templatesError) throw templatesError;
+      
+      // Handle WhatsApp Templates errors (allow missing table)
+      if (templatesError) {
+          if (templatesError.code !== '42P01' && templatesError.code !== 'PGRST205') {
+              throw templatesError;
+          } else {
+              console.warn("Tabla whatsapp_templates no encontrada. Funcionalidad deshabilitada.");
+          }
+      }
 
       setLeads(leadsData || []);
       setProfiles(profilesData || []);
@@ -87,7 +95,9 @@ const AppContent: React.FC = () => {
       
       // Optional email templates
       if (emailTemplatesData) setEmailTemplates(emailTemplatesData);
-      if (emailTemplatesError && emailTemplatesError.code !== '42P01') { // Ignore "relation does not exist" for seamless degradation
+      
+      // Ignore "relation does not exist" (42P01) or "schema cache miss" (PGRST205) for seamless degradation
+      if (emailTemplatesError && emailTemplatesError.code !== '42P01' && emailTemplatesError.code !== 'PGRST205') { 
           console.warn("Error fetching email templates", emailTemplatesError);
       }
 
@@ -95,9 +105,14 @@ const AppContent: React.FC = () => {
       console.error('Error fetching data:', error);
       const errorMessage = getErrorMessage(error);
       
-      if (errorMessage.includes("relation \"public.email_templates\" does not exist")) {
+      // Check for both Postgres (42P01) and PostgREST (PGRST205) error messages
+      const isMissingTableError = (msg: string, tableName: string) => 
+          msg.includes(`relation "public.${tableName}" does not exist`) || 
+          msg.includes(`Could not find the table 'public.${tableName}'`);
+
+      if (isMissingTableError(errorMessage, 'email_templates')) {
           console.warn("Tabla email_templates no encontrada. Saltando...");
-      } else if (errorMessage.includes("relation \"public.whatsapp_templates\" does not exist")) {
+      } else if (isMissingTableError(errorMessage, 'whatsapp_templates')) {
            console.warn("Tabla whatsapp_templates no encontrada. Saltando...");
       } else {
          toastError(`Error al cargar datos: ${errorMessage}`);

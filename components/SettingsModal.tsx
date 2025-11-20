@@ -17,6 +17,8 @@ import UserEditModal from './UserEditModal';
 import ArrowUpTrayIcon from './icons/ArrowUpTrayIcon';
 import { useToast } from '../context/ToastContext';
 import EnvelopeIcon from './icons/EnvelopeIcon';
+import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
+import ArrowPathIcon from './icons/ArrowPathIcon';
 
 
 interface SettingsModalProps {
@@ -678,6 +680,39 @@ const WhatsappTemplateSettings: React.FC<{
     const [templateToDelete, setTemplateToDelete] = useState<WhatsAppTemplate | null>(null);
     const { success, error: toastError } = useToast();
 
+    const handleSeedTemplates = async () => {
+        setSaving(true);
+        const newTemplates = [
+            { name: 'Saludo Inicial', content: 'Hola, gracias por tu interés en nuestra oferta académica. ¿Te gustaría agendar una visita al campus?' },
+            { name: 'Confirmación Cita', content: 'Hola, te confirmamos tu cita para el día asignado. ¡Te esperamos!' },
+            { name: 'Seguimiento', content: 'Hola, ¿tuviste oportunidad de revisar el plan de estudios que te enviamos?' }
+        ];
+
+        const currentNames = new Set(templates.map(t => t.name));
+        const toInsert = newTemplates.filter(t => !currentNames.has(t.name));
+
+        if (toInsert.length === 0) {
+             success("Ya tienes las plantillas recomendadas.");
+             setSaving(false);
+             return;
+        }
+
+        if (templates.length + toInsert.length > 5) {
+            toastError("No hay espacio suficiente para las plantillas recomendadas (máx 5).");
+            setSaving(false);
+            return;
+        }
+
+        const { data, error } = await supabase.from('whatsapp_templates').insert(toInsert).select();
+        if (error) {
+            toastError("Error al crear plantillas: " + error.message);
+        } else if (data) {
+            onTemplatesUpdate([...templates, ...data]);
+            success(`${data.length} plantillas añadidas.`);
+        }
+        setSaving(false);
+    }
+
     const handleSave = async () => {
         if (!name.trim() || !content.trim()) return;
         setSaving(true);
@@ -760,7 +795,20 @@ const WhatsappTemplateSettings: React.FC<{
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de WhatsApp</h3>
-            <div className="p-4 border rounded-lg bg-green-50/50 border-green-200">
+            
+            {!editingId && templates.length === 0 && (
+                <div className="p-4 border rounded-lg bg-green-50/50 border-green-200 mb-4 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm text-green-800 font-medium">¿Empezando?</p>
+                        <p className="text-xs text-green-600">Carga plantillas predefinidas para comenzar rápido.</p>
+                    </div>
+                    <Button onClick={handleSeedTemplates} disabled={saving} size="sm" variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
+                        Cargar Recomendadas
+                    </Button>
+                </div>
+            )}
+
+            <div className="p-4 border rounded-lg bg-gray-50/70 border-gray-200">
                 <h4 className="font-semibold text-gray-700 mb-2">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
                 <div className="space-y-3">
                     <div>
@@ -843,6 +891,46 @@ const EmailTemplateSettings: React.FC<{
     const [templateToDelete, setTemplateToDelete] = useState<EmailTemplate | null>(null);
     const { success, error: toastError } = useToast();
 
+    const handleSeedTemplates = async () => {
+        setSaving(true);
+        const newTemplates = [
+            { 
+                name: 'Bienvenida', 
+                subject: 'Bienvenido/a a la Universidad', 
+                body: '<p>Hola,</p><p>Gracias por contactarnos. Adjunto encontrarás la información de la licenciatura de tu interés.</p><p>Estamos a tus órdenes para cualquier duda.</p><p>Saludos cordiales,</p>' 
+            },
+            { 
+                name: 'Recordatorio Cita', 
+                subject: 'Recordatorio de tu cita en Campus', 
+                body: '<p>Hola,</p><p>Te recordamos que tienes una cita programada con nosotros para conocer el campus y resolver tus dudas.</p><p>¡Te esperamos!</p>' 
+            },
+            {
+                name: 'Seguimiento',
+                subject: 'Seguimiento a tu solicitud de informes',
+                body: '<p>Hola,</p><p>Esperamos que te encuentres muy bien.</p><p>Queríamos saber si tuviste oportunidad de revisar la información que te enviamos anteriormente y si tienes alguna pregunta adicional.</p>'
+            }
+        ];
+        
+        // Check for existing names to avoid dupes
+        const currentNames = new Set(templates.map(t => t.name));
+        const toInsert = newTemplates.filter(t => !currentNames.has(t.name));
+
+        if (toInsert.length === 0) {
+             success("Ya tienes las plantillas recomendadas.");
+             setSaving(false);
+             return;
+        }
+
+        const { data, error } = await supabase.from('email_templates').insert(toInsert).select();
+        if (error) {
+            toastError("Error al crear plantillas: " + error.message);
+        } else if (data) {
+            onTemplatesUpdate([...templates, ...data]);
+            success(`${data.length} plantillas añadidas.`);
+        }
+        setSaving(false);
+    }
+
     const handleSave = async () => {
         if (!name.trim() || !subject.trim() || !body.trim()) return;
         setSaving(true);
@@ -923,7 +1011,20 @@ const EmailTemplateSettings: React.FC<{
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de Correo</h3>
-            <div className="p-4 border rounded-lg bg-blue-50/50 border-blue-200">
+
+            {!editingId && templates.length === 0 && (
+                <div className="p-4 border rounded-lg bg-blue-50/50 border-blue-200 mb-4 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm text-blue-800 font-medium">¿Primera vez aquí?</p>
+                        <p className="text-xs text-blue-600">Carga plantillas básicas de bienvenida y seguimiento.</p>
+                    </div>
+                    <Button onClick={handleSeedTemplates} disabled={saving} size="sm" variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
+                        Cargar Recomendadas
+                    </Button>
+                </div>
+            )}
+
+            <div className="p-4 border rounded-lg bg-gray-50/70 border-gray-200">
                 <h4 className="font-semibold text-gray-700 mb-2">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
                 <div className="space-y-3">
                     <div>
@@ -1007,6 +1108,8 @@ const EmailTemplateSettings: React.FC<{
 const LoginHistorySettings: React.FC = () => {
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [configError, setConfigError] = useState<string | null>(null);
+    const [errorCode, setErrorCode] = useState<string | null>(null);
     const { error: toastError } = useToast();
 
     useEffect(() => {
@@ -1019,9 +1122,18 @@ const LoginHistorySettings: React.FC = () => {
                 .limit(50);
 
             if (error) {
-                const msg = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
                 console.error("Error fetching login history:", error);
-                toastError(`Error cargando historial: ${msg}`);
+                
+                // Improved error message extraction
+                let msg = error.message;
+                if (!msg && typeof error === 'object') {
+                    msg = JSON.stringify(error);
+                    if (msg === '{}' || msg === '[]') msg = 'Error desconocido (objeto vacío)';
+                }
+                
+                setErrorCode(error.code || 'UNKNOWN');
+                setConfigError(msg || String(error));
+
             } else {
                 setHistory(data || []);
             }
@@ -1029,6 +1141,79 @@ const LoginHistorySettings: React.FC = () => {
         };
         fetchHistory();
     }, []);
+
+    if (configError) {
+        const fixSql = `DO $$
+BEGIN
+    -- 1. Verificar si la tabla existe, si no, crearla
+    CREATE TABLE IF NOT EXISTS public.login_history (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id UUID NOT NULL,
+        login_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        user_agent TEXT
+    );
+
+    -- 2. Habilitar RLS si no está habilitado
+    ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY;
+
+    -- 3. Asegurar que la Foreign Key existe (Borrar y Recrear para garantizar integridad)
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'login_history_user_id_fkey') THEN
+        ALTER TABLE public.login_history DROP CONSTRAINT login_history_user_id_fkey;
+    END IF;
+
+    ALTER TABLE public.login_history 
+    ADD CONSTRAINT login_history_user_id_fkey 
+    FOREIGN KEY (user_id) 
+    REFERENCES public.profiles(id) 
+    ON DELETE CASCADE;
+
+    -- 4. Políticas de Seguridad (Idempotentes)
+    DROP POLICY IF EXISTS "Insertar propio historial" ON public.login_history;
+    CREATE POLICY "Insertar propio historial" ON public.login_history FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+
+    DROP POLICY IF EXISTS "Admins ven historial" ON public.login_history;
+    CREATE POLICY "Admins ven historial" ON public.login_history FOR SELECT TO authenticated USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    );
+
+END $$;
+
+-- 5. IMPORTANTE: Recargar caché de esquema
+NOTIFY pgrst, 'reload';`;
+
+        return (
+             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 space-y-3">
+                 <div className="flex items-center gap-2 font-bold">
+                    <ExclamationCircleIcon className="w-5 h-5" />
+                    <span>Configuración o Error Detectado</span>
+                 </div>
+                 <p className="text-sm">
+                    Detalle del error: <span className="font-mono bg-yellow-100 px-1 rounded">{configError}</span>
+                 </p>
+                 <p className="text-sm">
+                    Es probable que la tabla no exista, falten permisos o la caché de Supabase esté desactualizada. Ejecuta este script maestro para corregir todo:
+                 </p>
+                 
+                 <div className="bg-gray-800 text-gray-200 p-3 rounded text-xs font-mono overflow-x-auto">
+                    <pre>{fixSql}</pre>
+                 </div>
+                 
+                 <div className="text-xs text-yellow-700 space-y-1">
+                    <p><strong>Instrucciones:</strong></p>
+                    <ol className="list-decimal ml-4 space-y-1">
+                        <li>Copia el código SQL de arriba.</li>
+                        <li>Ve al <strong>SQL Editor</strong> en Supabase.</li>
+                        <li>Pégalo y dale a <strong>RUN</strong>.</li>
+                        <li>Recarga esta página.</li>
+                    </ol>
+                 </div>
+                 
+                 <Button size="sm" variant="secondary" onClick={() => window.location.reload()} leftIcon={<ArrowPathIcon className="w-4 h-4"/>}>
+                    Recargar Página
+                 </Button>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-4">
