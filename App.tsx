@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
@@ -518,36 +517,12 @@ const AppContent: React.FC = () => {
       setSelectedLeadForWhatsApp(lead);
       setWhatsAppModalOpen(true);
   }
+
+  const handleOpenEmailModal = (lead: Lead) => {
+      setSelectedLeadForEmail(lead);
+      setIsEmailModalOpen(true);
+  }
   
-  // Edge Function Email Sending Logic
-  const handleSendEmail = async (to: string, subject: string, body: string) => {
-      if (!selectedLeadForEmail) return;
-      
-      try {
-        const { data, error } = await supabase.functions.invoke('send-email', {
-            body: {
-                leadId: selectedLeadForEmail.id,
-                to,
-                subject,
-                html: body.replace(/\n/g, '<br>'), // Simple conversion for now
-                userId: profile?.id
-            }
-        });
-
-        if (error) throw error;
-        
-        success("Correo enviado exitosamente.");
-        // Refresh details to show new follow-up
-        await handleViewDetails(selectedLeadForEmail);
-        setIsEmailModalOpen(false);
-
-      } catch (error) {
-          console.error("Error sending email:", error);
-          const msg = getErrorMessage(error);
-          toastError(`Error al enviar correo: ${msg}`);
-      }
-  };
-
   return (
     <div className="min-h-screen bg-gray-100">
       <Header onOpenSettings={() => setSettingsOpen(true)} userProfile={profile} onLogout={signOut} />
@@ -565,6 +540,7 @@ const AppContent: React.FC = () => {
           onOpenReports={() => setReportModalOpen(true)}
           onOpenImport={() => setBulkImportOpen(true)}
           onOpenWhatsApp={handleOpenWhatsApp}
+          onOpenEmail={handleOpenEmailModal}
           onUpdateLead={handleUpdateLeadDetails}
         />
       </main>
@@ -664,7 +640,6 @@ const AppContent: React.FC = () => {
             onClose={() => setIsEmailModalOpen(false)} 
             lead={selectedLeadForEmail}
             templates={emailTemplates}
-            onSend={handleSendEmail}
           />
       )}
     </div>

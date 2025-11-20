@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Lead, Profile, Status, Licenciatura, StatusCategory } from '../types';
 import Button from './common/Button';
@@ -39,6 +38,7 @@ interface LeadListProps {
   onOpenReports: () => void;
   onOpenImport: () => void;
   onOpenWhatsApp: (lead: Lead) => void;
+  onOpenEmail: (lead: Lead) => void;
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
 }
 
@@ -46,7 +46,7 @@ type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'regi
 type SortDirection = 'asc' | 'desc';
 type ViewMode = 'list' | 'kanban';
 
-const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenImport, onOpenWhatsApp, onUpdateLead }) => {
+const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenImport, onOpenWhatsApp, onOpenEmail, onUpdateLead }) => {
   // UI States
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
@@ -545,13 +545,13 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                                       <ChatBubbleLeftRightIcon className="w-5 h-5" />
                                   </button>
                                   {lead.email && (
-                                      <a 
-                                          href={`mailto:${lead.email}`}
+                                      <button 
+                                          onClick={() => onOpenEmail(lead)}
                                           className="text-blue-500 hover:text-blue-700 transition-colors"
-                                          title="Enviar Correo"
+                                          title="Enviar Correo con Plantilla"
                                       >
                                           <EnvelopeIcon className="w-5 h-5" />
-                                      </a>
+                                      </button>
                                   )}
                               </div>
                           </td>
@@ -596,6 +596,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
               onDelete={onDelete}
               onViewDetails={onViewDetails}
               onOpenWhatsApp={onOpenWhatsApp}
+              onOpenEmail={onOpenEmail}
               onLeadMove={handleLeadMove}
           />
         )}

@@ -17,6 +17,7 @@ interface KanbanBoardProps {
   onDelete: (leadId: string) => void;
   onViewDetails: (lead: Lead) => void;
   onOpenWhatsApp: (lead: Lead) => void;
+  onOpenEmail: (lead: Lead) => void;
   onLeadMove: (leadId: string, newStatusId: string) => void;
 }
 
@@ -29,6 +30,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onDelete,
   onViewDetails,
   onOpenWhatsApp,
+  onOpenEmail,
   onLeadMove,
 }) => {
   const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
@@ -144,9 +146,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                             <ChatBubbleLeftRightIcon className="w-4 h-4" />
                                                         </button>
                                                         {lead.email && (
-                                                            <a href={`mailto:${lead.email}`} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Email">
+                                                            <button onClick={() => onOpenEmail(lead)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Email">
                                                                 <EnvelopeIcon className="w-4 h-4" />
-                                                            </a>
+                                                            </button>
                                                         )}
                                                     </div>
                                                     <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
