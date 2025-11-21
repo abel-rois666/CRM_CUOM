@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Lead, Profile, Status, Licenciatura, StatusCategory } from '../types';
 import Button from './common/Button';
-import Badge from './common/Badge'; // Nuevo import
+import Badge from './common/Badge';
+import ConfirmationModal from './common/ConfirmationModal'; // Importamos el modal
 import EditIcon from './icons/EditIcon';
 import TrashIcon from './icons/TrashIcon';
 import PlusIcon from './icons/PlusIcon';
@@ -49,14 +50,15 @@ type SortDirection = 'asc' | 'desc';
 type ViewMode = 'list' | 'kanban';
 
 const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenImport, onOpenWhatsApp, onOpenEmail, onUpdateLead }) => {
-  // UI States
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
   
-  // Filter State
+  // Estado para el modal de confirmación de eliminación
+  const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
+
   const [filters, setFilters] = useState<FilterState>({
     advisorId: 'all',
     statusId: 'all',
@@ -65,7 +67,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
     endDate: ''
   });
 
-  // Sorting & Pagination
   const [sortColumn, setSortColumn] = useState<SortableColumn>('registration_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -89,11 +90,9 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
     if(!lead.appointments) return false;
     const activeAppointment = lead.appointments.find(a => a.status === 'scheduled');
     if (!activeAppointment) return false;
-
     const appointmentDate = new Date(activeAppointment.date);
     const now = new Date();
     const fortyEightHoursFromNow = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-
     return appointmentDate > now && appointmentDate <= fortyEightHoursFromNow;
   };
   
@@ -104,7 +103,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   const filteredAndSortedLeads = useMemo(() => {
     const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : null;
     const end = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : null;
-    
     const today = new Date();
     today.setHours(0,0,0,0);
     const threeDaysAgo = new Date();
@@ -268,6 +266,13 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
       onUpdateLead(leadId, { status_id: newStatusId });
   };
 
+  const handleDeleteConfirm = () => {
+      if (leadToDelete) {
+          onDelete(leadToDelete);
+          setLeadToDelete(null);
+      }
+  };
+
   const relevantStatuses = useMemo(() => {
     return statuses.filter(s => (s.category || 'active') === activeCategoryTab);
   }, [statuses, activeCategoryTab]);
@@ -275,7 +280,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   if (loading) return <LeadListSkeleton viewMode={viewMode} />;
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-8xl">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-8xl relative min-h-screen">
       
       <DashboardStats 
         leads={leads.filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)} 
@@ -290,6 +295,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div>
                 <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Clientes Potenciales</h2>
+                 
                  <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
                     {quickFilter ? (
                         <span className="text-brand-secondary font-semibold flex items-center gap-1 bg-brand-secondary/5 px-3 py-1 rounded-full">
@@ -303,18 +309,59 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                     )}
                 </p>
             </div>
-             <div className="flex flex-wrap items-center gap-3">
-                <Button onClick={onOpenImport} variant="secondary" size="sm" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>} className="hidden sm:flex">Importar</Button>
-                <Button onClick={onOpenReports} variant="secondary" size="sm" leftIcon={<ChartBarIcon className="w-4 h-4"/>} className="hidden sm:flex">Reporte</Button>
-                <Button onClick={handleExportCSV} variant="secondary" size="sm" leftIcon={<ArrowDownTrayIcon className="w-4 h-4"/>} className="hidden sm:flex">Exportar</Button>
-                <Button onClick={onAddNew} leftIcon={<PlusIcon className="w-5 h-5"/>} className="shadow-lg shadow-brand-secondary/20">Nuevo Lead</Button>
+{/* BARRA DE ACCIONES RESPONSIVE */}
+             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {/* Botón Importar: Icono en móvil, Texto en PC */}
+                <Button 
+                    onClick={onOpenImport} 
+                    variant="secondary" 
+                    size="sm" 
+                    className="px-3 sm:px-4"
+                    title="Importar Leads"
+                >
+                    <ArrowUpTrayIcon className="w-5 h-5 sm:mr-2" />
+                    <span className="hidden sm:inline">Importar</span>
+                </Button>
+
+                {/* Botón Reporte: Icono en móvil, Texto en PC */}
+                <Button 
+                    onClick={onOpenReports} 
+                    variant="secondary" 
+                    size="sm" 
+                    className="px-3 sm:px-4"
+                    title="Generar Reporte"
+                >
+                    <ChartBarIcon className="w-5 h-5 sm:mr-2" />
+                    <span className="hidden sm:inline">Reporte</span>
+                </Button>
+
+                {/* Botón Exportar: Icono en móvil, Texto en PC */}
+                <Button 
+                    onClick={handleExportCSV} 
+                    variant="secondary" 
+                    size="sm" 
+                    className="px-3 sm:px-4"
+                    title="Exportar CSV"
+                >
+                    <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" />
+                    <span className="hidden sm:inline">Exportar</span>
+                </Button>
+
+                {/* Botón Nuevo Lead: SE OCULTA EN MÓVIL (hidden) porque usas el FAB flotante */}
+                <Button 
+                    onClick={onAddNew} 
+                    leftIcon={<PlusIcon className="w-5 h-5"/>} 
+                    className="shadow-lg shadow-brand-secondary/20 hidden md:flex"
+                >
+                    Nuevo Lead
+                </Button>
             </div>
           </div>
 
           {/* Filters & Tabs */}
           <div className="flex flex-col gap-4">
-            <div className="border-b border-gray-200">
-                <nav className="-mb-px flex space-x-8 px-2" aria-label="Tabs">
+            <div className="border-b border-gray-200 overflow-x-auto">
+                <nav className="-mb-px flex space-x-8 px-2 min-w-max" aria-label="Tabs">
                 {[
                     { id: 'active', label: 'En Proceso (Activos)', color: 'border-brand-secondary text-brand-secondary' },
                     { id: 'won', label: 'Inscritos (Ganados)', color: 'border-green-500 text-green-600' },
@@ -422,12 +469,12 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                   <thead className="bg-gray-50/50">
                   <tr>
                       <SortableHeader column="name" label="Nombre" />
-                      <SortableHeader column="advisor_id" label="Asesor" />
+                      <SortableHeader column="advisor_id" label="Asesor" className="hidden md:table-cell" />
                       <SortableHeader column="status_id" label="Estado" />
-                      <SortableHeader column="program_id" label="Licenciatura" />
-                      <SortableHeader column="registration_date" label="Registro" />
-                      <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Agenda</th>
-                      <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones Rápidas</th>
+                      <SortableHeader column="program_id" label="Licenciatura" className="hidden sm:table-cell" />
+                      <SortableHeader column="registration_date" label="Registro" className="hidden lg:table-cell" />
+                      <th scope="col" className="hidden sm:table-cell px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Agenda</th>
+                      <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
                       <th scope="col" className="relative px-6 py-3"><span className="sr-only">Editar</span></th>
                   </tr>
                   </thead>
@@ -450,7 +497,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                                 </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                               {advisorMap.get(lead.advisor_id) || <span className="text-gray-400 italic">Sin asignar</span>}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -458,13 +505,13 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                                 {status?.name || 'Desconocido'}
                              </Badge>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">
+                          <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">
                              {licenciaturaMap.get(lead.program_id) || '-'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {new Date(lead.registration_date).toLocaleDateString()}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-center">
                           {isUrgent ? (
                               <button onClick={() => onViewDetails(lead)} className="text-red-500 hover:scale-110 transition-transform" title="Cita Urgente">
                                 <BellAlertIcon className="w-5 h-5 inline-block animate-pulse" />
@@ -478,7 +525,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                           )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
-                              <div className="flex items-center justify-center space-x-3 opacity-70 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center justify-center space-x-3 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
                                   <button onClick={() => onOpenWhatsApp(lead)} className="text-gray-400 hover:text-green-600 transition-colors hover:bg-green-50 p-1 rounded-md">
                                       <ChatBubbleLeftRightIcon className="w-5 h-5" />
                                   </button>
@@ -490,9 +537,9 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                               </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex justify-end space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 <button onClick={() => onEdit(lead)} className="text-gray-400 hover:text-brand-secondary p-1 rounded hover:bg-gray-100"><EditIcon className="w-4 h-4"/></button>
-                                <button onClick={() => onDelete(lead.id)} className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><TrashIcon className="w-4 h-4"/></button>
+                                <button onClick={() => setLeadToDelete(lead.id)} className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><TrashIcon className="w-4 h-4"/></button>
                             </div>
                           </td>
                       </tr>
@@ -530,7 +577,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
               advisors={advisors}
               licenciaturas={licenciaturas}
               onEdit={onEdit}
-              onDelete={onDelete}
+              onDelete={(id) => setLeadToDelete(id)} // Conectamos Kanban con el modal
               onViewDetails={onViewDetails}
               onOpenWhatsApp={onOpenWhatsApp}
               onOpenEmail={onOpenEmail}
@@ -590,6 +637,30 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         onApplyFilters={setFilters}
         onClearFilters={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
       />
+
+      {/* MODAL DE CONFIRMACIÓN */}
+      <ConfirmationModal
+        isOpen={!!leadToDelete}
+        onClose={() => setLeadToDelete(null)}
+        onConfirm={() => {
+            if (leadToDelete) onDelete(leadToDelete);
+            setLeadToDelete(null);
+        }}
+        title="¿Eliminar Lead?"
+        message="Estás a punto de eliminar este lead permanentemente. ¿Estás seguro?"
+        confirmButtonText="Sí, Eliminar"
+        confirmButtonVariant="danger"
+      />
+
+      {/* FAB: Botón Flotante para Móvil */}
+      <button
+        onClick={onAddNew}
+        className="fixed bottom-6 right-6 md:hidden z-30 bg-brand-secondary text-white p-4 rounded-full shadow-lg hover:bg-blue-600 transition-all hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-secondary"
+        aria-label="Crear Nuevo Lead"
+      >
+        <PlusIcon className="w-6 h-6" />
+      </button>
+
     </div>
   );
 };

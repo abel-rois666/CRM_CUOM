@@ -14,47 +14,50 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
   if (!isOpen) return null;
 
   const sizeClasses = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
-    '2xl': 'max-w-2xl',
-    '3xl': 'max-w-3xl',
-    '4xl': 'max-w-4xl',
+    sm: 'sm:max-w-sm',
+    md: 'sm:max-w-md',
+    lg: 'sm:max-w-lg',
+    xl: 'sm:max-w-xl',
+    '2xl': 'sm:max-w-2xl',
+    '3xl': 'sm:max-w-3xl',
+    '4xl': 'sm:max-w-4xl',
   };
 
   return (
     <div 
-        className="fixed inset-0 z-50 flex justify-center items-center p-4 sm:p-6"
+        className="fixed inset-0 z-50 flex sm:justify-center sm:items-center p-0 sm:p-6"
         aria-labelledby="modal-title" 
         role="dialog" 
         aria-modal="true"
     >
-      {/* Backdrop con desenfoque suave */}
+      {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity animate-fade-in"
         onClick={onClose}
       ></div>
 
-      {/* Panel del Modal */}
+      {/* Panel del Modal: 
+          Móvil: w-full h-full rounded-none (Pantalla completa)
+          Escritorio (sm): redondeado, altura auto, centrado
+      */}
       <div className={`
-        relative bg-white rounded-2xl shadow-2xl w-full ${sizeClasses[size]} 
-        flex flex-col max-h-[90vh] animate-scale-in border border-gray-100
+        relative bg-white shadow-2xl flex flex-col border border-gray-100 animate-scale-in
+        w-full h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:w-full ${sizeClasses[size]}
       `}>
         {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-white sm:rounded-t-2xl flex-shrink-0">
           <h3 className="text-lg font-bold text-gray-800" id="modal-title">{title}</h3>
           <button 
             onClick={onClose} 
-            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors bg-gray-50 sm:bg-transparent"
             aria-label="Cerrar"
           >
             <XIcon className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content - Custom scrollbar para evitar estilos nativos feos */}
-        <div className="p-6 overflow-y-auto custom-scrollbar">
+        {/* Content - Scrollable */}
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 overscroll-contain">
           {children}
         </div>
       </div>

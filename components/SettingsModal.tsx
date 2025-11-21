@@ -1109,7 +1109,6 @@ const LoginHistorySettings: React.FC = () => {
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [configError, setConfigError] = useState<string | null>(null);
-    const [errorCode, setErrorCode] = useState<string | null>(null);
     const { error: toastError } = useToast();
 
     useEffect(() => {
@@ -1123,17 +1122,7 @@ const LoginHistorySettings: React.FC = () => {
 
             if (error) {
                 console.error("Error fetching login history:", error);
-                
-                // Improved error message extraction
-                let msg = error.message;
-                if (!msg && typeof error === 'object') {
-                    msg = JSON.stringify(error);
-                    if (msg === '{}' || msg === '[]') msg = 'Error desconocido (objeto vacío)';
-                }
-                
-                setErrorCode(error.code || 'UNKNOWN');
-                setConfigError(msg || String(error));
-
+                setConfigError(error.message || String(error));
             } else {
                 setHistory(data || []);
             }
@@ -1143,74 +1132,19 @@ const LoginHistorySettings: React.FC = () => {
     }, []);
 
     if (configError) {
-        const fixSql = `DO $$
-BEGIN
-    -- 1. Verificar si la tabla existe, si no, crearla
-    CREATE TABLE IF NOT EXISTS public.login_history (
-        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        user_id UUID NOT NULL,
-        login_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-        user_agent TEXT
-    );
-
-    -- 2. Habilitar RLS si no está habilitado
-    ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY;
-
-    -- 3. Asegurar que la Foreign Key existe (Borrar y Recrear para garantizar integridad)
-    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'login_history_user_id_fkey') THEN
-        ALTER TABLE public.login_history DROP CONSTRAINT login_history_user_id_fkey;
-    END IF;
-
-    ALTER TABLE public.login_history 
-    ADD CONSTRAINT login_history_user_id_fkey 
-    FOREIGN KEY (user_id) 
-    REFERENCES public.profiles(id) 
-    ON DELETE CASCADE;
-
-    -- 4. Políticas de Seguridad (Idempotentes)
-    DROP POLICY IF EXISTS "Insertar propio historial" ON public.login_history;
-    CREATE POLICY "Insertar propio historial" ON public.login_history FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
-
-    DROP POLICY IF EXISTS "Admins ven historial" ON public.login_history;
-    CREATE POLICY "Admins ven historial" ON public.login_history FOR SELECT TO authenticated USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
-    );
-
-END $$;
-
--- 5. IMPORTANTE: Recargar caché de esquema
-NOTIFY pgrst, 'reload';`;
+         const fixSql = `DO $$ BEGIN CREATE TABLE IF NOT EXISTS public.login_history ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, user_id UUID NOT NULL, login_at TIMESTAMP WITH TIME ZONE DEFAULT now(), user_agent TEXT ); ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY; IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'login_history_user_id_fkey') THEN ALTER TABLE public.login_history DROP CONSTRAINT login_history_user_id_fkey; END IF; ALTER TABLE public.login_history ADD CONSTRAINT login_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE; DROP POLICY IF EXISTS "Insertar propio historial" ON public.login_history; CREATE POLICY "Insertar propio historial" ON public.login_history FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id); DROP POLICY IF EXISTS "Admins ven historial" ON public.login_history; CREATE POLICY "Admins ven historial" ON public.login_history FOR SELECT TO authenticated USING ( EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin') ); END $$; NOTIFY pgrst, 'reload';`;
 
         return (
              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 space-y-3">
                  <div className="flex items-center gap-2 font-bold">
                     <ExclamationCircleIcon className="w-5 h-5" />
-                    <span>Configuración o Error Detectado</span>
+                    <span>Error de Configuración</span>
                  </div>
-                 <p className="text-sm">
-                    Detalle del error: <span className="font-mono bg-yellow-100 px-1 rounded">{configError}</span>
-                 </p>
-                 <p className="text-sm">
-                    Es probable que la tabla no exista, falten permisos o la caché de Supabase esté desactualizada. Ejecuta este script maestro para corregir todo:
-                 </p>
-                 
+                 <p className="text-sm">Detalle: {configError}</p>
                  <div className="bg-gray-800 text-gray-200 p-3 rounded text-xs font-mono overflow-x-auto">
                     <pre>{fixSql}</pre>
                  </div>
-                 
-                 <div className="text-xs text-yellow-700 space-y-1">
-                    <p><strong>Instrucciones:</strong></p>
-                    <ol className="list-decimal ml-4 space-y-1">
-                        <li>Copia el código SQL de arriba.</li>
-                        <li>Ve al <strong>SQL Editor</strong> en Supabase.</li>
-                        <li>Pégalo y dale a <strong>RUN</strong>.</li>
-                        <li>Recarga esta página.</li>
-                    </ol>
-                 </div>
-                 
-                 <Button size="sm" variant="secondary" onClick={() => window.location.reload()} leftIcon={<ArrowPathIcon className="w-4 h-4"/>}>
-                    Recargar Página
-                 </Button>
+                 <Button size="sm" variant="secondary" onClick={() => window.location.reload()} leftIcon={<ArrowPathIcon className="w-4 h-4"/>}>Recargar</Button>
             </div>
         );
     }
@@ -1218,31 +1152,34 @@ NOTIFY pgrst, 'reload';`;
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Historial de Accesos</h3>
-            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
-                <table className="min-w-full divide-y divide-gray-300">
+            
+            {/* FIX CRÍTICO: 'overflow-x-auto' habilita el scroll horizontal en móviles */}
+            <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+                <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Usuario</th>
-                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Fecha y Hora</th>
-                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Dispositivo / Navegador</th>
+                            {/* 'whitespace-nowrap' fuerza a que la tabla se anche en lugar de aplastarse */}
+                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Usuario</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Fecha y Hora</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Dispositivo</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 bg-white">
                         {loading ? (
-                             <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500">Cargando historial...</td></tr>
+                             <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500">Cargando...</td></tr>
                         ) : history.length === 0 ? (
                             <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500">No hay registros.</td></tr>
                         ) : (
                             history.map((record) => (
-                                <tr key={record.id}>
+                                <tr key={record.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm">
                                         <div className="font-medium text-gray-900">{record.profiles?.full_name || 'Desconocido'}</div>
-                                        <div className="text-gray-500">{record.profiles?.email}</div>
+                                        <div className="text-gray-500 text-xs">{record.profiles?.email}</div>
                                     </td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                    <td className="whitespace-nowrap px-3 py-4 text-xs text-gray-500">
                                         {new Date(record.login_at).toLocaleString()}
                                     </td>
-                                    <td className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate" title={record.user_agent}>
+                                    <td className="whitespace-nowrap px-3 py-4 text-xs text-gray-500 max-w-[200px] truncate" title={record.user_agent}>
                                         {record.user_agent}
                                     </td>
                                 </tr>

@@ -59,12 +59,23 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex overflow-x-auto pb-6 h-[calc(100vh-220px)] space-x-6 p-2">
+        {/* MEJORA MÓVIL: 
+            1. 'snap-x snap-mandatory': Activa el "imán" al deslizar.
+            2. 'h-[calc(100dvh-240px)]': Usa 'dvh' para evitar problemas con la barra del navegador móvil.
+        */}
+        <div className="flex overflow-x-auto pb-6 h-[calc(100dvh-240px)] space-x-4 p-2 snap-x snap-mandatory sm:space-x-6 scroll-smooth">
         {statuses.map((status) => {
             const statusLeads = leads.filter((l) => l.status_id === status.id);
             
             return (
-            <div key={status.id} className="flex-shrink-0 w-80 flex flex-col bg-gray-50/50 rounded-2xl border border-gray-200/60 max-h-full shadow-sm backdrop-blur-sm">
+            <div 
+                key={status.id} 
+                // MEJORA MÓVIL: 
+                // - w-[85vw]: La columna ocupa el 85% del ancho (se ve un poco de la siguiente para invitar al scroll).
+                // - snap-center: Al soltar, la columna se centra sola.
+                // - sm:w-80: En escritorio vuelve al tamaño fijo estándar.
+                className="flex-shrink-0 w-[85vw] sm:w-80 flex flex-col bg-gray-50/50 rounded-2xl border border-gray-200/60 max-h-full shadow-sm backdrop-blur-sm snap-center"
+            >
                 <div className="p-4 flex justify-between items-center sticky top-0 z-10 bg-gray-50/95 rounded-t-2xl backdrop-blur-md border-b border-gray-200/50">
                     <div className="flex items-center gap-2.5">
                         <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${status.color}`}></span>
@@ -90,20 +101,21 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                 const hasAppointment = lead.appointments?.some(a => a.status === 'scheduled');
 
                                 return (
-                                    // @ts-ignore - Ignoramos error de 'key' que es un falso positivo de la librería
+                                    // @ts-ignore
                                     <Draggable key={lead.id} draggableId={lead.id} index={index}>
                                         {(provided, snapshot) => (
                                             <div 
                                                 ref={provided.innerRef}
                                                 {...provided.draggableProps}
                                                 {...provided.dragHandleProps}
-                                                // @ts-ignore - Ignoramos error de estilo estricto
+                                                // @ts-ignore
                                                 style={{ ...provided.draggableProps.style }}
                                                 className={`
                                                     group relative bg-white p-4 rounded-xl border border-gray-100
                                                     hover:shadow-lg hover:border-brand-secondary/30 transition-all duration-300
                                                     ${isUrgent ? 'ring-2 ring-red-400 shadow-red-100' : 'shadow-sm'} 
                                                     ${snapshot.isDragging ? 'shadow-2xl rotate-2 scale-105 z-50 ring-2 ring-brand-secondary' : ''}
+                                                    active:scale-95 cursor-grab active:cursor-grabbing
                                                 `}
                                             >
                                                 <div className={`absolute left-1 top-3 bottom-3 w-1 rounded-full opacity-60 ${status.color}`}></div>
@@ -113,8 +125,12 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                         <h4 className="font-bold text-gray-800 text-sm hover:text-brand-secondary line-clamp-1 transition-colors">
                                                             {lead.first_name} {lead.paternal_last_name}
                                                         </h4>
-                                                        {isUrgent && <BellAlertIcon className="w-5 h-5 text-red-500 animate-pulse" />}
-                                                        {!isUrgent && hasAppointment && <CalendarIcon className="w-4 h-4 text-emerald-500" />}
+                                                        {isUrgent && (
+                                                            <BellAlertIcon className="w-5 h-5 text-red-500 animate-pulse" />
+                                                        )}
+                                                        {!isUrgent && hasAppointment && (
+                                                            <CalendarIcon className="w-4 h-4 text-emerald-500" />
+                                                        )}
                                                     </div>
                                                     
                                                     <div className="mb-3">
@@ -131,23 +147,25 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                     </div>
                                                 </div>
 
+                                                {/* Acciones: Botones más grandes en móvil para facilitar el toque */}
                                                 <div className="pl-3 pt-3 mt-3 border-t border-gray-50 flex justify-between items-center">
-                                                    <div className="flex space-x-1">
-                                                        <button onClick={() => onOpenWhatsApp(lead)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all">
-                                                            <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                                                    <div className="flex space-x-3"> 
+                                                        <button onClick={() => onOpenWhatsApp(lead)} className="p-2 text-gray-400 hover:text-green-600 bg-gray-50 rounded-lg transition-all" title="WhatsApp">
+                                                            <ChatBubbleLeftRightIcon className="w-5 h-5" />
                                                         </button>
                                                         {lead.email && (
-                                                            <button onClick={() => onOpenEmail(lead)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-                                                                <EnvelopeIcon className="w-4 h-4" />
+                                                            <button onClick={() => onOpenEmail(lead)} className="p-2 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-lg transition-all" title="Email">
+                                                                <EnvelopeIcon className="w-5 h-5" />
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                        <button onClick={() => onEdit(lead)} className="p-1.5 text-gray-400 hover:text-brand-secondary hover:bg-brand-secondary/10 rounded-lg transition-all">
-                                                            <EditIcon className="w-4 h-4" />
+                                                    {/* En móvil siempre visibles (sin opacity-0) */}
+                                                    <div className="flex space-x-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => onEdit(lead)} className="p-2 text-gray-400 hover:text-brand-secondary bg-gray-50 rounded-lg transition-all">
+                                                            <EditIcon className="w-5 h-5" />
                                                         </button>
-                                                        <button onClick={() => onDelete(lead.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
-                                                            <TrashIcon className="w-4 h-4" />
+                                                        <button onClick={() => onDelete(lead.id)} className="p-2 text-gray-400 hover:text-red-600 bg-gray-50 rounded-lg transition-all">
+                                                            <TrashIcon className="w-5 h-5" />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -157,6 +175,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                 );
                             })}
                             {provided.placeholder}
+                            {statusLeads.length === 0 && !snapshot.isDraggingOver && (
+                                <div className="flex flex-col items-center justify-center py-10 text-gray-300">
+                                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
+                                        <span className="text-xl">∅</span>
+                                    </div>
+                                    <span className="text-xs font-medium">Sin leads</span>
+                                </div>
+                            )}
                         </div>
                     )}
                 </Droppable>
