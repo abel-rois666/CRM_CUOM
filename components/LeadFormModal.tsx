@@ -1,8 +1,9 @@
-
+// components/LeadFormModal.tsx
 import React, { useState, useEffect } from 'react';
 import { Lead, Profile, Status, Source, Licenciatura } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
+import { Input, Select } from './common/FormElements';
 
 interface LeadFormModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
   const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => {
-    setEmailError(null); // Clear errors when modal opens/changes context
+    setEmailError(null);
     if (leadToEdit) {
       setFormData({
         first_name: leadToEdit.first_name,
@@ -46,14 +47,8 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         source_id: leadToEdit.source_id,
       });
     } else {
-      // NEW LEAD DEFAULTS
-      
-      // 1. Advisor Logic: If 'advisor' role, default to self. If 'admin', default to empty (show placeholder).
-      const defaultAdvisorId = currentUser?.role === 'advisor' 
-        ? currentUser.id 
-        : ''; 
-
-      // 2. Status Logic: Try to find "Sin Contactar". Fallback to first available if missing.
+      // Lógica de defaults
+      const defaultAdvisorId = currentUser?.role === 'advisor' ? currentUser.id : ''; 
       const defaultStatus = statuses.find(s => s.name === 'Sin Contactar');
       const defaultStatusId = defaultStatus ? defaultStatus.id : (statuses[0]?.id || '');
 
@@ -63,16 +58,15 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         maternal_last_name: '',
         email: '',
         phone: '',
-        program_id: '', // Default empty to show "Sin seleccionar"
+        program_id: '',
         status_id: defaultStatusId,
         advisor_id: defaultAdvisorId,
-        source_id: '', // Default empty to show "Sin seleccionar"
+        source_id: '',
       });
     }
   }, [leadToEdit, isOpen, advisors, statuses, sources, licenciaturas, currentUser]);
 
   const validateEmailFormat = (email: string) => {
-    // Basic email regex
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
   };
@@ -81,7 +75,6 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Clear email error if user is correcting it
     if (name === 'email' && emailError) {
         if (!value || validateEmailFormat(value)) {
             setEmailError(null);
@@ -89,18 +82,11 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
     }
   };
 
-  const handleEmailBlur = () => {
-    if (formData.email && !validateEmailFormat(formData.email)) {
-        setEmailError('El formato del correo electrónico no es válido.');
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Final validation before submit
     if (formData.email && !validateEmailFormat(formData.email)) {
-        setEmailError('El formato del correo electrónico no es válido.');
+        setEmailError('Formato inválido.');
         return;
     }
 
@@ -116,102 +102,107 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
   
   const formIsInvalid = !formData.first_name || !formData.paternal_last_name || !formData.phone || !formData.advisor_id || !formData.status_id || !formData.source_id || !formData.program_id || !!emailError;
 
-  // Filter advisors available for selection
   const availableAdvisors = currentUser?.role === 'admin' 
     ? advisors 
     : advisors.filter(a => a.id === currentUser?.id);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={leadToEdit ? 'Editar Lead' : 'Añadir Nuevo Lead'}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">
-                Nombre(s) <span className="text-red-500">*</span>
-              </label>
-              <input type="text" name="first_name" id="first_name" value={formData.first_name} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
-            </div>
-            <div>
-              <label htmlFor="paternal_last_name" className="block text-sm font-medium text-gray-700">
-                Apellido Paterno <span className="text-red-500">*</span>
-              </label>
-              <input type="text" name="paternal_last_name" id="paternal_last_name" value={formData.paternal_last_name} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
-            </div>
+    <Modal isOpen={isOpen} onClose={onClose} title={leadToEdit ? 'Editar Lead' : 'Nuevo Lead'}>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <Input 
+                name="first_name" 
+                label="Nombre(s)" 
+                value={formData.first_name} 
+                onChange={handleChange} 
+                required 
+                placeholder="Ej. María"
+            />
+            <Input 
+                name="paternal_last_name" 
+                label="Apellido Paterno" 
+                value={formData.paternal_last_name} 
+                onChange={handleChange} 
+                required 
+                placeholder="Ej. López"
+            />
         </div>
-        <div>
-          <label htmlFor="maternal_last_name" className="block text-sm font-medium text-gray-700">Apellido Materno (Opcional)</label>
-          <input type="text" name="maternal_last_name" id="maternal_last_name" value={formData.maternal_last_name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <Input 
+                name="maternal_last_name" 
+                label="Apellido Materno" 
+                value={formData.maternal_last_name} 
+                onChange={handleChange} 
+                placeholder="Opcional"
+            />
+            <Input 
+                name="phone" 
+                type="tel"
+                label="Teléfono / WhatsApp" 
+                value={formData.phone} 
+                onChange={handleChange} 
+                required 
+                placeholder="10 dígitos"
+            />
         </div>
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo Electrónico (Opcional)</label>
-          <input 
-            type="email" 
+
+        <Input 
             name="email" 
-            id="email" 
+            type="email"
+            label="Correo Electrónico" 
             value={formData.email} 
             onChange={handleChange} 
-            onBlur={handleEmailBlur}
-            className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none sm:text-sm ${
-                emailError 
-                ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
-                : 'border-gray-300 focus:ring-brand-secondary focus:border-brand-secondary'
-            }`}
-          />
-          {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
+            error={emailError || undefined}
+            placeholder="correo@ejemplo.com"
+        />
+
+        <div className="border-t border-gray-100 my-4"></div>
+
+        <Select 
+            name="program_id"
+            label="Licenciatura de Interés"
+            value={formData.program_id}
+            onChange={handleChange}
+            required
+            placeholder="Seleccionar Licenciatura..."
+            options={licenciaturas.map(l => ({ value: l.id, label: l.name }))}
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <Select 
+                name="source_id"
+                label="Origen del Lead"
+                value={formData.source_id}
+                onChange={handleChange}
+                required
+                placeholder="Seleccionar origen..."
+                options={sources.map(s => ({ value: s.id, label: s.name }))}
+            />
+            <Select 
+                name="status_id"
+                label="Estado Inicial"
+                value={formData.status_id}
+                onChange={handleChange}
+                required
+                options={statuses.map(s => ({ value: s.id, label: s.name }))}
+            />
         </div>
-        <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-            Teléfono <span className="text-red-500">*</span>
-          </label>
-          <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
-        </div>
-        <div>
-          <label htmlFor="program_id" className="block text-sm font-medium text-gray-700">
-            Licenciatura de Interés <span className="text-red-500">*</span>
-          </label>
-          <select name="program_id" id="program_id" value={formData.program_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
-            <option value="">Sin seleccionar</option>
-            {licenciaturas.map(lic => <option key={lic.id} value={lic.id}>{lic.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="source_id" className="block text-sm font-medium text-gray-700">
-            Origen del Lead <span className="text-red-500">*</span>
-          </label>
-          <select name="source_id" id="source_id" value={formData.source_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
-            <option value="">Sin seleccionar</option>
-            {sources.map(source => <option key={source.id} value={source.id}>{source.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="advisor_id" className="block text-sm font-medium text-gray-700">
-            Asesor Asignado <span className="text-red-500">*</span>
-          </label>
-          <select 
-            name="advisor_id" 
-            id="advisor_id" 
-            value={formData.advisor_id} 
-            onChange={handleChange} 
-            required 
+
+        <Select 
+            name="advisor_id"
+            label="Asesor Asignado"
+            value={formData.advisor_id}
+            onChange={handleChange}
+            required
             disabled={currentUser?.role === 'advisor'}
-            className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md ${currentUser?.role === 'advisor' ? 'bg-gray-100 text-gray-500' : ''}`}
-          >
-            <option value="">Sin seleccionar</option>
-            {availableAdvisors.map(advisor => <option key={advisor.id} value={advisor.id}>{advisor.full_name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="status_id" className="block text-sm font-medium text-gray-700">
-            Estado <span className="text-red-500">*</span>
-          </label>
-          <select name="status_id" id="status_id" value={formData.status_id} onChange={handleChange} required className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md">
-            {/* Status usually needs a default valid value rather than "Unselected", but we allow it to change */}
-            {statuses.map(status => <option key={status.id} value={status.id}>{status.name}</option>)}
-          </select>
-        </div>
-        <div className="pt-4 flex justify-end space-x-2">
-          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" disabled={formIsInvalid}>
+            placeholder="Asignar a..."
+            options={availableAdvisors.map(a => ({ value: a.id, label: a.full_name }))}
+        />
+
+        <div className="pt-6 flex justify-end space-x-3">
+          <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" disabled={formIsInvalid} className="shadow-lg shadow-brand-secondary/20">
             {leadToEdit ? 'Guardar Cambios' : 'Crear Lead'}
           </Button>
         </div>
