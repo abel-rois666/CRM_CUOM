@@ -1,11 +1,12 @@
+// components/LeadList.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { Lead, Profile, Status, Licenciatura, StatusCategory } from '../types';
 import Button from './common/Button';
+import Badge from './common/Badge'; // Nuevo import
 import EditIcon from './icons/EditIcon';
 import TrashIcon from './icons/TrashIcon';
 import PlusIcon from './icons/PlusIcon';
 import CalendarIcon from './icons/CalendarIcon';
-import ChartBarIcon from './icons/ChartBarIcon';
 import ChevronUpDownIcon from './icons/ChevronUpDownIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import LeadListSkeleton from './LeadListSkeleton';
@@ -24,6 +25,7 @@ import XIcon from './icons/XIcon';
 import FilterDrawer, { FilterState } from './FilterDrawer';
 import FunnelIcon from './icons/FunnelIcon';
 import MagnifyingGlassIcon from './icons/MagnifyingGlassIcon';
+import ChartBarIcon from './icons/ChartBarIcon';
 
 interface LeadListProps {
   loading: boolean;
@@ -54,7 +56,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
   
-  // Filter State (Moved to object for Drawer)
+  // Filter State
   const [filters, setFilters] = useState<FilterState>({
     advisorId: 'all',
     statusId: 'all',
@@ -103,7 +105,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
     const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : null;
     const end = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : null;
     
-    // Quick Filter Logic Dates
     const today = new Date();
     today.setHours(0,0,0,0);
     const threeDaysAgo = new Date();
@@ -111,24 +112,17 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // Fuzzy Search / Global Search Terms
     const searchTerms = searchTerm.toLowerCase().split(/\s+/).filter(t => t.length > 0);
 
     const filtered = leads
-      // 0. Category Filter (The big tabs)
       .filter(lead => {
           const status = statusMap.get(lead.status_id);
-          // If status is missing (rare), default to 'active'
           const category = status ? status.category : 'active';
           return category === activeCategoryTab;
       })
-
-      // 1. Strict Dropdown Filters
       .filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)
       .filter(lead => filters.statusId === 'all' || lead.status_id === filters.statusId)
       .filter(lead => filters.programId === 'all' || lead.program_id === filters.programId)
-      
-      // 2. Date Range Filter
       .filter(lead => {
         if (!start && !end) return true;
         const regDate = new Date(lead.registration_date);
@@ -136,29 +130,19 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         if (end && regDate > end) return false;
         return true;
       })
-
-      // 3. Global "Fuzzy" Search
       .filter(lead => {
           if (searchTerms.length === 0) return true;
-          
           const leadFullName = `${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.toLowerCase();
           const leadEmail = (lead.email || '').toLowerCase();
           const leadPhone = lead.phone.toLowerCase();
           const leadProgram = (licenciaturaMap.get(lead.program_id) || '').toLowerCase();
           const leadStatus = (statusMap.get(lead.status_id)?.name || '').toLowerCase();
           const leadAdvisor = (advisorMap.get(lead.advisor_id) || '').toLowerCase();
-
-          // Combine all searchable text into one "document"
           const searchableText = `${leadFullName} ${leadEmail} ${leadPhone} ${leadProgram} ${leadStatus} ${leadAdvisor}`;
-
-          // Check if EVERY term in the search query exists somewhere in the lead's data
           return searchTerms.every(term => searchableText.includes(term));
       })
-
-      // 4. Dashboard Quick Filters
       .filter(lead => {
         if (!quickFilter) return true;
-
         if (quickFilter === 'appointments_today') {
             return lead.appointments?.some(appt => {
                 const apptDate = new Date(appt.date);
@@ -166,13 +150,11 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                 return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
             });
         }
-
         if (quickFilter === 'no_followup') {
              const regDate = new Date(lead.registration_date);
              const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
              return hasNoFollowUps && regDate < threeDaysAgo;
         }
-
         if (quickFilter === 'stale_followup') {
             if (!lead.follow_ups || lead.follow_ups.length === 0) return false;
             const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
@@ -182,7 +164,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         return true;
       });
 
-    // Sorting
     return filtered.sort((a, b) => {
       let valA: string | number;
       let valB: string | number;
@@ -219,17 +200,12 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
 
   }, [leads, filters, searchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter, activeCategoryTab]);
   
-  // Pagination
   const totalPages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage);
   const paginatedLeads = useMemo(() => {
     if (viewMode === 'kanban') return filteredAndSortedLeads;
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredAndSortedLeads.slice(startIndex, startIndex + itemsPerPage);
   }, [currentPage, itemsPerPage, filteredAndSortedLeads, viewMode]);
-
-  const startItem = filteredAndSortedLeads.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-  const endItem = Math.min(currentPage * itemsPerPage, filteredAndSortedLeads.length);
-
 
   const handleSort = (column: SortableColumn) => {
     if (column === sortColumn) {
@@ -241,9 +217,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   };
 
   const escapeCsvField = (field: string | undefined | null): string => {
-    if (field === null || field === undefined) {
-      return '""';
-    }
+    if (field === null || field === undefined) return '""';
     const stringField = String(field);
     if (/[",\n]/.test(stringField)) {
       return `"${stringField.replace(/"/g, '""')}"`;
@@ -252,11 +226,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   };
 
   const handleExportCSV = () => {
-    const headers = [
-        'Nombre Completo', 'Email', 'Teléfono', 'Asesor', 
-        'Estado', 'Licenciatura', 'Fecha Registro'
-    ];
-
+    const headers = ['Nombre Completo', 'Email', 'Teléfono', 'Asesor', 'Estado', 'Licenciatura', 'Fecha Registro'];
     const rows = filteredAndSortedLeads.map(lead => [
         escapeCsvField(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim()),
         escapeCsvField(lead.email),
@@ -269,11 +239,8 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
     
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.href) {
-        URL.revokeObjectURL(link.href);
-    }
     const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
@@ -284,12 +251,12 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   const SortableHeader: React.FC<{ column: SortableColumn; label: string; className?: string }> = ({ column, label, className }) => {
     const isSorted = sortColumn === column;
     const icon = isSorted 
-        ? <ChevronDownIcon className={`w-4 h-4 text-gray-700 transition-transform ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
+        ? <ChevronDownIcon className={`w-4 h-4 text-brand-secondary transition-transform ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
         : <ChevronUpDownIcon className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />;
 
     return (
-        <th scope="col" className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${className}`}>
-            <button onClick={() => handleSort(column)} className="flex items-center gap-1 group">
+        <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider ${className}`}>
+            <button onClick={() => handleSort(column)} className="flex items-center gap-1 group hover:bg-gray-100 px-2 py-1 rounded-md transition-colors">
                 <span className="group-hover:text-gray-800">{label}</span>
                 {icon}
             </button>
@@ -301,20 +268,15 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
       onUpdateLead(leadId, { status_id: newStatusId });
   };
 
-  // Filter statuses passed to Kanban to only show columns relevant to current view
   const relevantStatuses = useMemo(() => {
     return statuses.filter(s => (s.category || 'active') === activeCategoryTab);
   }, [statuses, activeCategoryTab]);
 
-
-  if (loading) {
-    return <LeadListSkeleton viewMode={viewMode} />;
-  }
+  if (loading) return <LeadListSkeleton viewMode={viewMode} />;
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-8xl">
       
-      {/* Dashboard Summary - Only show in Active tab for relevance, or all? Let's keep it top level */}
       <DashboardStats 
         leads={leads.filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)} 
         statuses={statuses}
@@ -323,260 +285,236 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         onFilterChange={setQuickFilter} 
       />
 
-      {/* Header & Toolbar */}
-      <div className="mb-6 flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header Section */}
+      <div className="mb-8 flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div>
-                <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate">Clientes Potenciales</h2>
-                 <p className="mt-1 text-sm text-gray-500">
+                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Clientes Potenciales</h2>
+                 <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
                     {quickFilter ? (
-                        <span className="text-brand-secondary font-semibold flex items-center gap-1">
-                            <span className="bg-brand-secondary/10 px-2 py-0.5 rounded">Filtrado por resumen</span>
-                            <button onClick={() => setQuickFilter(null)} className="ml-2 text-gray-400 hover:text-gray-600" title="Quitar filtro rápido">
-                                <XIcon className="w-4 h-4" />
+                        <span className="text-brand-secondary font-semibold flex items-center gap-1 bg-brand-secondary/5 px-3 py-1 rounded-full">
+                            Filtrado por resumen
+                            <button onClick={() => setQuickFilter(null)} className="ml-1 text-gray-400 hover:text-gray-600" title="Quitar filtro">
+                                <XIcon className="w-3 h-3" />
                             </button>
                         </span>
                     ) : (
-                        "Gestiona y da seguimiento a todos los leads de estudiantes."
+                        "Gestiona, filtra y contacta a tus leads de manera eficiente."
                     )}
                 </p>
             </div>
-             <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={onOpenImport} leftIcon={<ArrowUpTrayIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Importar</Button>
-                <Button onClick={onOpenReports} leftIcon={<ChartBarIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Reporte</Button>
-                <Button onClick={handleExportCSV} leftIcon={<ArrowDownTrayIcon className="w-5 h-5"/>} variant="secondary" className="hidden sm:flex">Exportar</Button>
-                <Button onClick={onAddNew} leftIcon={<PlusIcon />}>Nuevo Lead</Button>
+             <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={onOpenImport} variant="secondary" size="sm" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>} className="hidden sm:flex">Importar</Button>
+                <Button onClick={onOpenReports} variant="secondary" size="sm" leftIcon={<ChartBarIcon className="w-4 h-4"/>} className="hidden sm:flex">Reporte</Button>
+                <Button onClick={handleExportCSV} variant="secondary" size="sm" leftIcon={<ArrowDownTrayIcon className="w-4 h-4"/>} className="hidden sm:flex">Exportar</Button>
+                <Button onClick={onAddNew} leftIcon={<PlusIcon className="w-5 h-5"/>} className="shadow-lg shadow-brand-secondary/20">Nuevo Lead</Button>
             </div>
           </div>
 
-          {/* MAIN CATEGORY TABS */}
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-              <button
-                onClick={() => setActiveCategoryTab('active')}
-                className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                  ${activeCategoryTab === 'active'
-                    ? 'border-brand-secondary text-brand-secondary'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                `}
-              >
-                En Proceso (Activos)
-              </button>
-              <button
-                onClick={() => setActiveCategoryTab('won')}
-                className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                  ${activeCategoryTab === 'won'
-                    ? 'border-green-500 text-green-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                `}
-              >
-                Inscritos (Ganados)
-              </button>
-              <button
-                onClick={() => setActiveCategoryTab('lost')}
-                className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                  ${activeCategoryTab === 'lost'
-                    ? 'border-red-500 text-red-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                `}
-              >
-                Bajas / Archivo (Perdidos)
-              </button>
-            </nav>
-          </div>
-
-
-          {/* Main Toolbar: Search + Filters + View Toggle */}
-          <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-3 items-center">
-             {/* Global Search */}
-             <div className="relative flex-grow w-full sm:w-auto">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                    type="text"
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm transition duration-150 ease-in-out"
-                    placeholder="Buscar por nombre, email, programa, estado..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-             </div>
-
-             <div className="flex items-center w-full sm:w-auto gap-3 justify-between sm:justify-end">
-                 {/* Filter Button */}
-                 <button 
-                    onClick={() => setIsFilterDrawerOpen(true)}
-                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-secondary transition-colors ${
-                        activeFilterCount > 0 
-                        ? 'bg-blue-50 text-brand-secondary border-blue-200 hover:bg-blue-100' 
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                 >
-                    <FunnelIcon className="w-4 h-4 mr-2" />
-                    Filtros
-                    {activeFilterCount > 0 && (
-                        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm">
-                            {activeFilterCount}
-                        </span>
-                    )}
-                 </button>
-
-                 <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
-
-                 {/* View Toggle */}
-                <div className="bg-gray-100 p-1 rounded-lg flex items-center">
-                    <button 
-                        onClick={() => setViewMode('list')} 
-                        className={`p-1.5 rounded-md transition-all shadow-sm ${viewMode === 'list' ? 'bg-white text-brand-secondary shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200 shadow-none'}`}
-                        title="Vista de Lista"
+          {/* Filters & Tabs */}
+          <div className="flex flex-col gap-4">
+            <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8 px-2" aria-label="Tabs">
+                {[
+                    { id: 'active', label: 'En Proceso (Activos)', color: 'border-brand-secondary text-brand-secondary' },
+                    { id: 'won', label: 'Inscritos (Ganados)', color: 'border-green-500 text-green-600' },
+                    { id: 'lost', label: 'Bajas / Archivo', color: 'border-red-500 text-red-600' }
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveCategoryTab(tab.id as StatusCategory)}
+                        className={`
+                        whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                        ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                        `}
                     >
-                        <ListBulletIcon className="w-5 h-5" />
+                        {tab.label}
                     </button>
-                    <button 
-                        onClick={() => setViewMode('kanban')} 
-                        className={`p-1.5 rounded-md transition-all shadow-sm ${viewMode === 'kanban' ? 'bg-white text-brand-secondary shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200 shadow-none'}`}
-                        title="Vista Kanban"
-                    >
-                        <Squares2x2Icon className="w-5 h-5" />
-                    </button>
+                ))}
+                </nav>
+            </div>
+
+            <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-3 items-center">
+                <div className="relative flex-grow w-full sm:w-auto group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 group-focus-within:text-brand-secondary transition-colors" />
+                    </div>
+                    <input
+                        type="text"
+                        className="block w-full pl-10 pr-3 py-2.5 border-0 bg-gray-50 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-brand-secondary/50 focus:bg-white transition-all sm:text-sm"
+                        placeholder="Buscar por nombre, email, programa..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
                 </div>
-             </div>
+
+                <div className="flex items-center w-full sm:w-auto gap-3 justify-between sm:justify-end">
+                    <button 
+                        onClick={() => setIsFilterDrawerOpen(true)}
+                        className={`relative inline-flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                            activeFilterCount > 0 
+                            ? 'bg-brand-secondary/10 text-brand-secondary ring-1 ring-brand-secondary/20' 
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        }`}
+                    >
+                        <FunnelIcon className="w-4 h-4 mr-2" />
+                        Filtros
+                        {activeFilterCount > 0 && (
+                            <span className="ml-2 bg-brand-secondary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
+
+                    <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
+
+                    <div className="bg-gray-100 p-1 rounded-lg flex items-center gap-1">
+                        <button 
+                            onClick={() => setViewMode('list')} 
+                            className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <ListBulletIcon className="w-5 h-5" />
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('kanban')} 
+                            className={`p-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <Squares2x2Icon className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+            </div>
           </div>
       </div>
       
       {/* Active Filters Pills */}
       {activeFilterCount > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-              {filters.advisorId !== 'all' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      Asesor: {advisorMap.get(filters.advisorId)}
-                  </span>
-              )}
-              {filters.statusId !== 'all' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      Estado: {statusMap.get(filters.statusId)?.name}
-                  </span>
-              )}
-               {filters.programId !== 'all' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      Programa: {licenciaturaMap.get(filters.programId)}
-                  </span>
-              )}
-               {(filters.startDate || filters.endDate) && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      Fecha: {filters.startDate} - {filters.endDate}
-                  </span>
-              )}
+          <div className="flex flex-wrap gap-2 mb-6">
+              {Object.entries(filters).map(([key, value]) => {
+                  if (value === 'all' || !value) return null;
+                  let label = '';
+                  if (key === 'advisorId') label = `Asesor: ${advisorMap.get(value)}`;
+                  if (key === 'statusId') label = `Estado: ${statusMap.get(value)?.name}`;
+                  if (key === 'programId') label = `Programa: ${licenciaturaMap.get(value)}`;
+                  if (key === 'startDate') label = `Desde: ${value}`;
+                  if (key === 'endDate') label = `Hasta: ${value}`;
+                  
+                  return (
+                      <span key={key} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 ring-1 ring-blue-700/10 animate-fade-in">
+                          {label}
+                      </span>
+                  )
+              })}
                <button 
                   onClick={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
-                  className="text-xs text-gray-500 hover:text-red-600 underline ml-2"
+                  className="text-xs text-gray-500 hover:text-red-600 hover:underline ml-2 transition-colors"
                >
-                   Limpiar filtros
+                   Limpiar todo
                </button>
           </div>
       )}
       
-      {/* Conditional Rendering based on viewMode with Animation */}
       <div key={`${viewMode}-${activeCategoryTab}`} className="animate-fade-in">
         {viewMode === 'list' ? (
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
+          <div className="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-200">
               <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50/50">
                   <tr>
                       <SortableHeader column="name" label="Nombre" />
                       <SortableHeader column="advisor_id" label="Asesor" />
                       <SortableHeader column="status_id" label="Estado" />
                       <SortableHeader column="program_id" label="Licenciatura" />
-                      <SortableHeader column="registration_date" label="Fecha Registro" />
-                      <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Cita</th>
-                      <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
-                      <th scope="col" className="relative px-6 py-3"><span className="sr-only">Acciones</span></th>
+                      <SortableHeader column="registration_date" label="Registro" />
+                      <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Agenda</th>
+                      <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones Rápidas</th>
+                      <th scope="col" className="relative px-6 py-3"><span className="sr-only">Editar</span></th>
                   </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-100">
                   {paginatedLeads.map((lead) => {
                       const isUrgent = isAppointmentUrgent(lead);
+                      const status = statusMap.get(lead.status_id);
                       return (
-                      <tr key={lead.id} className={`hover:bg-gray-50 transition-colors duration-150 ${isUrgent ? 'bg-yellow-50' : ''}`}>
+                      <tr key={lead.id} className={`group hover:bg-blue-50/30 transition-colors duration-200 ${isUrgent ? 'bg-red-50/30' : ''}`}>
                           <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 cursor-pointer hover:text-brand-secondary" onClick={() => onViewDetails(lead)}>{`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`}</div>
-                          <div className="text-sm text-gray-500">{lead.email || 'N/A'}</div>
+                            <div className="flex items-center">
+                                <div className="h-9 w-9 rounded-full bg-brand-secondary/10 flex items-center justify-center text-brand-secondary font-bold text-sm mr-3">
+                                    {lead.first_name.charAt(0)}
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-gray-900 cursor-pointer hover:text-brand-secondary transition-colors" onClick={() => onViewDetails(lead)}>
+                                        {`${lead.first_name} ${lead.paternal_last_name}`}
+                                    </div>
+                                    <div className="text-xs text-gray-500">{lead.email || lead.phone}</div>
+                                </div>
+                            </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{advisorMap.get(lead.advisor_id) || 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                              {advisorMap.get(lead.advisor_id) || <span className="text-gray-400 italic">Sin asignar</span>}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full text-white ${statusMap.get(lead.status_id)?.color || 'bg-gray-400'}`}>
-                              {statusMap.get(lead.status_id)?.name || 'Unknown'}
-                          </span>
+                             <Badge color={status?.color} size="sm">
+                                {status?.name || 'Desconocido'}
+                             </Badge>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{licenciaturaMap.get(lead.program_id)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(lead.registration_date).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">
+                             {licenciaturaMap.get(lead.program_id) || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(lead.registration_date).toLocaleDateString()}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                           {isUrgent ? (
-                              <button
-                              onClick={() => onViewDetails(lead)}
-                              className="text-red-500 hover:text-red-700 transition-colors animate-pulse"
-                              aria-label={`Cita urgente para ${lead.first_name}`}
-                              >
-                              <BellAlertIcon className="w-5 h-5 inline-block" />
+                              <button onClick={() => onViewDetails(lead)} className="text-red-500 hover:scale-110 transition-transform" title="Cita Urgente">
+                                <BellAlertIcon className="w-5 h-5 inline-block animate-pulse" />
                               </button>
                           ) : lead.appointments?.some(a => a.status === 'scheduled') ? (
-                              <button
-                              onClick={() => onViewDetails(lead)}
-                              className="text-green-600 hover:text-green-800 transition-colors"
-                              aria-label={`Ver detalles para ${lead.first_name}`}
-                              >
-                              <CalendarIcon className="w-5 h-5 inline-block" />
+                              <button onClick={() => onViewDetails(lead)} className="text-emerald-500 hover:scale-110 transition-transform" title="Cita Programada">
+                                <CalendarIcon className="w-5 h-5 inline-block" />
                               </button>
                           ) : (
-                              <span className="text-sm text-gray-400">-</span>
+                              <span className="text-gray-300 text-xs">•</span>
                           )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
-                              <div className="flex items-center justify-center space-x-2">
-                                  <button 
-                                      onClick={() => onOpenWhatsApp(lead)}
-                                      className="text-green-500 hover:text-green-700 transition-colors"
-                                      title="Enviar WhatsApp"
-                                  >
+                              <div className="flex items-center justify-center space-x-3 opacity-70 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => onOpenWhatsApp(lead)} className="text-gray-400 hover:text-green-600 transition-colors hover:bg-green-50 p-1 rounded-md">
                                       <ChatBubbleLeftRightIcon className="w-5 h-5" />
                                   </button>
                                   {lead.email && (
-                                      <button 
-                                          onClick={() => onOpenEmail(lead)}
-                                          className="text-blue-500 hover:text-blue-700 transition-colors"
-                                          title="Enviar Correo con Plantilla"
-                                      >
+                                      <button onClick={() => onOpenEmail(lead)} className="text-gray-400 hover:text-blue-600 transition-colors hover:bg-blue-50 p-1 rounded-md">
                                           <EnvelopeIcon className="w-5 h-5" />
                                       </button>
                                   )}
                               </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                          <button onClick={() => onEdit(lead)} className="text-indigo-600 hover:text-indigo-900"><EditIcon /></button>
-                          <button onClick={() => onDelete(lead.id)} className="text-red-600 hover:text-red-900"><TrashIcon /></button>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => onEdit(lead)} className="text-gray-400 hover:text-brand-secondary p-1 rounded hover:bg-gray-100"><EditIcon className="w-4 h-4"/></button>
+                                <button onClick={() => onDelete(lead.id)} className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><TrashIcon className="w-4 h-4"/></button>
+                            </div>
                           </td>
                       </tr>
                       )
                   })}
                   {paginatedLeads.length === 0 && (
                       <tr>
-                          <td colSpan={8} className="text-center py-16 text-gray-500">
-                              <MagnifyingGlassIcon className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                              <p className="text-lg font-medium text-gray-900">No se encontraron leads en esta vista</p>
-                              <p className="text-sm text-gray-500">Prueba cambiar de pestaña o limpiar filtros.</p>
+                          <td colSpan={8} className="text-center py-16">
+                              <div className="bg-gray-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
+                              </div>
+                              <p className="text-lg font-medium text-gray-900">No se encontraron leads</p>
+                              <p className="text-sm text-gray-500 mt-1">Intenta ajustar los filtros o buscar con otros términos.</p>
                               <Button 
                                   variant="ghost" 
-                                  className="mt-4 text-brand-secondary" 
+                                  className="mt-4 text-brand-secondary font-medium" 
                                   onClick={() => {
                                       setSearchTerm('');
                                       setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' });
                                   }}
                               >
-                                  Limpiar filtros
+                                  Limpiar todos los filtros
                               </Button>
                           </td>
                       </tr>
@@ -586,7 +524,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
               </div>
           </div>
         ) : (
-          /* Kanban View */
           <KanbanBoard 
               leads={paginatedLeads} 
               statuses={relevantStatuses} 
@@ -602,15 +539,14 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         )}
       </div>
       
-      {/* Pagination Controls (Only for List View) */}
       {viewMode === 'list' && totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700">Mostrar:</span>
+                <span className="text-sm text-gray-600 font-medium">Filas por página:</span>
                 <select 
                     value={itemsPerPage} 
                     onChange={e => setItemsPerPage(Number(e.target.value))} 
-                    className="pl-2 pr-8 py-1 text-sm border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary rounded-md"
+                    className="pl-3 pr-8 py-1.5 text-sm border-gray-300 bg-gray-50 rounded-lg focus:ring-brand-secondary focus:border-brand-secondary cursor-pointer"
                 >
                     <option value={10}>10</option>
                     <option value={25}>25</option>
@@ -628,8 +564,8 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
             >
               Anterior
             </Button>
-            <span className="text-sm text-gray-700">
-              Página {currentPage} de {totalPages}
+            <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg">
+              {currentPage} / {totalPages}
             </span>
             <Button
               variant="secondary"
@@ -644,7 +580,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         </div>
       )}
 
-      {/* Filter Drawer */}
       <FilterDrawer 
         isOpen={isFilterDrawerOpen} 
         onClose={() => setIsFilterDrawerOpen(false)}

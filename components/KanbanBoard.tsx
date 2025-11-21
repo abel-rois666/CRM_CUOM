@@ -1,3 +1,4 @@
+// components/KanbanBoard.tsx
 import React, { useMemo } from 'react';
 import { Lead, Status, Profile, Licenciatura } from '../types';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
@@ -7,6 +8,7 @@ import TrashIcon from './icons/TrashIcon';
 import CalendarIcon from './icons/CalendarIcon';
 import BellAlertIcon from './icons/BellAlertIcon';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import Badge from './common/Badge'; // Importamos el nuevo componente
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -52,15 +54,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
       const { destination, source, draggableId } = result;
 
       if (!destination) return;
-
-      if (
-          destination.droppableId === source.droppableId &&
-          destination.index === source.index
-      ) {
-          return;
-      }
-
-      // If dropped in a different column
+      if (destination.droppableId === source.droppableId && destination.index === source.index) return;
       if (destination.droppableId !== source.droppableId) {
           onLeadMove(draggableId, destination.droppableId);
       }
@@ -68,30 +62,30 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex overflow-x-auto pb-4 h-[calc(100vh-220px)] space-x-4">
+        <div className="flex overflow-x-auto pb-6 h-[calc(100vh-220px)] space-x-6 p-2">
         {statuses.map((status) => {
             const statusLeads = leads.filter((l) => l.status_id === status.id);
             
             return (
-            <div key={status.id} className="flex-shrink-0 w-80 flex flex-col bg-gray-100 rounded-lg border border-gray-200 max-h-full">
+            <div key={status.id} className="flex-shrink-0 w-80 flex flex-col bg-gray-50/50 rounded-2xl border border-gray-200/60 max-h-full shadow-sm backdrop-blur-sm">
                 {/* Column Header */}
-                <div className={`p-3 rounded-t-lg border-b border-gray-200 bg-white flex justify-between items-center sticky top-0 z-10`}>
-                <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full ${status.color}`}></span>
-                    <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wider truncate" title={status.name}>
-                        {status.name}
-                    </h3>
-                </div>
-                <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">
-                    {statusLeads.length}
-                </span>
+                <div className="p-4 flex justify-between items-center sticky top-0 z-10 bg-gray-50/95 rounded-t-2xl backdrop-blur-md border-b border-gray-200/50">
+                    <div className="flex items-center gap-2.5">
+                        <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${status.color}`}></span>
+                        <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide truncate max-w-[150px]" title={status.name}>
+                            {status.name}
+                        </h3>
+                    </div>
+                    <span className="bg-white text-gray-500 text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-200 shadow-sm">
+                        {statusLeads.length}
+                    </span>
                 </div>
 
-                {/* Cards Container (Droppable) */}
+                {/* Cards Container */}
                 <Droppable droppableId={status.id}>
                     {(provided, snapshot) => (
                         <div 
-                            className={`p-2 overflow-y-auto flex-1 space-y-2 custom-scrollbar transition-colors ${snapshot.isDraggingOver ? 'bg-blue-50/80' : ''}`}
+                            className={`p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar transition-colors rounded-b-2xl ${snapshot.isDraggingOver ? 'bg-brand-secondary/5' : ''}`}
                             ref={provided.innerRef}
                             {...provided.droppableProps}
                             style={{ minHeight: '100px' }} 
@@ -108,54 +102,60 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                 {...provided.draggableProps}
                                                 {...provided.dragHandleProps}
                                                 style={{ ...provided.draggableProps.style }}
-                                                className={`bg-white p-3 rounded-md shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 group relative ${isUrgent ? 'ring-2 ring-red-300' : ''} ${snapshot.isDragging ? 'shadow-lg rotate-2 z-50' : ''}`}
+                                                className={`
+                                                    group relative bg-white p-4 rounded-xl border border-gray-100
+                                                    hover:shadow-lg hover:border-brand-secondary/30 transition-all duration-300
+                                                    ${isUrgent ? 'ring-2 ring-red-400 shadow-red-100' : 'shadow-sm'} 
+                                                    ${snapshot.isDragging ? 'shadow-2xl rotate-2 scale-105 z-50 ring-2 ring-brand-secondary' : ''}
+                                                `}
                                             >
-                                                {/* Card Color Indicator */}
-                                                <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-md ${status.color}`}></div>
+                                                {/* Barra lateral de color sutil en lugar de borde grueso */}
+                                                <div className={`absolute left-1 top-3 bottom-3 w-1 rounded-full opacity-60 ${status.color}`}></div>
 
-                                                <div className="pl-2 cursor-pointer" onClick={() => onViewDetails(lead)}>
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <h4 className="font-bold text-gray-800 text-sm hover:text-brand-secondary line-clamp-1">
+                                                <div className="pl-3 cursor-pointer" onClick={() => onViewDetails(lead)}>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <h4 className="font-bold text-gray-800 text-sm hover:text-brand-secondary line-clamp-1 transition-colors">
                                                             {lead.first_name} {lead.paternal_last_name}
                                                         </h4>
                                                         {isUrgent && (
-                                                            <span title="Cita Urgente">
-                                                                <BellAlertIcon className="w-4 h-4 text-red-500 animate-pulse" />
-                                                            </span>
+                                                            <BellAlertIcon className="w-5 h-5 text-red-500 animate-pulse" />
                                                         )}
                                                         {!isUrgent && hasAppointment && (
-                                                            <span title="Cita Programada">
-                                                                <CalendarIcon className="w-4 h-4 text-green-600" />
-                                                            </span>
+                                                            <CalendarIcon className="w-4 h-4 text-emerald-500" />
                                                         )}
                                                     </div>
                                                     
-                                                    <p className="text-xs text-gray-500 mb-1 truncate">
-                                                    {licenciaturaMap.get(lead.program_id) || 'Sin programa'}
-                                                    </p>
+                                                    <div className="mb-3">
+                                                        <Badge color="bg-gray-100" size="sm">
+                                                            {licenciaturaMap.get(lead.program_id) || 'Sin programa'}
+                                                        </Badge>
+                                                    </div>
                                                     
-                                                    <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
-                                                    <span>Asesor:</span>
-                                                    <span className="text-gray-600 font-medium truncate">{advisorMap.get(lead.advisor_id) || 'N/A'}</span>
-                                                    </p>
+                                                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                        <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500">
+                                                            {(advisorMap.get(lead.advisor_id) || '?').charAt(0)}
+                                                        </div>
+                                                        <span className="truncate max-w-[120px]">{advisorMap.get(lead.advisor_id) || 'N/A'}</span>
+                                                    </div>
                                                 </div>
 
-                                                <div className="pl-2 pt-2 border-t border-gray-100 flex justify-between items-center mt-2">
+                                                {/* Action Bar (Visible on Hover) */}
+                                                <div className="pl-3 pt-3 mt-3 border-t border-gray-50 flex justify-between items-center">
                                                     <div className="flex space-x-1">
-                                                        <button onClick={() => onOpenWhatsApp(lead)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors" title="WhatsApp">
+                                                        <button onClick={() => onOpenWhatsApp(lead)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="WhatsApp">
                                                             <ChatBubbleLeftRightIcon className="w-4 h-4" />
                                                         </button>
                                                         {lead.email && (
-                                                            <button onClick={() => onOpenEmail(lead)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Email">
+                                                            <button onClick={() => onOpenEmail(lead)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Email">
                                                                 <EnvelopeIcon className="w-4 h-4" />
                                                             </button>
                                                         )}
                                                     </div>
                                                     <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                        <button onClick={() => onEdit(lead)} className="p-1.5 text-gray-400 hover:text-brand-secondary hover:bg-blue-50 rounded transition-colors" title="Editar">
+                                                        <button onClick={() => onEdit(lead)} className="p-1.5 text-gray-400 hover:text-brand-secondary hover:bg-brand-secondary/10 rounded-lg transition-all" title="Editar">
                                                             <EditIcon className="w-4 h-4" />
                                                         </button>
-                                                        <button onClick={() => onDelete(lead.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Eliminar">
+                                                        <button onClick={() => onDelete(lead.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Eliminar">
                                                             <TrashIcon className="w-4 h-4" />
                                                         </button>
                                                     </div>
@@ -167,8 +167,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                             })}
                             {provided.placeholder}
                             {statusLeads.length === 0 && !snapshot.isDraggingOver && (
-                                <div className="text-center py-8 text-gray-400 text-xs italic">
-                                    Sin leads
+                                <div className="flex flex-col items-center justify-center py-10 text-gray-300">
+                                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
+                                        <span className="text-xl">∅</span>
+                                    </div>
+                                    <span className="text-xs font-medium">Sin leads</span>
                                 </div>
                             )}
                         </div>
