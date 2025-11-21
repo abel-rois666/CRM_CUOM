@@ -1,7 +1,8 @@
-
+// components/FilterDrawer.tsx
 import React, { useState, useEffect } from 'react';
 import { Profile, Status, Licenciatura } from '../types';
 import Button from './common/Button';
+import { Select, Input } from './common/FormElements'; // Usamos los nuevos componentes
 import XIcon from './icons/XIcon';
 import FunnelIcon from './icons/FunnelIcon';
 
@@ -36,7 +37,6 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
 }) => {
   const [localFilters, setLocalFilters] = useState<FilterState>(currentFilters);
 
-  // Sync local state when the drawer opens or currentFilters change externally
   useEffect(() => {
     setLocalFilters(currentFilters);
   }, [currentFilters, isOpen]);
@@ -67,127 +67,103 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   return (
     <>
       {/* Backdrop */}
-      {isOpen && (
-        <div 
-            className="fixed inset-0 bg-black bg-opacity-25 z-40 transition-opacity" 
-            onClick={onClose}
-        />
-      )}
+      <div 
+        className={`fixed inset-0 bg-gray-900/20 backdrop-blur-sm z-40 transition-opacity duration-300 ${
+            isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`} 
+        onClick={onClose}
+      />
 
       {/* Drawer Panel */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 w-full sm:w-96 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 right-0 z-50 w-full sm:w-96 bg-white shadow-2xl transform transition-transform duration-300 ease-out border-l border-gray-100 ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-brand-primary text-white">
-            <div className="flex items-center gap-2">
-                <FunnelIcon className="w-5 h-5" />
-                <h2 className="text-lg font-semibold">Filtros Avanzados</h2>
+          {/* Header Moderno (Blanco/Limpio) */}
+          <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-10">
+            <div className="flex items-center gap-2.5 text-brand-primary">
+                <div className="p-2 bg-brand-secondary/10 rounded-lg text-brand-secondary">
+                    <FunnelIcon className="w-5 h-5" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900">Filtros</h2>
             </div>
-            <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
-              <XIcon className="w-6 h-6" />
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-50 p-2 rounded-full transition-colors">
+              <XIcon className="w-5 h-5" />
             </button>
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             
-            {/* Advisor Filter */}
-            <div>
-              <label htmlFor="advisorId" className="block text-sm font-medium text-gray-700 mb-1">Asesor Asignado</label>
-              <select
-                id="advisorId"
-                name="advisorId"
-                value={localFilters.advisorId}
-                onChange={handleChange}
-                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md"
-              >
-                <option value="all">Todos los Asesores</option>
-                {advisors.map((a) => (
-                  <option key={a.id} value={a.id}>{a.full_name}</option>
-                ))}
-              </select>
+            <div className="space-y-5">
+                <Select
+                    label="Asesor Asignado"
+                    name="advisorId"
+                    value={localFilters.advisorId}
+                    onChange={handleChange}
+                    options={[
+                        { value: 'all', label: 'Todos los Asesores' },
+                        ...advisors.map(a => ({ value: a.id, label: a.full_name }))
+                    ]}
+                />
+
+                <Select
+                    label="Estado del Lead"
+                    name="statusId"
+                    value={localFilters.statusId}
+                    onChange={handleChange}
+                    options={[
+                        { value: 'all', label: 'Todos los Estados' },
+                        ...statuses.map(s => ({ value: s.id, label: s.name }))
+                    ]}
+                />
+
+                <Select
+                    label="Licenciatura de Interés"
+                    name="programId"
+                    value={localFilters.programId}
+                    onChange={handleChange}
+                    options={[
+                        { value: 'all', label: 'Todas las Licenciaturas' },
+                        ...licenciaturas.map(l => ({ value: l.id, label: l.name }))
+                    ]}
+                />
             </div>
 
-            {/* Status Filter */}
-            <div>
-              <label htmlFor="statusId" className="block text-sm font-medium text-gray-700 mb-1">Estado del Lead</label>
-              <select
-                id="statusId"
-                name="statusId"
-                value={localFilters.statusId}
-                onChange={handleChange}
-                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md"
-              >
-                <option value="all">Todos los Estados</option>
-                {statuses.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Program Filter */}
-            <div>
-              <label htmlFor="programId" className="block text-sm font-medium text-gray-700 mb-1">Licenciatura de Interés</label>
-              <select
-                id="programId"
-                name="programId"
-                value={localFilters.programId}
-                onChange={handleChange}
-                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md"
-              >
-                <option value="all">Todas las Licenciaturas</option>
-                {licenciaturas.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <hr className="border-gray-200" />
-
-            {/* Date Range */}
-            <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-3">Fecha de Registro</h3>
+            <div className="pt-6 border-t border-gray-100">
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Rango de Fechas</h3>
                 <div className="space-y-4">
-                    <div>
-                        <label htmlFor="startDate" className="block text-xs font-medium text-gray-500 mb-1">Desde</label>
-                        <input
-                            type="date"
-                            id="startDate"
-                            name="startDate"
-                            value={localFilters.startDate}
-                            onChange={handleChange}
-                            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="endDate" className="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
-                        <input
-                            type="date"
-                            id="endDate"
-                            name="endDate"
-                            value={localFilters.endDate}
-                            onChange={handleChange}
-                            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
-                        />
-                    </div>
+                    <Input
+                        label="Desde"
+                        type="date"
+                        name="startDate"
+                        value={localFilters.startDate}
+                        onChange={handleChange}
+                    />
+                    <Input
+                        label="Hasta"
+                        type="date"
+                        name="endDate"
+                        value={localFilters.endDate}
+                        onChange={handleChange}
+                    />
                 </div>
             </div>
 
           </div>
 
           {/* Footer Actions */}
-          <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-            <button 
+          <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-3">
+            <Button 
+                variant="ghost"
                 onClick={handleClear}
-                className="text-sm text-gray-600 hover:text-red-600 font-medium underline underline-offset-2 decoration-dotted"
+                className="w-1/3"
             >
-                Limpiar todo
-            </button>
-            <Button onClick={handleApply}>
+                Limpiar
+            </Button>
+            <Button onClick={handleApply} className="w-2/3 shadow-lg shadow-brand-secondary/20">
                 Aplicar Filtros
             </Button>
           </div>

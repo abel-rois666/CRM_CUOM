@@ -1,7 +1,8 @@
-
+// components/FollowUpFormModal.tsx
 import React, { useState } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
+import { Input, TextArea } from './common/FormElements'; // Usamos los nuevos
 
 interface FollowUpFormModalProps {
   isOpen: boolean;
@@ -21,41 +22,31 @@ const FollowUpFormModal: React.FC<FollowUpFormModalProps> = ({ isOpen, onClose, 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Añadir Seguimiento">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="followUpDate" className="block text-sm font-medium text-gray-700">
-            Fecha
-          </label>
-          <input
+    <Modal isOpen={isOpen} onClose={onClose} title="Nuevo Seguimiento" size="md">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <Input 
+            label="Fecha de Contacto"
             type="date"
-            id="followUpDate"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
             required
-          />
-        </div>
-        <div>
-          <label htmlFor="followUpNotes" className="block text-sm font-medium text-gray-700">
-            Notas
-          </label>
-          <textarea
-            id="followUpNotes"
-            rows={4}
+        />
+        
+        <TextArea 
+            label="Notas de la conversación"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
-            placeholder="Introduce los detalles del seguimiento..."
+            rows={5}
+            placeholder="Describe los detalles importantes, acuerdos o próximos pasos..."
             required
-          />
-        </div>
-        <div className="pt-4 flex justify-end space-x-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+        />
+
+        <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={!notes.trim()}>
-            Guardar Seguimiento
+          <Button type="submit" disabled={!notes.trim()} className="shadow-lg shadow-brand-secondary/20">
+            Guardar Nota
           </Button>
         </div>
       </form>

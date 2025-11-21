@@ -1,9 +1,11 @@
-
-import React, { useState, useRef } from 'react';
+// components/ReportModal.tsx
+import React, { useState, useRef, useEffect } from 'react';
 import { Lead, Status, Profile, Source } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
+import { Input } from './common/FormElements'; 
 import PrinterIcon from './icons/PrinterIcon';
+import ChartBarIcon from './icons/ChartBarIcon';
 
 declare global {
   interface Window {
@@ -36,7 +38,7 @@ interface ConversionBreakdownItem {
     name: string;
     convertedCount: number;
     totalLeads: number;
-    rate: number; // 0 to 100
+    rate: number; 
 }
 
 interface ReportSectionData {
@@ -48,7 +50,6 @@ interface BreakdownData {
     total: number;
     breakdown: BreakdownItem[];
 }
-
 
 interface ReportData {
   startDate: string;
@@ -71,42 +72,54 @@ const tailwindColorMap: { [key: string]: string } = {
     'bg-rose-500': '#f43f5e'
 };
 
-const StatusPieChart: React.FC<{ data: StatusBreakdown[] }> = ({ data }) => {
+// --- Gráficas ---
+
+const StatusPieChart: React.FC<{ data: StatusBreakdown[], isExporting?: boolean }> = ({ data, isExporting }) => {
     const filteredData = data.filter(d => d.count > 0);
     if (filteredData.length === 0) return null;
 
     const total = filteredData.reduce((sum, item) => sum + item.count, 0);
-
-    let cumulativePercentage = 0;
+    
     const gradientStops = filteredData.map(item => {
         const percentage = (item.count / total) * 100;
-        const start = cumulativePercentage;
-        cumulativePercentage += percentage;
-        const end = cumulativePercentage;
-        const colorValue = tailwindColorMap[item.color] || '#cccccc';
-        return `${colorValue} ${start}% ${end}%`;
-    }).join(', ');
-
-    const gradientStyle = {
-        background: `conic-gradient(${gradientStops})`,
-    };
+        const start = 0; // Simplificado para evitar complejidades de cálculo en render
+        // Nota: En un pie chart real conic-gradient necesita offsets acumulados, 
+        // pero para efectos visuales de reporte simple esto basta o se puede mejorar con librería de charts real.
+        // Mantenemos la lógica original funcional:
+        return `${tailwindColorMap[item.color] || '#cccccc'} 0 ${percentage}%`; 
+    }).join(', '); // Esta lógica original de gradientes era visualmente aproximada.
+    
+    // CORRECCIÓN DE LÓGICA DE GRADIENTE PARA PIE CHART (Acumulativa)
+    let currentAngle = 0;
+    const stops = filteredData.map(item => {
+        const percentage = (item.count / total) * 100;
+        const color = tailwindColorMap[item.color] || '#cccccc';
+        const start = currentAngle;
+        currentAngle += percentage;
+        const end = currentAngle;
+        return `${color} ${start}% ${end}%`;
+    });
+    const backgroundStyle = `conic-gradient(${stops.join(', ')})`;
 
     return (
-        <div className="mt-6 flex flex-col md:flex-row items-center gap-x-8 gap-y-6">
+        <div className="mt-6 flex flex-col md:flex-row items-center gap-8">
             <div 
-                className="w-40 h-40 md:w-48 md:h-48 rounded-full flex-shrink-0 border-4 border-white shadow-md"
-                style={gradientStyle}
-                role="img"
-                aria-label="Gráfica de pastel de estados de leads"
+                className={`w-40 h-40 rounded-full border-8 border-white ${isExporting ? 'border-gray-100' : 'shadow-lg ring-1 ring-gray-200'}`}
+                style={{ background: backgroundStyle }}
             ></div>
-            <ul className="space-y-2.5 flex-1 w-full">
+            <ul className="space-y-3 flex-1 w-full">
                 {filteredData.map(item => (
-                    <li key={item.name} className="flex items-baseline justify-between text-sm">
+                    <li key={item.name} className="flex items-center justify-between text-sm group">
                          <div className="flex items-center gap-3">
-                            <span className={`w-3.5 h-3.5 rounded-full ${item.color} flex-shrink-0`}></span>
-                            <span className="font-medium text-gray-800">{item.name}</span>
+                            <span className={`w-3 h-3 rounded-full ${item.color} ring-2 ring-white ${isExporting ? '' : 'shadow-sm'}`}></span>
+                            <span className={`font-bold ${isExporting ? 'text-black' : 'text-gray-700'}`}>{item.name}</span>
                         </div>
-                        <span className="font-bold text-gray-900">{item.count} <span className="text-xs font-normal text-gray-600">({((item.count / total) * 100).toFixed(1)}%)</span></span>
+                        <div className="flex items-center gap-2">
+                            <span className={`font-black ${isExporting ? 'text-black' : 'text-gray-900'}`}>{item.count}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${isExporting ? 'text-black border border-gray-300' : 'text-gray-600 bg-gray-100'}`}>
+                                {((item.count / total) * 100).toFixed(1)}%
+                            </span>
+                        </div>
                     </li>
                 ))}
             </ul>
@@ -114,49 +127,49 @@ const StatusPieChart: React.FC<{ data: StatusBreakdown[] }> = ({ data }) => {
     );
 };
 
-const BreakdownBarChart: React.FC<{ data: BreakdownItem[] }> = ({ data }) => {
+const BreakdownBarChart: React.FC<{ data: BreakdownItem[], isExporting?: boolean }> = ({ data, isExporting }) => {
     const filteredData = data.filter(d => d.count > 0).sort((a,b) => b.count - a.count);
     if (filteredData.length === 0) return null;
-
     const maxCount = Math.max(...filteredData.map(d => d.count), 0);
 
     return (
         <div className="mt-6 space-y-4">
             {filteredData.map(item => (
-                <div key={item.name} className="grid grid-cols-3 items-center gap-4 text-sm">
-                    <span className="font-medium text-gray-800 truncate text-right col-span-1">{item.name}</span>
-                    <div className="col-span-2 bg-gray-200 rounded-full h-6">
+                <div key={item.name} className="relative grid grid-cols-12 items-center gap-4 text-sm group">
+                    <span className={`font-bold text-right col-span-4 ${isExporting ? 'text-black' : 'text-gray-700 truncate'}`}>{item.name}</span>
+                    
+                    <div className={`col-span-8 rounded-full h-5 overflow-hidden ${isExporting ? 'bg-gray-200' : 'bg-gray-100 border border-gray-200'}`}>
                         <div
-                            className="bg-brand-secondary h-6 rounded-full flex items-center justify-start px-2 text-white font-bold text-xs"
-                            style={{ width: `${maxCount > 0 ? (item.count / maxCount) * 100 : 0}%`, minWidth: '24px' }}
-                            title={`${item.count} leads`}
-                        >
-                            {item.count}
-                        </div>
+                            className={`h-5 rounded-full ${isExporting ? 'bg-blue-800' : 'bg-brand-secondary transition-all duration-500'}`}
+                            style={{ width: `${maxCount > 0 ? (item.count / maxCount) * 100 : 0}%` }}
+                        ></div>
                     </div>
+                    
+                    <span className={`absolute right-8 font-black text-xs ${isExporting ? 'text-black' : 'text-gray-900'}`}>{item.count}</span>
                 </div>
             ))}
         </div>
     );
 };
 
-const ConversionRateBarChart: React.FC<{ data: ConversionBreakdownItem[] }> = ({ data }) => {
+const ConversionRateBarChart: React.FC<{ data: ConversionBreakdownItem[], isExporting?: boolean }> = ({ data, isExporting }) => {
     const sortedData = [...data].sort((a, b) => b.rate - a.rate);
     if (sortedData.length === 0) return null;
 
     return (
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-5">
             {sortedData.map(item => (
-                <div key={item.name} className="grid grid-cols-3 items-center gap-4 text-sm">
-                    <span className="font-medium text-gray-800 truncate text-right col-span-1">{item.name}</span>
-                    <div className="col-span-2 bg-gray-200 rounded-full h-7 relative">
+                <div key={item.name} className="relative grid grid-cols-12 items-center gap-4 text-sm">
+                    <span className={`font-bold text-right col-span-4 ${isExporting ? 'text-black' : 'text-gray-700 truncate'}`}>{item.name}</span>
+                    <div className={`col-span-8 relative h-6 rounded-full overflow-hidden ${isExporting ? 'bg-gray-200' : 'bg-gray-100 border border-gray-200'}`}>
                         <div
-                            className="bg-green-500 h-7 rounded-full flex items-center justify-end px-2 text-white font-bold text-xs"
+                            className={`h-full rounded-full flex items-center justify-end px-2 ${isExporting ? 'bg-green-700' : 'bg-gradient-to-r from-green-500 to-emerald-600'}`}
                             style={{ width: `${item.rate}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center font-bold text-gray-800 pointer-events-none" style={{ textShadow: '0 0 3px white' }}>
-                           {item.convertedCount} / {item.totalLeads} ({item.rate.toFixed(1)}%)
+                        >
                         </div>
+                        <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-black drop-shadow-sm ${isExporting ? 'text-black' : 'text-gray-700'}`} style={{ textShadow: isExporting ? 'none' : '0 0 2px white' }}>
+                           {item.convertedCount} / {item.totalLeads} ({item.rate.toFixed(1)}%)
+                        </span>
                     </div>
                 </div>
             ))}
@@ -164,61 +177,78 @@ const ConversionRateBarChart: React.FC<{ data: ConversionBreakdownItem[] }> = ({
     );
 };
 
+const ReportSection: React.FC<{ title: string; data: ReportSectionData; icon?: React.ReactNode; isExporting?: boolean }> = ({ title, data, icon, isExporting }) => (
+  <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white border-gray-200 shadow-sm hover:shadow-md transition-all'}`}>
+    <div className={`flex justify-between items-start mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100'} pb-4`}>
+        <div>
+            <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800'}`}>{title}</h4>
+            <p className={`text-xs mt-1 uppercase tracking-wider font-bold ${isExporting ? 'text-black' : 'text-gray-500'}`}>Resumen del Periodo</p>
+        </div>
+        {icon && !isExporting && <div className="text-brand-secondary bg-brand-secondary/5 p-2 rounded-lg">{icon}</div>}
+    </div>
+    
+    <div className="flex items-baseline gap-2 mb-2">
+      <span className={`text-4xl font-black ${isExporting ? 'text-black' : 'text-brand-primary'}`}>{data.total}</span>
+      <span className={`text-sm font-bold ${isExporting ? 'text-black' : 'text-gray-600'}`}>leads totales</span>
+    </div>
 
-const ReportSection: React.FC<{ title: string; data: ReportSectionData }> = ({ title, data }) => (
-  <div className="border border-gray-200 p-4 rounded-lg bg-gray-50 shadow-sm">
-    <h4 className="text-xl font-bold text-brand-primary mb-3 border-b border-gray-200 pb-2">{title}</h4>
-    <p className="text-gray-900 text-lg flex justify-between items-center">
-      <span>Total de leads:</span>
-      <span className="font-extrabold text-4xl text-brand-secondary">{data.total}</span>
-    </p>
     {data.breakdown.filter(s => s.count > 0).length > 0 ? (
-      <StatusPieChart data={data.breakdown} />
+      <StatusPieChart data={data.breakdown} isExporting={isExporting} />
     ) : (
-      <p className="text-base text-gray-700 py-4 text-center">No hay leads que cumplan estos criterios en el periodo seleccionado.</p>
+      <p className="text-sm text-gray-500 py-8 text-center italic bg-gray-50 rounded-xl mt-4 font-medium">Sin datos para mostrar.</p>
     )}
   </div>
 );
 
-const BreakdownReportSection: React.FC<{ title: string; data: BreakdownData; totalLabel: string }> = ({ title, data, totalLabel }) => (
-  <div className="border border-gray-200 p-4 rounded-lg bg-gray-50 shadow-sm">
-    <h4 className="text-xl font-bold text-brand-primary mb-3 border-b border-gray-200 pb-2">{title}</h4>
-     <p className="text-gray-900 text-lg flex justify-between items-center">
-      <span>{totalLabel}:</span>
-      <span className="font-extrabold text-4xl text-brand-secondary">{data.total}</span>
-    </p>
+const BreakdownReportSection: React.FC<{ title: string; data: BreakdownData; totalLabel: string; isExporting?: boolean }> = ({ title, data, totalLabel, isExporting }) => (
+  <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white border-gray-200 shadow-sm hover:shadow-md transition-all'}`}>
+    <div className={`mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100'} pb-4`}>
+        <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800'}`}>{title}</h4>
+    </div>
+    
+    <div className="flex items-baseline gap-2">
+      <span className={`text-4xl font-black ${isExporting ? 'text-black' : 'text-brand-primary'}`}>{data.total}</span>
+      <span className={`text-sm font-bold ${isExporting ? 'text-black' : 'text-gray-600'}`}>{totalLabel}</span>
+    </div>
+
     {data.breakdown.filter(s => s.count > 0).length > 0 ? (
-      <BreakdownBarChart data={data.breakdown} />
+      <BreakdownBarChart data={data.breakdown} isExporting={isExporting} />
     ) : (
-      <p className="text-base text-gray-700 py-4 text-center">No se encontraron datos en el periodo seleccionado.</p>
+      <p className="text-sm text-gray-500 py-8 text-center italic bg-gray-50 rounded-xl mt-4 font-medium">Sin datos para mostrar.</p>
     )}
   </div>
 );
 
-const ConversionReportSection: React.FC<{ title: string; data: ConversionBreakdownItem[] }> = ({ title, data }) => {
+const ConversionReportSection: React.FC<{ title: string; data: ConversionBreakdownItem[]; isExporting?: boolean }> = ({ title, data, isExporting }) => {
     const totalConversions = data.reduce((sum, item) => sum + item.convertedCount, 0);
     const totalLeadsForConversion = data.reduce((sum, item) => sum + item.totalLeads, 0);
     const overallRate = totalLeadsForConversion > 0 ? (totalConversions / totalLeadsForConversion) * 100 : 0;
 
     return (
-        <div className="border border-gray-200 p-4 rounded-lg bg-gray-50 shadow-sm">
-            <h4 className="text-xl font-bold text-brand-primary mb-3 border-b border-gray-200 pb-2">{title}</h4>
-            <div className="text-gray-900 text-lg flex justify-between items-center">
-                <span>Tasa de Conversión General:</span>
+        <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white border-gray-200 shadow-sm hover:shadow-md transition-all'}`}>
+            <div className={`mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100'} pb-4`}>
+                <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800'}`}>{title}</h4>
+            </div>
+            
+            <div className={`flex justify-between items-end p-4 rounded-xl border mb-6 ${isExporting ? 'bg-white border-black' : 'bg-green-50 border-green-200'}`}>
+                <div>
+                    <p className={`text-xs font-bold uppercase tracking-wide mb-1 ${isExporting ? 'text-black' : 'text-green-800'}`}>Tasa Global</p>
+                    <span className={`text-4xl font-black ${isExporting ? 'text-black' : 'text-green-600'}`}>{overallRate.toFixed(1)}%</span>
+                </div>
                 <div className="text-right">
-                    <span className="font-extrabold text-4xl text-green-600">{overallRate.toFixed(1)}%</span>
-                    <p className="text-sm font-medium text-gray-600 -mt-1">({totalConversions} de {totalLeadsForConversion} leads)</p>
+                    <p className={`text-sm font-bold ${isExporting ? 'text-black' : 'text-green-900'}`}>{totalConversions} inscritos</p>
+                    <p className={`text-xs font-medium ${isExporting ? 'text-black' : 'text-green-700'}`}>de {totalLeadsForConversion} leads</p>
                 </div>
             </div>
+
             {data.length > 0 ? (
-                <ConversionRateBarChart data={data} />
+                <ConversionRateBarChart data={data} isExporting={isExporting} />
             ) : (
-                <p className="text-base text-gray-700 py-4 text-center">No se encontraron datos de conversión en el periodo seleccionado.</p>
+                <p className="text-sm text-gray-500 py-8 text-center italic bg-gray-50 rounded-xl font-medium">Sin datos de conversión.</p>
             )}
         </div>
     );
 };
-
 
 const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statuses, advisors, sources }) => {
   const today = new Date().toISOString().split('T')[0];
@@ -228,232 +258,247 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
   const [isExporting, setIsExporting] = useState(false);
   const reportContentRef = useRef<HTMLDivElement>(null);
 
-  const handleGenerateReport = () => {
-    if (!startDate || !endDate) {
-      alert("Por favor, selecciona un periodo.");
-      return;
+  // --- BLOQUEO TOTAL DE INTERACCIÓN (SCROLL Y CLICS) ---
+  useEffect(() => {
+    if (isExporting) {
+      document.body.style.overflow = 'hidden'; // Bloquea scroll
+      document.body.style.pointerEvents = 'none'; // Bloquea clics en toda la app
+    } else {
+      document.body.style.overflow = 'unset';
+      document.body.style.pointerEvents = 'unset';
     }
+    // Cleanup al desmontar
+    return () => { 
+        document.body.style.overflow = 'unset'; 
+        document.body.style.pointerEvents = 'unset';
+    };
+  }, [isExporting]);
 
+  const handleGenerateReport = () => {
+    if (!startDate || !endDate) { alert("Por favor, selecciona un periodo."); return; }
     const start = new Date(startDate + 'T00:00:00Z');
     const end = new Date(endDate + 'T23:59:59Z');
-
-    if (start > end) {
-      alert("La fecha de inicio no puede ser posterior a la fecha de fin.");
-      return;
-    }
+    if (start > end) { alert("La fecha de inicio no puede ser posterior a la fecha de fin."); return; }
 
     const getStatusBreakdown = (leadsForBreakdown: Lead[]): StatusBreakdown[] => {
-        const statusMap = new Map<string, StatusBreakdown>(
-            statuses.map(s => [s.id, { name: s.name, color: s.color, count: 0 }])
-        );
+        const statusMap = new Map<string, StatusBreakdown>(statuses.map(s => [s.id, { name: s.name, color: s.color, count: 0 }]));
         leadsForBreakdown.forEach(lead => {
             const statusData = statusMap.get(lead.status_id);
-            if (statusData) {
-                statusData.count++;
-            }
+            if (statusData) statusData.count++;
         });
         return Array.from(statusMap.values());
     };
 
-    // 1. New Leads Registered
     const newLeads = leads.filter(lead => {
       const regDate = new Date(lead.registration_date);
       return regDate >= start && regDate <= end;
     });
-    const newLeadsReport: ReportSectionData = {
-        total: newLeads.length,
-        breakdown: getStatusBreakdown(newLeads),
-    };
+    const newLeadsReport: ReportSectionData = { total: newLeads.length, breakdown: getStatusBreakdown(newLeads) };
 
-    // 2. Leads with Status Change
     const updatedLeadIds = new Set<string>();
     leads.forEach(lead => {
         (lead.status_history || []).forEach(change => {
             const changeDate = new Date(change.date);
-            if (changeDate >= start && changeDate <= end) {
-                updatedLeadIds.add(lead.id);
-            }
+            if (changeDate >= start && changeDate <= end) updatedLeadIds.add(lead.id);
         });
     });
     const updatedLeads = leads.filter(lead => updatedLeadIds.has(lead.id));
-    const updatedLeadsReport: ReportSectionData = {
-        total: updatedLeads.length,
-        breakdown: getStatusBreakdown(updatedLeads),
-    };
+    const updatedLeadsReport: ReportSectionData = { total: updatedLeads.length, breakdown: getStatusBreakdown(updatedLeads) };
 
-    // 3. Leads by Advisor
     const advisorMap = new Map(advisors.map(a => [a.id, a.full_name]));
     const leadsByAdvisorMap = new Map<string, number>();
     newLeads.forEach(lead => {
         const count = leadsByAdvisorMap.get(lead.advisor_id) || 0;
         leadsByAdvisorMap.set(lead.advisor_id, count + 1);
     });
-    const leadsByAdvisorBreakdown: BreakdownItem[] = Array.from(leadsByAdvisorMap.entries()).map(([advisorId, count]) => ({
-        name: String(advisorMap.get(advisorId) || 'Sin Asignar'),
-        count,
-    }));
     const leadsByAdvisorReport: BreakdownData = {
         total: newLeads.length,
-        breakdown: leadsByAdvisorBreakdown,
+        breakdown: Array.from(leadsByAdvisorMap.entries()).map(([id, count]) => ({ name: String(advisorMap.get(id) || 'Sin Asignar'), count }))
     };
     
-    // 4. Leads by source in period
     const sourceMap = new Map(sources.map(s => [s.id, s.name]));
     const leadsBySourceMap = new Map<string, number>();
-
     newLeads.forEach(lead => {
         const count = leadsBySourceMap.get(lead.source_id) || 0;
         leadsBySourceMap.set(lead.source_id, count + 1);
     });
-
-    const leadsBySourceBreakdown: BreakdownItem[] = Array.from(leadsBySourceMap.entries()).map(([sourceId, count]) => ({
-        name: String(sourceMap.get(sourceId) || 'Desconocido'),
-        count,
-    }));
-    
     const leadsBySourceReport: BreakdownData = {
         total: newLeads.length,
-        breakdown: leadsBySourceBreakdown
+        breakdown: Array.from(leadsBySourceMap.entries()).map(([id, count]) => ({ name: String(sourceMap.get(id) || 'Desconocido'), count }))
     };
 
-    // 5. Conversion Rate by Advisor
     const inscritoStatusId = statuses.find(s => s.name === 'Inscrito (a)')?.id;
     const conversionsByAdvisor = new Map<string, number>();
     if (inscritoStatusId) {
         newLeads.forEach(lead => {
-            const wasConverted = (lead.status_history || []).some(
-                change => change.new_status_id === inscritoStatusId
-            );
-
-            if (wasConverted) {
-                const count = conversionsByAdvisor.get(lead.advisor_id) || 0;
-                conversionsByAdvisor.set(lead.advisor_id, count + 1);
+            if ((lead.status_history || []).some(c => c.new_status_id === inscritoStatusId)) {
+                conversionsByAdvisor.set(lead.advisor_id, (conversionsByAdvisor.get(lead.advisor_id) || 0) + 1);
             }
         });
     }
-    
     const conversionBreakdown: ConversionBreakdownItem[] = advisors.map(advisor => {
         const convertedCount = conversionsByAdvisor.get(advisor.id) || 0;
         const totalLeads = leadsByAdvisorMap.get(advisor.id) || 0;
-        const rate = totalLeads > 0 ? (convertedCount / totalLeads) * 100 : 0;
-        
-        return {
-            name: advisor.full_name,
-            convertedCount,
-            totalLeads,
-            rate
-        };
+        return { name: advisor.full_name, convertedCount, totalLeads, rate: totalLeads > 0 ? (convertedCount / totalLeads) * 100 : 0 };
     }).filter(item => item.totalLeads > 0 || item.convertedCount > 0);
 
-    setReport({
-      startDate,
-      endDate,
-      newLeads: newLeadsReport,
-      updatedLeads: updatedLeadsReport,
-      leadsByAdvisor: leadsByAdvisorReport,
-      leadsBySource: leadsBySourceReport,
-      conversionByAdvisor: conversionBreakdown,
-    });
+    setReport({ startDate, endDate, newLeads: newLeadsReport, updatedLeads: updatedLeadsReport, leadsByAdvisor: leadsByAdvisorReport, leadsBySource: leadsBySourceReport, conversionByAdvisor: conversionBreakdown });
   };
 
   const handleExportPDF = async () => {
-    const reportElement = reportContentRef.current;
-    if (!reportElement || !report) return;
-
+    if (!report || !reportContentRef.current) return;
     setIsExporting(true);
-    try {
-        const { jsPDF } = window.jspdf;
-        const canvas = await window.html2canvas(reportElement, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff'
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        
-        const pdf = new jsPDF({
-            orientation: 'p',
-            unit: 'mm',
-            format: 'a4'
-        });
-        
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        
-        const totalPdfHeight = canvasHeight * (pdfWidth - 20) / canvasWidth;
-        let heightLeft = totalPdfHeight;
-        let position = 10;
 
-        pdf.addImage(imgData, 'PNG', 10, position, pdfWidth - 20, totalPdfHeight);
-        heightLeft -= (pdf.internal.pageSize.getHeight() - 20);
+    setTimeout(async () => {
+        try {
+            const { jsPDF } = window.jspdf;
+            const content = reportContentRef.current;
+            if (!content) return;
 
-        while (heightLeft > 0) {
-            position = -totalPdfHeight + heightLeft;
-            pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 10, position, pdfWidth - 20, totalPdfHeight);
-            heightLeft -= (pdf.internal.pageSize.getHeight() - 20);
+            const clone = content.cloneNode(true) as HTMLElement;
+            
+            // 1. Limpieza de clases
+            const animated = clone.querySelectorAll('.animate-fade-in, .transition-all');
+            animated.forEach(el => {
+                el.classList.remove('animate-fade-in', 'transition-all', 'duration-500');
+                (el as HTMLElement).style.transition = 'none';
+                (el as HTMLElement).style.animation = 'none';
+            });
+
+            // 2. Estilos Forzados (Contraste Extremo + Layout Fijo)
+            clone.style.width = '1200px';
+            clone.style.padding = '40px';
+            clone.style.background = '#ffffff';
+            clone.style.position = 'absolute';
+            clone.style.left = '-9999px';
+            clone.style.top = '0';
+            clone.style.color = '#000000';
+            clone.style.filter = 'contrast(1.3) saturate(1.1)'; // Boost de contraste
+            (clone.style as any).printColorAdjust = 'exact'; 
+
+            clone.querySelectorAll<HTMLElement>('*').forEach(el => {
+                const style = window.getComputedStyle(el);
+                // Forzar negro si tiene color
+                if (style.color && style.color !== 'rgba(0, 0, 0, 0)') {
+                    el.style.color = '#000000';
+                }
+                // Forzar bordes negros
+                if (style.borderColor && style.borderColor !== 'rgba(0, 0, 0, 0)' && style.borderWidth !== '0px') {
+                    el.style.borderColor = '#000000';
+                }
+            });
+
+            document.body.appendChild(clone);
+
+            const canvas = await window.html2canvas(clone, { 
+                scale: 3, 
+                useCORS: true, 
+                backgroundColor: '#ffffff',
+                windowWidth: 1400,
+                scrollY: 0,
+                scrollX: 0 
+            });
+
+            document.body.removeChild(clone);
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+            
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const imgProps = pdf.getImageProperties(imgData);
+            const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+            heightLeft -= pdfHeight;
+
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+                heightLeft -= pdfHeight;
+            }
+
+            pdf.save(`reporte_crm_${report.startDate}.pdf`);
+        } catch (error) {
+            console.error("Error PDF:", error);
+            alert("Error al exportar.");
+        } finally {
+            setIsExporting(false);
         }
-
-        pdf.save(`reporte_leads_${report.startDate}_a_${report.endDate}.pdf`);
-    } catch (error) {
-        console.error("Error al exportar a PDF:", error);
-        alert("Ocurrió un error al intentar exportar el reporte a PDF.");
-    } finally {
-        setIsExporting(false);
-    }
+    }, 500);
   };
   
-  const handleClose = () => {
-    setReport(null);
-    onClose();
-  }
-
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Generador de Reportes" size="4xl">
-      <div className="space-y-6">
-        <div className="p-4 border rounded-lg bg-gray-50">
-            <h3 className="font-semibold text-gray-900 mb-3">Seleccionar Periodo</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                <div>
-                    <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">Fecha de Inicio</label>
-                    <input type="date" id="startDate" value={startDate} onChange={e => setStartDate(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" />
-                </div>
-                <div>
-                    <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">Fecha de Fin</label>
-                    <input type="date" id="endDate" value={endDate} onChange={e => setEndDate(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" />
-                </div>
-                <Button onClick={handleGenerateReport}>Generar Reporte</Button>
+    <Modal isOpen={isOpen} onClose={() => {setReport(null); onClose();}} title="Inteligencia de Negocio" size="4xl">
+      
+      {/* --- OVERLAY DE CARGA (BLOQUEO DE PANTALLA) --- */}
+      {isExporting && (
+        <div className="fixed inset-0 z-[100] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center transition-all animate-fade-in cursor-wait select-none">
+            <div className="relative">
+                <div className="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
+                <div className="w-16 h-16 border-4 border-brand-secondary rounded-full animate-spin absolute top-0 left-0 border-t-transparent"></div>
             </div>
+            <h3 className="mt-6 text-xl font-bold text-gray-800">Generando Reporte PDF de Alta Calidad...</h3>
+            <p className="text-gray-500 mt-2 text-sm">Por favor, espera un momento y no cierres esta ventana.</p>
+        </div>
+      )}
+
+      {/* Contenedor con clase condicional para que, aunque falle el overlay, 
+         el contenido visual no reaccione (pointer-events-none)
+      */}
+      <div className={`space-y-8 ${isExporting ? 'pointer-events-none select-none' : ''}`}>
+        <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 flex flex-col sm:flex-row gap-4 items-end">
+            <div className="w-full sm:w-auto flex-1">
+                <Input label="Fecha Inicio" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            </div>
+            <div className="w-full sm:w-auto flex-1">
+                <Input label="Fecha Fin" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            </div>
+            <Button onClick={handleGenerateReport} className="shadow-lg shadow-brand-secondary/20 w-full sm:w-auto">
+                <ChartBarIcon className="w-5 h-5 mr-2"/>
+                Generar Análisis
+            </Button>
         </div>
 
         {report && (
           <>
-            <div className="animate-fade-in" ref={reportContentRef}>
-                <div className="p-4 sm:p-6 bg-white">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-center text-brand-primary mb-2">Reporte de Leads</h2>
-                     <h3 className="text-lg text-center text-gray-700 font-medium mb-8">
-                        Periodo del {new Date(report.startDate).toLocaleDateString()} al {new Date(report.endDate).toLocaleDateString()}
-                    </h3>
-                    
-                     <div className="space-y-8 mt-8">
-                        <ReportSection title="Nuevos Leads Registrados" data={report.newLeads} />
-                        <ReportSection title="Leads con Cambio de Estatus en el Periodo" data={report.updatedLeads} />
-                        <BreakdownReportSection title="Leads Asignados por Asesor en el Periodo" data={report.leadsByAdvisor} totalLabel="Total de leads nuevos" />
-                        <ConversionReportSection title="Índice de Conversión por Asesor (a Inscrito)" data={report.conversionByAdvisor} />
-                        <BreakdownReportSection title="Leads por Origen en el Periodo" data={report.leadsBySource} totalLabel="Total de leads nuevos" />
+            <div className="animate-fade-in bg-white" ref={reportContentRef}>
+                <div className="text-center mb-8 pt-4">
+                    <h2 className={`text-3xl font-black tracking-tight ${isExporting ? 'text-black' : 'text-gray-900'}`}>Reporte Ejecutivo</h2>
+                    <p className={`font-medium mt-1 text-lg ${isExporting ? 'text-black' : 'text-gray-600'}`}>
+                        {new Date(report.startDate).toLocaleDateString()} — {new Date(report.endDate).toLocaleDateString()}
+                    </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="md:col-span-2">
+                        <ReportSection title="Nuevos Leads (Captación)" data={report.newLeads} icon={<ChartBarIcon className="w-6 h-6"/>} isExporting={isExporting} />
                     </div>
+                    
+                    <ReportSection title="Movimiento de Cartera (Actividad)" data={report.updatedLeads} isExporting={isExporting} />
+                    <ConversionReportSection title="Efectividad de Cierre (Inscritos)" data={report.conversionByAdvisor} isExporting={isExporting} />
+                    
+                    <BreakdownReportSection title="Carga por Asesor" data={report.leadsByAdvisor} totalLabel="Leads Asignados" isExporting={isExporting} />
+                    <BreakdownReportSection title="Rendimiento por Canal" data={report.leadsBySource} totalLabel="Leads Generados" isExporting={isExporting} />
+                </div>
+                
+                <div className={`mt-8 pt-4 border-t border-gray-200 text-center ${isExporting ? 'text-black' : 'text-gray-400'}`}>
+                    <p className="text-xs">Generado por CUOM CRM • {new Date().toLocaleString()}</p>
                 </div>
             </div>
-            <div className="pt-4 flex justify-end">
+            
+            <div className="pt-6 border-t border-gray-100 flex justify-end">
                 <Button 
                     onClick={handleExportPDF} 
                     variant="secondary" 
                     leftIcon={<PrinterIcon className="w-5 h-5"/>}
                     disabled={isExporting}
                 >
-                    {isExporting ? 'Exportando...' : 'Exportar a PDF'}
+                    {isExporting ? 'Generando PDF...' : 'Descargar PDF'}
                 </Button>
             </div>
           </>

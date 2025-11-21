@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
+import { Select, TextArea } from './common/FormElements';
 import { Lead, WhatsAppTemplate } from '../types';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
 
@@ -28,37 +28,23 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
     setSelectedTemplateId(templateId);
-    
     const template = templates.find(t => t.id === templateId);
-    if (template) {
-      setMessage(template.content);
-    } else {
-      setMessage('');
-    }
+    if (template) setMessage(template.content);
+    else setMessage('');
     setGeneratedLink(null);
   };
 
   const cleanPhoneNumber = (phone: string) => {
-    // Remove non-numeric characters
     let cleaned = phone.replace(/\D/g, '');
-    
-    // Basic heuristic: If it's a 10 digit Mexican number, add 52. 
-    // If it's 52 + 10 digits, keep it.
-    // This is a simple assumption, ideally, phone numbers should be stored in E.164 format in DB.
-    if (cleaned.length === 10) {
-        cleaned = `52${cleaned}`;
-    }
+    if (cleaned.length === 10) cleaned = `52${cleaned}`;
     return cleaned;
   };
 
   const handleGenerateLink = () => {
     if (!lead || !message) return;
-
     const phone = cleanPhoneNumber(lead.phone);
     const encodedMessage = encodeURIComponent(message);
-    const link = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMessage}`;
-    
-    setGeneratedLink(link);
+    setGeneratedLink(`https://api.whatsapp.com/send?phone=${phone}&text=${encodedMessage}`);
   };
 
   const handleSend = () => {
@@ -71,69 +57,62 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
   if (!lead) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Enviar Mensaje de WhatsApp" size="md">
-      <div className="space-y-4">
-        <div className="bg-green-50 p-3 rounded-md border border-green-200 mb-4">
-            <p className="text-sm text-green-800 font-medium">Contactando a: {lead.first_name} {lead.paternal_last_name}</p>
-            <p className="text-xs text-green-600">Teléfono: {lead.phone}</p>
+    <Modal isOpen={isOpen} onClose={onClose} title="Enviar WhatsApp" size="md">
+      <div className="space-y-5">
+        {/* Info Card */}
+        <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex items-center gap-3">
+            <div className="bg-green-100 p-2 rounded-full text-green-600">
+                <ChatBubbleLeftRightIcon className="w-5 h-5" />
+            </div>
+            <div>
+                <p className="text-sm font-bold text-green-800">{lead.first_name} {lead.paternal_last_name}</p>
+                <p className="text-xs text-green-600 font-mono">{lead.phone}</p>
+            </div>
         </div>
 
-        <div>
-          <label htmlFor="template" className="block text-sm font-medium text-gray-700 mb-1">
-            Seleccionar Plantilla
-          </label>
-          <select
-            id="template"
+        <Select
+            label="Cargar Plantilla"
             value={selectedTemplateId}
             onChange={handleTemplateChange}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
-          >
-            <option value="">-- Selecciona una plantilla --</option>
-            {templates.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-        </div>
+            placeholder="-- Selecciona una plantilla --"
+            options={templates.map(t => ({ value: t.id, label: t.name }))}
+        />
 
-        <div>
-          <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
-            Mensaje Personalizado
-          </label>
-          <textarea
-            id="message"
-            rows={6}
+        <TextArea
+            label="Mensaje"
             value={message}
             onChange={(e) => { setMessage(e.target.value); setGeneratedLink(null); }}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
-            placeholder="Escribe tu mensaje o selecciona una plantilla..."
-          />
-          <p className="text-xs text-gray-500 mt-1">Puedes editar el mensaje antes de generar el enlace.</p>
-        </div>
+            rows={6}
+            placeholder="Escribe tu mensaje aquí..."
+        />
 
         {generatedLink && (
-            <div className="p-3 bg-gray-100 rounded border text-xs break-all text-gray-600">
-                Link generado: {generatedLink}
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-500 break-all font-mono animate-fade-in">
+                {generatedLink}
             </div>
         )}
 
-        <div className="pt-4 flex justify-between items-center">
+        <div className="pt-4 flex justify-between items-center border-t border-gray-100">
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <div className="flex space-x-2">
-             {!generatedLink ? (
-                <Button onClick={handleGenerateLink} disabled={!message || !lead.phone} variant="secondary">
-                    Generar Enlace
+          {!generatedLink ? (
+            // CAMBIO: variant="primary" para que el botón sea azul y destaque
+            <Button 
+                onClick={handleGenerateLink} 
+                disabled={!message || !lead.phone} 
+                variant="primary"
+                className="shadow-lg shadow-brand-secondary/20"
+            >
+                Generar Enlace
+            </Button>
+          ) : (
+             <div className="flex gap-2">
+                <Button onClick={() => setGeneratedLink(null)} variant="secondary">Editar</Button>
+                {/* El botón final sigue siendo verde para indicar acción externa de WhatsApp */}
+                <Button onClick={handleSend} className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200 border-transparent focus:ring-green-500">
+                    Abrir WhatsApp
                 </Button>
-             ) : (
-                 <>
-                    <Button onClick={() => setGeneratedLink(null)} variant="secondary">
-                        Editar
-                    </Button>
-                    <Button onClick={handleSend} leftIcon={<ChatBubbleLeftRightIcon className="w-5 h-5"/>} className="bg-green-600 hover:bg-green-700 focus:ring-green-500">
-                        Enviar WhatsApp
-                    </Button>
-                 </>
-             )}
-          </div>
+             </div>
+          )}
         </div>
       </div>
     </Modal>
