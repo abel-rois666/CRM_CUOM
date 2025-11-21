@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import Button from '../common/Button';
 // Asegúrate de que esta ruta coincida con tu estructura actual
-import logoCuom from '../../assets/logo-cuom-circular.png'; 
+import logoCuom from '../../assets/logo-cuom-circular.png';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
