@@ -1,3 +1,4 @@
+// components/EmailModal.tsx
 import React, { useState, useEffect } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
@@ -10,20 +11,32 @@ interface EmailModalProps {
   onClose: () => void;
   lead: Lead;
   templates: EmailTemplate[];
+  initialTemplateId?: string; // Nueva prop opcional
 }
 
-const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, templates }) => {
+const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, templates, initialTemplateId }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
 
+  // Efecto para cargar la plantilla inicial o resetear
   useEffect(() => {
     if (isOpen) {
+      if (initialTemplateId) {
+        const template = templates.find(t => t.id === initialTemplateId);
+        if (template) {
+            setSelectedTemplateId(template.id);
+            setSubject(template.subject);
+            setBody(template.body);
+            return; // Salimos para no limpiar
+        }
+      }
+      // Default reset
       setSelectedTemplateId('');
       setSubject('');
       setBody('');
     }
-  }, [isOpen]);
+  }, [isOpen, initialTemplateId, templates]); // Dependencias clave
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
@@ -32,6 +45,9 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
     if (template) {
       setSubject(template.subject);
       setBody(template.body);
+    } else {
+      setSubject('');
+      setBody('');
     }
   };
 

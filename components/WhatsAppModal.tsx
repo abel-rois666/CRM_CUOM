@@ -10,20 +10,32 @@ interface WhatsAppModalProps {
   onClose: () => void;
   lead: Lead | null;
   templates: WhatsAppTemplate[];
+  initialTemplateId?: string; // Nueva prop para automatización
 }
 
-const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, templates }) => {
+const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, templates, initialTemplateId }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [message, setMessage] = useState('');
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      // Si viene una plantilla sugerida, la cargamos
+      if (initialTemplateId) {
+        const template = templates.find(t => t.id === initialTemplateId);
+        if (template) {
+            setSelectedTemplateId(template.id);
+            setMessage(template.content);
+            setGeneratedLink(null);
+            return;
+        }
+      }
+      // Reset normal
       setSelectedTemplateId('');
       setMessage('');
       setGeneratedLink(null);
     }
-  }, [isOpen]);
+  }, [isOpen, initialTemplateId, templates]);
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
@@ -95,7 +107,6 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
         <div className="pt-4 flex justify-between items-center border-t border-gray-100">
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
           {!generatedLink ? (
-            // CAMBIO: variant="primary" para que el botón sea azul y destaque
             <Button 
                 onClick={handleGenerateLink} 
                 disabled={!message || !lead.phone} 
@@ -107,7 +118,6 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
           ) : (
              <div className="flex gap-2">
                 <Button onClick={() => setGeneratedLink(null)} variant="secondary">Editar</Button>
-                {/* El botón final sigue siendo verde para indicar acción externa de WhatsApp */}
                 <Button onClick={handleSend} className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200 border-transparent focus:ring-green-500">
                     Abrir WhatsApp
                 </Button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
 import Header from './components/Header';
@@ -10,23 +10,39 @@ import ReportModal from './components/ReportModal';
 import WhatsAppModal from './components/WhatsAppModal';
 import EmailModal from './components/EmailModal';
 import BulkImportModal from './components/BulkImportModal';
-import { Lead, Profile, Status, Source, Appointment, FollowUp, Licenciatura, StatusChange, WhatsAppTemplate, EmailTemplate } from './types';
+import AutomationChoiceModal from './components/AutomationChoiceModal'; // IMPORTAR NUEVO MODAL
+import { Lead, Appointment, FollowUp } from './types';
 import LoginPage from './components/auth/LoginPage';
 import LeadListSkeleton from './components/LeadListSkeleton';
 import { ToastProvider, useToast } from './context/ToastContext';
+import { useCRMData } from './hooks/useCRMData';
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
   const { success, error: toastError, info } = useToast();
-  
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [sources, setSources] = useState<Source[]>([]);
-  const [licenciaturas, setLicenciaturas] = useState<Licenciatura[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
-  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
 
+const {
+    loadingData,
+    leads,
+    profiles,
+    statuses,
+    sources,
+    licenciaturas,
+    whatsappTemplates,
+    emailTemplates,
+    setProfiles,
+    setStatuses,
+    setSources,
+    setLicenciaturas,
+    setWhatsappTemplates,
+    setEmailTemplates,
+    updateLocalLead,
+    addLocalLead,
+    removeLocalLead,
+    refetch
+  } = useCRMData(session, profile?.role, profile?.id);
+
+  // Estados de UI
   const [isLeadFormOpen, setLeadFormOpen] = useState(false);
   const [isDetailViewOpen, setDetailViewOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
@@ -34,108 +50,22 @@ const AppContent: React.FC = () => {
   const [isWhatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isBulkImportOpen, setBulkImportOpen] = useState(false);
+  const [isAutomationChoiceOpen, setIsAutomationChoiceOpen] = useState(false); // NUEVO ESTADO
   
+  // Estados de Selección
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedLeadForWhatsApp, setSelectedLeadForWhatsApp] = useState<Lead | null>(null);
   const [selectedLeadForEmail, setSelectedLeadForEmail] = useState<Lead | null>(null);
-  const [loadingData, setLoadingData] = useState(true);
+  const [automationLead, setAutomationLead] = useState<Lead | null>(null); // Lead en proceso de automatización
+  
+  // Estados para Plantillas Iniciales
+  const [initialEmailTemplateId, setInitialEmailTemplateId] = useState<string | undefined>(undefined);
+  const [initialWhatsAppTemplateId, setInitialWhatsAppTemplateId] = useState<string | undefined>(undefined);
 
-  const getErrorMessage = (error: unknown): string => {
-    if (error instanceof Error) return error.message;
-    if (typeof error === 'object' && error !== null && 'message' in error) {
-        return String((error as any).message);
-    }
-    if (typeof error === 'string') return error;
-    return JSON.stringify(error);
-  };
+  if (authLoading) return <LeadListSkeleton />;
+  if (!session) return <LoginPage />;
 
-  const fetchData = async () => {
-    setLoadingData(true);
-    try {
-      const [
-        { data: leadsData, error: leadsError },
-        { data: profilesData, error: profilesError },
-        { data: statusesData, error: statusesError },
-        { data: sourcesData, error: sourcesError },
-        { data: licenciaturasData, error: licenciaturasError },
-        { data: templatesData, error: templatesError },
-        { data: emailTemplatesData, error: emailTemplatesError },
-      ] = await Promise.all([
-        supabase.from('leads').select('*, appointments(*), follow_ups(*), status_history(*)'),
-        supabase.from('profiles').select('*'),
-        supabase.from('statuses').select('*'),
-        supabase.from('sources').select('*'),
-        supabase.from('licenciaturas').select('*'),
-        supabase.from('whatsapp_templates').select('*'),
-        supabase.from('email_templates').select('*'),
-      ]);
-
-      if (leadsError) throw leadsError;
-      if (profilesError) throw profilesError;
-      if (statusesError) throw statusesError;
-      if (sourcesError) throw sourcesError;
-      if (licenciaturasError) throw licenciaturasError;
-      
-      // Handle WhatsApp Templates errors (allow missing table)
-      if (templatesError) {
-          if (templatesError.code !== '42P01' && templatesError.code !== 'PGRST205') {
-              throw templatesError;
-          } else {
-              console.warn("Tabla whatsapp_templates no encontrada. Funcionalidad deshabilitada.");
-          }
-      }
-
-      setLeads(leadsData || []);
-      setProfiles(profilesData || []);
-      setStatuses(statusesData || []);
-      setSources(sourcesData || []);
-      setLicenciaturas(licenciaturasData || []);
-      setWhatsappTemplates(templatesData || []);
-      
-      // Optional email templates
-      if (emailTemplatesData) setEmailTemplates(emailTemplatesData);
-      
-      // Ignore "relation does not exist" (42P01) or "schema cache miss" (PGRST205) for seamless degradation
-      if (emailTemplatesError && emailTemplatesError.code !== '42P01' && emailTemplatesError.code !== 'PGRST205') { 
-          console.warn("Error fetching email templates", emailTemplatesError);
-      }
-
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      const errorMessage = getErrorMessage(error);
-      
-      // Check for both Postgres (42P01) and PostgREST (PGRST205) error messages
-      const isMissingTableError = (msg: string, tableName: string) => 
-          msg.includes(`relation "public.${tableName}" does not exist`) || 
-          msg.includes(`Could not find the table 'public.${tableName}'`);
-
-      if (isMissingTableError(errorMessage, 'email_templates')) {
-          console.warn("Tabla email_templates no encontrada. Saltando...");
-      } else if (isMissingTableError(errorMessage, 'whatsapp_templates')) {
-           console.warn("Tabla whatsapp_templates no encontrada. Saltando...");
-      } else {
-         toastError(`Error al cargar datos: ${errorMessage}`);
-      }
-    } finally {
-      setLoadingData(false);
-    }
-  };
-
-  useEffect(() => {
-    if (session) {
-      fetchData();
-    } else {
-      setLoadingData(false);
-    }
-  }, [session]);
-
-  if (authLoading) {
-    return <LeadListSkeleton />;
-  }
-
-  if (!session) {
-    return <LoginPage />;
-  }
+  // --- MANEJADORES DE UI ---
 
   const handleAddNew = () => {
     setSelectedLead(null);
@@ -148,7 +78,6 @@ const AppContent: React.FC = () => {
   };
 
   const handleViewDetails = async (lead: Lead) => {
-    setLoadingData(true);
     const { data, error } = await supabase
       .from('leads')
       .select(`*, follow_ups(*), appointments(*), status_history(*)`)
@@ -157,84 +86,103 @@ const AppContent: React.FC = () => {
     
     if(error) {
       console.error("Error fetching lead details", error);
-      toastError("No se pudieron cargar los detalles del lead.");
-      setLoadingData(false);
-      return;
+      toastError("No se pudieron cargar los detalles actualizados.");
+      setSelectedLead(lead);
+    } else {
+      setSelectedLead(data);
     }
-
-    setSelectedLead(data);
     setDetailViewOpen(true);
-    setLoadingData(false);
   };
+
+  // --- LÓGICA DE AUTOMATIZACIÓN Y SELECCIÓN ---
+
+  // 1. Detectar el cambio y abrir el selector
+  const checkAndTriggerAutomation = (newStatusId: string, lead: Lead) => {
+      const status = statuses.find(s => s.id === newStatusId);
+      
+      if (status && status.name.toLowerCase().includes('inscrito')) {
+          // Esperamos un poco para que la UI se asiente
+          setTimeout(() => {
+              setAutomationLead(lead);
+              setIsAutomationChoiceOpen(true);
+              // Reproducir sonido sutil o notificación visual extra si quisieras
+              success("¡Inscripción registrada! Elige cómo dar la bienvenida.");
+          }, 500);
+      }
+  };
+
+  // 2. Manejar la elección del usuario (Email vs WhatsApp)
+  const handleAutomationChoice = (channel: 'email' | 'whatsapp') => {
+      if (!automationLead) return;
+      
+      setIsAutomationChoiceOpen(false); // Cerrar selector
+
+      if (channel === 'email') {
+          const welcomeTemplate = emailTemplates.find(t => t.name.toLowerCase().includes('bienvenida'));
+          setSelectedLeadForEmail(automationLead);
+          setInitialEmailTemplateId(welcomeTemplate?.id);
+          setIsEmailModalOpen(true);
+      } else {
+          const welcomeTemplate = whatsappTemplates.find(t => t.name.toLowerCase().includes('bienvenida') || t.name.toLowerCase().includes('saludo'));
+          setSelectedLeadForWhatsApp(automationLead);
+          setInitialWhatsAppTemplateId(welcomeTemplate?.id);
+          setWhatsAppModalOpen(true);
+      }
+  };
+
+  // --- CRUD HANDLERS ---
 
   const handleDelete = async (leadId: string) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este lead?')) {
        const { error } = await supabase.from('leads').delete().eq('id', leadId);
        if (error) {
-         console.error('Error deleting lead:', error);
          toastError("Error al eliminar el lead.");
        } else {
-         setLeads(leads.filter(lead => lead.id !== leadId));
+         removeLocalLead(leadId);
          success("Lead eliminado correctamente.");
        }
-    }
   };
   
-  const handleSaveLead = async (lead: Omit<Lead, 'id' | 'registration_date' | 'status_history'>, leadIdToEdit?: string) => {
-    if (leadIdToEdit) { // Editing
+  const handleSaveLead = async (leadData: Omit<Lead, 'id' | 'registration_date' | 'status_history'>, leadIdToEdit?: string) => {
+    if (leadIdToEdit) {
       const oldLead = leads.find(l => l.id === leadIdToEdit);
-      if (!oldLead) return;
-
       const { data, error } = await supabase
         .from('leads')
-        .update({ ...lead })
+        .update({ ...leadData })
         .eq('id', leadIdToEdit)
         .select('*, appointments(*), follow_ups(*), status_history(*)')
         .single();
       
-      if (error) { 
-        console.error('Error updating lead:', error); 
-        const msg = getErrorMessage(error);
-        toastError(`Error al actualizar el lead: ${msg}`);
-        return; 
-      }
+      if (error) { toastError(`Error al actualizar: ${error.message}`); return; }
 
-      // Handle status change history
-      if (oldLead.status_id !== lead.status_id) {
+      if (oldLead && oldLead.status_id !== leadData.status_id) {
         await supabase.from('status_history').insert({
           old_status_id: oldLead.status_id,
-          new_status_id: lead.status_id,
+          new_status_id: leadData.status_id,
           lead_id: leadIdToEdit,
           date: new Date().toISOString()
         });
+        checkAndTriggerAutomation(leadData.status_id, data);
       }
 
-      setLeads(leads.map(l => l.id === leadIdToEdit ? data : l));
-      success("Lead actualizado exitosamente.");
+      updateLocalLead(data);
+      success("Lead actualizado.");
 
-    } else { // Creating
-      const newLeadPayload = {
-        ...lead,
-        registration_date: new Date().toISOString(),
-      };
+    } else {
+      const newLeadPayload = { ...leadData, registration_date: new Date().toISOString() };
       const { data, error } = await supabase.from('leads').insert(newLeadPayload).select('*, appointments(*), follow_ups(*), status_history(*)').single();
-      if (error) { 
-        console.error('Error creating lead:', error);
-        const msg = getErrorMessage(error);
-        toastError(`Error al crear el lead: ${msg}`);
-        return; 
-      }
+      
+      if (error) { toastError(`Error al crear: ${error.message}`); return; }
       
       if (data) {
         await supabase.from('status_history').insert({
             old_status_id: null,
-            new_status_id: lead.status_id,
+            new_status_id: leadData.status_id,
             lead_id: data.id,
             date: new Date().toISOString()
         });
-
-        setLeads([...leads, data]);
-        success("Lead creado exitosamente.");
+        addLocalLead(data);
+        success("Lead creado.");
+        checkAndTriggerAutomation(leadData.status_id, data);
       }
     }
     setLeadFormOpen(false);
@@ -242,286 +190,97 @@ const AppContent: React.FC = () => {
 
   const handleUpdateLeadDetails = async (leadId: string, updates: Partial<Pick<Lead, 'advisor_id' | 'status_id'>>) => {
     const oldLead = leads.find(l => l.id === leadId);
-    if (!oldLead) {
-        console.error("No se encontró el lead original para actualizar.");
-        return;
-    }
-
-    const updatePayload: any = {};
-    if (updates.advisor_id !== undefined) updatePayload.advisor_id = updates.advisor_id;
-    if (updates.status_id !== undefined) updatePayload.status_id = updates.status_id;
-
     const { data: updatedLeadData, error } = await supabase
         .from('leads')
-        .update(updatePayload)
+        .update(updates)
         .eq('id', leadId)
         .select('*, appointments(*), follow_ups(*), status_history(*)')
         .single();
 
-    if (error) {
-        console.error("Error al actualizar detalles del lead:", error);
-        const errorMessage = getErrorMessage(error);
-        toastError(`Error al actualizar: ${errorMessage}`);
-        return;
-    }
-    
-    if (!updatedLeadData) {
-        console.error("Error: No se recibieron datos actualizados del lead.");
-        return;
-    }
+    if (error) { toastError(`Error al actualizar: ${error.message}`); return; }
 
-    // Registrar el cambio de estado si ocurrió
-    if (updates.status_id && updates.status_id !== oldLead.status_id) {
-        const { error: historyError } = await supabase.from('status_history').insert({
+    if (oldLead && updates.status_id && updates.status_id !== oldLead.status_id) {
+        await supabase.from('status_history').insert({
             old_status_id: oldLead.status_id,
             new_status_id: updates.status_id,
             lead_id: leadId,
             date: new Date().toISOString()
         });
-        if(historyError) console.error("Error creating history", historyError);
+        checkAndTriggerAutomation(updates.status_id, updatedLeadData);
     }
 
-    const newLeads = leads.map(l => l.id === leadId ? updatedLeadData : l);
-    setLeads(newLeads);
-
-    if (selectedLead?.id === leadId) {
-        // No need to re-fetch if we already got the full object back from update
-        setSelectedLead(updatedLeadData);
-    }
+    updateLocalLead(updatedLeadData);
+    if (selectedLead?.id === leadId) setSelectedLead(updatedLeadData);
   };
 
+  // --- RESTO DE HANDLERS (Transfer, FollowUps, Appointments) ---
+  
   const handleTransferLead = async (leadId: string, newAdvisorId: string, reason: string) => {
     const oldLead = leads.find(l => l.id === leadId);
-    if (!oldLead) return;
-
-    const oldAdvisorName = profiles.find(p => p.id === oldLead.advisor_id)?.full_name || 'Desconocido';
+    const oldAdvisorName = profiles.find(p => p.id === oldLead?.advisor_id)?.full_name || 'Desconocido';
     const newAdvisorName = profiles.find(p => p.id === newAdvisorId)?.full_name || 'Desconocido';
-
     const transferNote = `🔄 TRANSICIÓN DE ASESOR\nDe: ${oldAdvisorName}\nA: ${newAdvisorName}\nMotivo: ${reason}`;
-
-    // 1. STEP 1 (CRITICAL FIX): Insert Follow up log BEFORE transferring ownership.
-    // If we transfer first, the current advisor loses "write" permission to this lead (RLS),
-    // and the log insertion would fail or be blocked.
-    const { data: followUpData, error: logError } = await supabase
-      .from('follow_ups')
-      .insert({
-        lead_id: leadId,
-        date: new Date().toISOString(),
-        notes: transferNote
-      })
-      .select()
-      .single();
-
-    if (logError) {
-      console.error("Error logging transfer:", logError);
-      const msg = getErrorMessage(logError);
-      toastError(`Error al guardar el historial de transferencia: ${msg}`);
-      // We stop here to ensure we don't transfer without a log
-      return; 
-    }
-
-    // 2. STEP 2: Update advisor via RPC to bypass RLS restrictions on reassignment
-    const { error: updateError } = await supabase.rpc('transfer_lead', {
-        lead_id: leadId,
-        new_advisor_id: newAdvisorId
-    });
-
-    if (updateError) {
-      const errorMessage = getErrorMessage(updateError);
-      console.error("Error transferring lead:", errorMessage);
-      toastError(`Error al transferir el lead: ${errorMessage}.`);
-      
-      // Optional: We could try to delete the log created in Step 1 if Step 2 fails, 
-      // but leaving it is safer (audit trail of attempted transfer).
-      return;
-    }
-
-    // 3. Update local state
-    const updatedLeadLocal = {
-       ...oldLead,
-       advisor_id: newAdvisorId,
-       follow_ups: followUpData ? [...(oldLead.follow_ups || []), followUpData] : oldLead.follow_ups
-    };
-
-    setLeads(leads.map(l => l.id === leadId ? updatedLeadLocal : l));
     
-    if (selectedLead?.id === leadId) {
-       setSelectedLead(updatedLeadLocal);
-    }
+    const { data: followUpData } = await supabase.from('follow_ups').insert({ lead_id: leadId, date: new Date().toISOString(), notes: transferNote }).select().single();
+    const { error: updateError } = await supabase.rpc('transfer_lead', { lead_id: leadId, new_advisor_id: newAdvisorId });
 
-    success("Lead transferido exitosamente.");
-    
-    // If I am the advisor who transferred it, I might lose visibility.
-    // Close the modal if I no longer have access (basic check)
-    if (profile?.role === 'advisor' && profile.id !== newAdvisorId) {
-        setDetailViewOpen(false);
-        // Also remove from local list since I can't see it anymore
-        setLeads(leads.filter(l => l.id !== leadId));
+    if (updateError) { toastError(`Error: ${updateError.message}`); return; }
+
+    if (oldLead) {
+        const updated = { ...oldLead, advisor_id: newAdvisorId, follow_ups: followUpData ? [...(oldLead.follow_ups || []), followUpData] : oldLead.follow_ups };
+        if (profile?.role === 'advisor' && profile.id !== newAdvisorId) { removeLocalLead(leadId); setDetailViewOpen(false); } 
+        else { updateLocalLead(updated); if (selectedLead?.id === leadId) setSelectedLead(updated); }
+        success("Lead transferido.");
     }
   };
 
   const handleAddFollowUp = async (leadId: string, followUp: Omit<FollowUp, 'id' | 'lead_id'>) => {
     const { data, error } = await supabase.from('follow_ups').insert({ ...followUp, lead_id: leadId }).select().single();
-    if(error) { 
-      console.error("Error adding followup", error); 
-      toastError("Error al guardar el seguimiento.");
-      return; 
-    }
-    
-    // Update leads state to include the new follow-up
-    setLeads(prevLeads => prevLeads.map(l => {
-        if (l.id === leadId) {
-            return { ...l, follow_ups: [...(l.follow_ups || []), data] };
-        }
-        return l;
-    }));
-
-    if(selectedLead?.id === leadId) {
-      setSelectedLead({ ...selectedLead, follow_ups: [...(selectedLead.follow_ups || []), data!] });
-      success("Seguimiento añadido.");
-    }
+    if(error) { toastError("Error al guardar."); return; }
+    const l = leads.find(l => l.id === leadId);
+    if(l) { const up = { ...l, follow_ups: [...(l.follow_ups || []), data] }; updateLocalLead(up); if(selectedLead?.id === leadId) setSelectedLead(up); success("Nota guardada."); }
   };
 
   const handleDeleteFollowUp = async (leadId: string, followUpId: string) => {
     const { error } = await supabase.from('follow_ups').delete().eq('id', followUpId);
-    if(error) { 
-      console.error("Error deleting followup", error); 
-      toastError("Error al eliminar el seguimiento.");
-      return; 
-    }
-
-    // Update leads state
-    setLeads(prevLeads => prevLeads.map(l => {
-        if (l.id === leadId) {
-            return { ...l, follow_ups: (l.follow_ups || []).filter(f => f.id !== followUpId) };
-        }
-        return l;
-    }));
-
-    if(selectedLead?.id === leadId) {
-      setSelectedLead({ ...selectedLead, follow_ups: (selectedLead.follow_ups || []).filter(f => f.id !== followUpId) });
-      success("Seguimiento eliminado.");
-    }
+    if(error) { toastError("Error al eliminar."); return; }
+    const l = leads.find(l => l.id === leadId);
+    if(l) { const up = { ...l, follow_ups: (l.follow_ups || []).filter(f => f.id !== followUpId) }; updateLocalLead(up); if(selectedLead?.id === leadId) setSelectedLead(up); success("Nota eliminada."); }
   };
   
    const handleSaveAppointment = async (leadId: string, appointmentData: Omit<Appointment, 'id' | 'status' | 'lead_id'>, appointmentIdToEdit?: string) => {
     const citadoStatusId = statuses.find(s => s.name === 'Con Cita')?.id;
-    let newAppointmentData;
-
+    let savedAppointment;
     if (appointmentIdToEdit) {
       const { data, error } = await supabase.from('appointments').update(appointmentData).eq('id', appointmentIdToEdit).select().single();
-      if(error) { 
-        console.error("Error updating appointment", error); 
-        toastError("Error al actualizar la cita.");
-        return; 
-      }
-      newAppointmentData = data;
-      
-      // Update local state
-       setLeads(prevLeads => prevLeads.map(l => {
-          if (l.id === leadId) {
-              const updatedApps = (l.appointments || []).map(a => a.id === appointmentIdToEdit ? data : a);
-              return { ...l, appointments: updatedApps };
-          }
-          return l;
-      }));
-
-      success("Cita actualizada.");
+      if(error) { toastError("Error actualizando."); return; } savedAppointment = data; success("Cita actualizada.");
     } else {
       const { data, error } = await supabase.from('appointments').insert({ ...appointmentData, lead_id: leadId, status: 'scheduled' }).select().single();
-      if(error) { 
-        console.error("Error adding appointment", error); 
-        toastError("Error al programar la cita.");
-        return; 
-      }
-      newAppointmentData = data;
-      
-       // Update local state
-       setLeads(prevLeads => prevLeads.map(l => {
-          if (l.id === leadId) {
-              return { ...l, appointments: [...(l.appointments || []), data] };
-          }
-          return l;
-      }));
-
-      success("Cita programada exitosamente.");
+      if(error) { toastError("Error creando cita."); return; } savedAppointment = data; success("Cita programada.");
     }
-
-    if (citadoStatusId) {
-      await handleUpdateLeadDetails(leadId, { status_id: citadoStatusId });
-    }
-    
-    // Update selected lead if open
-    if (selectedLead?.id === leadId) {
-         const { data } = await supabase
-            .from('leads')
-            .select(`*, follow_ups(*), appointments(*), status_history(*)`)
-            .eq('id', leadId)
-            .single();
-         if (data) setSelectedLead(data);
+    if (citadoStatusId) await handleUpdateLeadDetails(leadId, { status_id: citadoStatusId });
+    const l = leads.find(l => l.id === leadId);
+    if (l && savedAppointment) {
+        let newApps = l.appointments || [];
+        if (appointmentIdToEdit) newApps = newApps.map(a => a.id === appointmentIdToEdit ? savedAppointment : a);
+        else newApps = [...newApps, savedAppointment];
+        const up = { ...l, appointments: newApps }; updateLocalLead(up); if (selectedLead?.id === leadId) setSelectedLead(up);
     }
   };
 
   const handleUpdateAppointmentStatus = async (leadId: string, appointmentId: string, status: 'completed' | 'canceled') => {
       const { data, error } = await supabase.from('appointments').update({ status }).eq('id', appointmentId).select().single();
-      if (error) {
-        toastError("Error al actualizar el estado de la cita.");
-        return;
-      }
-      
-      // Update local state
-       setLeads(prevLeads => prevLeads.map(l => {
-          if (l.id === leadId) {
-              const updatedApps = (l.appointments || []).map(a => a.id === appointmentId ? data : a);
-              return { ...l, appointments: updatedApps };
-          }
-          return l;
-      }));
-
-      // Update selected lead if open
-      if (selectedLead?.id === leadId) {
-            const updatedApps = (selectedLead.appointments || []).map(a => a.id === appointmentId ? data : a);
-            setSelectedLead({ ...selectedLead, appointments: updatedApps });
-      }
-
-      if (status === 'completed') success("Cita marcada como completada.");
-      if (status === 'canceled') info("Cita cancelada.");
+      if (error) { toastError("Error actualizando."); return; }
+      const l = leads.find(l => l.id === leadId);
+      if (l) { const newApps = (l.appointments || []).map(a => a.id === appointmentId ? data : a); const up = { ...l, appointments: newApps }; updateLocalLead(up); if (selectedLead?.id === leadId) setSelectedLead(up); status === 'completed' ? success("Completada.") : info("Cancelada."); }
   };
 
   const handleDeleteAppointment = async (leadId: string, appointmentId: string) => {
       const { error } = await supabase.from('appointments').delete().eq('id', appointmentId);
-      if (error) {
-        toastError("Error al eliminar la cita.");
-        return;
-      }
-      
-       // Update local state
-       setLeads(prevLeads => prevLeads.map(l => {
-          if (l.id === leadId) {
-              const updatedApps = (l.appointments || []).filter(a => a.id !== appointmentId);
-              return { ...l, appointments: updatedApps };
-          }
-          return l;
-      }));
-      
-       // Update selected lead if open
-      if (selectedLead?.id === leadId) {
-           const updatedApps = (selectedLead.appointments || []).filter(a => a.id !== appointmentId);
-           setSelectedLead({ ...selectedLead, appointments: updatedApps });
-      }
-
-      success("Cita eliminada.");
+      if (error) { toastError("Error eliminando."); return; }
+      const l = leads.find(l => l.id === leadId);
+      if (l) { const newApps = (l.appointments || []).filter(a => a.id !== appointmentId); const up = { ...l, appointments: newApps }; updateLocalLead(up); if (selectedLead?.id === leadId) setSelectedLead(up); success("Eliminada."); }
   };
-  
-  const handleOpenWhatsApp = (lead: Lead) => {
-      setSelectedLeadForWhatsApp(lead);
-      setWhatsAppModalOpen(true);
-  }
-
-  const handleOpenEmailModal = (lead: Lead) => {
-      setSelectedLeadForEmail(lead);
-      setIsEmailModalOpen(true);
-  }
   
   return (
     <div className="min-h-screen bg-gray-100">
@@ -539,11 +298,30 @@ const AppContent: React.FC = () => {
           onViewDetails={handleViewDetails}
           onOpenReports={() => setReportModalOpen(true)}
           onOpenImport={() => setBulkImportOpen(true)}
-          onOpenWhatsApp={handleOpenWhatsApp}
-          onOpenEmail={handleOpenEmailModal}
+          // Reset manual si se abre directo desde la lista
+          onOpenWhatsApp={(lead) => { 
+              setSelectedLeadForWhatsApp(lead); 
+              setInitialWhatsAppTemplateId(undefined); 
+              setWhatsAppModalOpen(true); 
+          }}
+          onOpenEmail={(lead) => { 
+              setSelectedLeadForEmail(lead); 
+              setInitialEmailTemplateId(undefined); 
+              setIsEmailModalOpen(true); 
+          }}
           onUpdateLead={handleUpdateLeadDetails}
         />
       </main>
+
+      {/* MODALES */}
+      
+      {/* Selector de Automatización */}
+      <AutomationChoiceModal 
+        isOpen={isAutomationChoiceOpen}
+        onClose={() => setIsAutomationChoiceOpen(false)}
+        lead={automationLead}
+        onSelect={handleAutomationChoice}
+      />
 
       {isLeadFormOpen && (
         <LeadFormModal
@@ -590,12 +368,12 @@ const AppContent: React.FC = () => {
           whatsappTemplates={whatsappTemplates}
           emailTemplates={emailTemplates}
           currentUserProfile={profile}
-          onProfilesUpdate={(updated) => setProfiles(updated)}
-          onStatusesUpdate={(updated) => setStatuses(updated)}
-          onSourcesUpdate={(updated) => setSources(updated)}
-          onLicenciaturasUpdate={(updated) => setLicenciaturas(updated)}
-          onWhatsappTemplatesUpdate={(updated) => setWhatsappTemplates(updated)}
-          onEmailTemplatesUpdate={(updated) => setEmailTemplates(updated)}
+          onProfilesUpdate={setProfiles}
+          onStatusesUpdate={setStatuses}
+          onSourcesUpdate={setSources}
+          onLicenciaturasUpdate={setLicenciaturas}
+          onWhatsappTemplatesUpdate={setWhatsappTemplates}
+          onEmailTemplatesUpdate={setEmailTemplates}
         />
       )}
 
@@ -614,10 +392,7 @@ const AppContent: React.FC = () => {
           <BulkImportModal 
             isOpen={isBulkImportOpen} 
             onClose={() => setBulkImportOpen(false)}
-            onSuccess={() => {
-                fetchData(); // Reload leads
-                setBulkImportOpen(false);
-            }}
+            onSuccess={() => { refetch(); setBulkImportOpen(false); }}
             advisors={profiles.filter(p => p.role === 'advisor')}
             statuses={statuses}
             sources={sources}
@@ -631,6 +406,7 @@ const AppContent: React.FC = () => {
             onClose={() => setWhatsAppModalOpen(false)} 
             lead={selectedLeadForWhatsApp} 
             templates={whatsappTemplates} 
+            initialTemplateId={initialWhatsAppTemplateId} // Prop pasada
           />
       )}
 
@@ -640,6 +416,7 @@ const AppContent: React.FC = () => {
             onClose={() => setIsEmailModalOpen(false)} 
             lead={selectedLeadForEmail}
             templates={emailTemplates}
+            initialTemplateId={initialEmailTemplateId} // Prop pasada
           />
       )}
     </div>

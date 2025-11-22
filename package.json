@@ -9,11 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react-dom": "^19.2.0",
-    "react": "^19.2.0",
-    "@supabase/supabase-js": "^2.81.1",
     "@hello-pangea/dnd": "16.6.0",
-    "papaparse": "5.4.1"
+    "@supabase/supabase-js": "^2.81.1",
+    "papaparse": "5.4.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

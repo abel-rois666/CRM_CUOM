@@ -7,6 +7,11 @@ import ClockIcon from './icons/ClockIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
 import ListBulletIcon from './icons/ListBulletIcon';
+// Nuevos imports de Recharts
+import { 
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps 
+} from 'recharts';
 
 export type QuickFilterType = 'appointments_today' | 'no_followup' | 'stale_followup' | null;
 
@@ -18,6 +23,7 @@ interface DashboardStatsProps {
     onFilterChange: (filter: QuickFilterType) => void;
 }
 
+// Mapeo de colores Tailwind a Hex para Recharts
 const tailwindColorMap: { [key: string]: string } = {
     'bg-slate-500': '#64748b', 'bg-gray-500': '#6b7280', 'bg-zinc-500': '#71717a',
     'bg-neutral-500': '#737373', 'bg-stone-500': '#78716c', 'bg-red-500': '#ef4444',
@@ -27,6 +33,21 @@ const tailwindColorMap: { [key: string]: string } = {
     'bg-blue-500': '#3b82f6', 'bg-indigo-500': '#6366f1', 'bg-violet-500': '#8b5cf6',
     'bg-purple-500': '#a855f7', 'bg-fuchsia-500': '#d946ef', 'bg-pink-500': '#ec4899',
     'bg-rose-500': '#f43f5e'
+};
+
+// Tooltip personalizado para las gráficas
+const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl text-xs">
+          <p className="font-bold text-gray-800 mb-1">{payload[0].name || label}</p>
+          <p className="text-gray-600">
+            <span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads
+          </p>
+        </div>
+      );
+    }
+    return null;
 };
 
 const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, advisors, activeFilter, onFilterChange }) => {
@@ -48,6 +69,9 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
 
         const statusCounts: Record<string, number> = {};
         const advisorCounts: Record<string, number> = {};
+
+        // Inicializar contadores para asegurar que todos los asesores aparezcan aunque tengan 0 leads
+        advisors.forEach(a => advisorCounts[a.id] = 0);
 
         leads.forEach(lead => {
             // 1. Citas
@@ -77,26 +101,29 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
             advisorCounts[lead.advisor_id] = (advisorCounts[lead.advisor_id] || 0) + 1;
         });
 
-        const statusData = statuses.map(s => ({ name: s.name, color: s.color, count: statusCounts[s.id] || 0 })).filter(s => s.count > 0).sort((a,b) => b.count - a.count);
-        const advisorData = advisors.map(a => ({ name: a.full_name, count: advisorCounts[a.id] || 0 })).filter(a => a.count > 0).sort((a,b) => b.count - a.count);
+        const statusData = statuses
+            .map(s => ({ 
+                name: s.name, 
+                colorKey: s.color,
+                color: tailwindColorMap[s.color] || '#cbd5e1', 
+                value: statusCounts[s.id] || 0 
+            }))
+            .filter(s => s.value > 0)
+            .sort((a,b) => b.value - a.value);
+
+        const advisorData = advisors
+            .map(a => ({ 
+                name: a.full_name.split(' ')[0], // Solo primer nombre para la gráfica
+                fullName: a.full_name,
+                value: advisorCounts[a.id] || 0 
+            }))
+            .sort((a,b) => b.value - a.value);
 
         return { appointmentsToday, noFollowUp, staleFollowUp, totalLeads: leads.length, newLeadsToday, statusData, advisorData };
     }, [leads, statuses, advisors]);
 
     const handleCardClick = (filter: QuickFilterType) => {
         onFilterChange(activeFilter === filter ? null : filter);
-    };
-
-    const getPieGradient = () => {
-        const total = stats.statusData.reduce((sum, item) => sum + item.count, 0);
-        let cumulative = 0;
-        const stops = stats.statusData.map(item => {
-            const pct = (item.count / total) * 100;
-            const start = cumulative;
-            cumulative += pct;
-            return `${tailwindColorMap[item.color] || '#ccc'} ${start}% ${cumulative}%`;
-        });
-        return `conic-gradient(${stops.join(', ')})`;
     };
 
     return (
@@ -199,6 +226,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                         </div>
                     ) : (
                         <div className="space-y-8">
+                            {/* KPIs Principales */}
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="bg-gradient-to-br from-brand-primary/5 to-brand-primary/10 p-6 rounded-2xl border border-brand-primary/10 flex flex-col justify-center items-center text-center">
                                     <p className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-2">Total Leads</p>
@@ -210,58 +238,89 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                <div>
-                                    <h4 className="text-sm font-bold text-gray-800 mb-6 flex items-center gap-2">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                                {/* Gráfica de Donas: Distribución por Estado */}
+                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                                    <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
                                         Distribución por Estado
-                                        <span className="h-px flex-1 bg-gray-200 ml-2"></span>
                                     </h4>
-                                    <div className="flex items-start gap-8">
+                                    <div className="h-64 w-full flex items-center justify-center">
                                         {stats.statusData.length > 0 ? (
-                                            <div className="relative group">
-                                                <div className="w-36 h-36 rounded-full border-[6px] border-white shadow-lg transition-transform group-hover:scale-105" style={{ background: getPieGradient() }}></div>
-                                            </div>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={stats.statusData}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={60}
+                                                        outerRadius={80}
+                                                        paddingAngle={5}
+                                                        dataKey="value"
+                                                    >
+                                                        {stats.statusData.map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip content={<CustomTooltip />} />
+                                                </PieChart>
+                                            </ResponsiveContainer>
                                         ) : (
-                                            <div className="w-36 h-36 rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">Sin datos</div>
+                                            <div className="text-gray-400 text-sm">Sin datos disponibles</div>
                                         )}
-                                        <ul className="space-y-2 flex-1 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-                                            {stats.statusData.map(item => (
-                                                <li key={item.name} className="flex items-center justify-between text-sm group">
-                                                    <div className="flex items-center gap-2.5">
-                                                        <span className={`w-2.5 h-2.5 rounded-full ${item.color} group-hover:scale-125 transition-transform`}></span>
-                                                        <span className="text-gray-600 truncate max-w-[120px]">{item.name}</span>
-                                                    </div>
-                                                    <span className="font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded-md text-xs">{item.count}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
+                                    </div>
+                                    {/* Leyenda personalizada compacta */}
+                                    <div className="mt-4 grid grid-cols-2 gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
+                                        {stats.statusData.map(item => (
+                                            <div key={item.name} className="flex items-center justify-between text-xs p-1.5 hover:bg-gray-50 rounded-lg transition-colors">
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
+                                                    <span className="text-gray-600 truncate" title={item.name}>{item.name}</span>
+                                                </div>
+                                                <span className="font-bold text-gray-800">{item.value}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
-                                <div>
-                                    <h4 className="text-sm font-bold text-gray-800 mb-6 flex items-center gap-2">
+                                {/* Gráfica de Barras: Leads por Asesor */}
+                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                                    <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
                                         Leads por Asesor
-                                        <span className="h-px flex-1 bg-gray-200 ml-2"></span>
                                     </h4>
-                                    <div className="space-y-4 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-                                        {stats.advisorData.map(item => {
-                                            const max = stats.advisorData[0]?.count || 1;
-                                            const width = (item.count / max) * 100;
-                                            return (
-                                                <div key={item.name} className="group">
-                                                    <div className="flex justify-between text-xs mb-1.5 font-medium">
-                                                        <span className="text-gray-700">{item.name}</span>
-                                                        <span className="text-gray-900">{item.count}</span>
-                                                    </div>
-                                                    <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                                                        <div 
-                                                            className="bg-brand-secondary h-2.5 rounded-full transition-all duration-500 ease-out group-hover:bg-blue-600" 
-                                                            style={{ width: `${width}%` }}
-                                                        ></div>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
+                                    <div className="h-64 w-full">
+                                        {stats.advisorData.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={stats.advisorData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                                    <XAxis type="number" hide />
+                                                    <YAxis 
+                                                        dataKey="name" 
+                                                        type="category" 
+                                                        tick={{ fontSize: 11, fill: '#64748b' }} 
+                                                        width={70}
+                                                    />
+                                                    <Tooltip 
+                                                        cursor={{ fill: '#f8fafc' }}
+                                                        content={({ active, payload }) => {
+                                                            if (active && payload && payload.length) {
+                                                                return (
+                                                                    <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl text-xs">
+                                                                        <p className="font-bold text-gray-800 mb-1">{payload[0].payload.fullName}</p>
+                                                                        <p className="text-gray-600">
+                                                                            <span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads asignados
+                                                                        </p>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        }}
+                                                    />
+                                                    <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de asesores</div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
