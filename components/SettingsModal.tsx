@@ -1,5 +1,6 @@
-
+// components/SettingsModal.tsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { createClient } from '@supabase/supabase-js'; // IMPORTANTE: Para el cliente temporal
 import { Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, StatusCategory } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
@@ -57,7 +58,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [role, setRole] = useState<'advisor' | 'admin'>('advisor');
+    const [role, setRole] = useState<'advisor' | 'admin' | 'moderator'>('advisor');
     const [loading, setLoading] = useState(false);
     const [userToEdit, setUserToEdit] = useState<Profile | null>(null);
     const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
@@ -71,14 +72,23 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         e.preventDefault();
         setLoading(true);
 
-        const { data: { session: adminSession } } = await supabase.auth.getSession();
-        if (!adminSession) {
-            toastError('No se pudo obtener la sesión de administrador. Vuelve a iniciar sesión.');
-            setLoading(false);
-            return;
-        }
+        // --- SOLUCIÓN PANTALLA BLANCA ---
+        // Usamos un cliente temporal desconectado de la sesión global
+        // para crear el usuario sin cerrar la sesión del admin.
+        const tempSupabase = createClient(
+            import.meta.env.VITE_SUPABASE_URL,
+            import.meta.env.VITE_SUPABASE_ANON_KEY,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false, 
+                    detectSessionInUrl: false
+                }
+            }
+        );
 
-        const { data: { user: newUser }, error: signUpError } = await supabase.auth.signUp({
+        // 1. Crear usuario en Auth (usando cliente temporal)
+        const { data: { user: newUser }, error: signUpError } = await tempSupabase.auth.signUp({
             email,
             password,
         });
@@ -95,6 +105,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             return;
         }
 
+        // 2. Crear perfil en base de datos (usando cliente principal con permisos de Admin)
         const { error: profileError } = await supabase.rpc('create_user_profile', {
             user_id: newUser.id,
             full_name: fullName,
@@ -102,11 +113,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             user_role: role
         });
         
-        await supabase.auth.setSession({
-            access_token: adminSession.access_token,
-            refresh_token: adminSession.refresh_token
-        });
-
         if (profileError) {
             toastError(`Usuario Auth creado, pero error en perfil: ${profileError.message}`);
             setLoading(false);
@@ -131,7 +137,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         setLoading(false);
     };
 
-    const handleUpdateUser = async (userId: string, updates: { fullName: string; role: 'admin' | 'advisor'; newPassword?: string }) => {
+    const handleUpdateUser = async (userId: string, updates: { fullName: string; role: 'admin' | 'advisor' | 'moderator'; newPassword?: string }) => {
         const { error } = await supabase.rpc('update_user_details', {
             user_id_to_update: userId,
             new_full_name: updates.fullName,
@@ -168,6 +174,22 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         }
     };
 
+    const getRoleLabel = (r: string) => {
+        switch(r) {
+            case 'admin': return 'Administrador';
+            case 'moderator': return 'Coordinador';
+            default: return 'Asesor';
+        }
+    };
+
+    const getRoleColor = (r: string) => {
+        switch(r) {
+            case 'admin': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+            case 'moderator': return 'bg-purple-100 text-purple-800 border-purple-200';
+            default: return 'bg-green-100 text-green-800 border-green-200';
+        }
+    };
+
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Usuarios</h3>
@@ -189,8 +211,9 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
                 <div>
                     <label htmlFor="role" className={labelClasses}>Rol</label>
                     <select id="role" value={role} onChange={e => setRole(e.target.value as any)} className={inputClasses}>
-                        <option value="advisor">Asesor</option>
-                        <option value="admin">Administrador</option>
+                        <option value="advisor">Asesor (Acceso limitado)</option>
+                        <option value="moderator">Coordinador (Supervisión)</option>
+                        <option value="admin">Administrador (Total)</option>
                     </select>
                 </div>
                 <div className="flex justify-end">
@@ -205,14 +228,14 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             <h4 className="font-semibold text-gray-700">Usuarios Actuales</h4>
             <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
                 {profiles.map(profile => (
-                    <li key={profile.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
+                    <li key={profile.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
                         <div>
-                            <span className="font-medium">{profile.full_name}</span>
-                            <span className="text-gray-500 ml-2 text-sm">({profile.email})</span>
+                            <span className="font-bold text-gray-800 block">{profile.full_name}</span>
+                            <span className="text-gray-500 text-xs">{profile.email}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${profile.role === 'admin' ? 'bg-indigo-200 text-indigo-800' : 'bg-green-200 text-green-800'}`}>
-                                {profile.role}
+                            <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${getRoleColor(profile.role)}`}>
+                                {getRoleLabel(profile.role)}
                             </span>
                              <Button variant="ghost" size="sm" onClick={() => setUserToEdit(profile)} aria-label={`Editar ${profile.full_name}`}>
                                 <EditIcon className="w-4 h-4 text-gray-600 hover:text-brand-secondary"/>
@@ -230,7 +253,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
                     isOpen={!!userToEdit}
                     onClose={() => setUserToEdit(null)}
                     user={userToEdit}
-                    onSave={handleUpdateUser}
+                    // @ts-ignore
+                    onSave={handleUpdateUser} 
                 />
             )}
             {userToDelete && (
@@ -339,7 +363,7 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         setStatusToEdit(status);
         setName(status.name);
         setColor(status.color);
-        setCategory(status.category || 'active'); // Default to active if null
+        setCategory(status.category || 'active'); 
     };
     
     const handleVerifyAndDelete = async (status: Status) => {
@@ -852,7 +876,7 @@ const WhatsappTemplateSettings: React.FC<{
                                 <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1">
                                     <EditIcon className="w-4 h-4"/>
                                 </button>
-                                {userProfile?.role === 'admin' && (
+                                {(userProfile?.role === 'admin' || userProfile?.role === 'moderator' || userProfile?.role === 'advisor') && (
                                     <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1">
                                         <TrashIcon className="w-4 h-4"/>
                                     </button>
@@ -911,7 +935,6 @@ const EmailTemplateSettings: React.FC<{
             }
         ];
         
-        // Check for existing names to avoid dupes
         const currentNames = new Set(templates.map(t => t.name));
         const toInsert = newTemplates.filter(t => !currentNames.has(t.name));
 
@@ -1078,7 +1101,7 @@ const EmailTemplateSettings: React.FC<{
                                 <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1">
                                     <EditIcon className="w-4 h-4"/>
                                 </button>
-                                {userProfile?.role === 'admin' && (
+                                {(userProfile?.role === 'admin' || userProfile?.role === 'moderator' || userProfile?.role === 'advisor') && (
                                     <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1">
                                         <TrashIcon className="w-4 h-4"/>
                                     </button>
@@ -1200,8 +1223,11 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
     { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
     { id: 'licenciaturas', label: 'Licenciaturas', icon: <AcademicCapIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
-    { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor'] },
-    { id: 'email', label: 'Plantillas Email', icon: <EnvelopeIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor'] },
+    
+    // Plantillas visibles para todos los roles con permisos de gestión
+    { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
+    { id: 'email', label: 'Plantillas Email', icon: <EnvelopeIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
+    
     { id: 'audit', label: 'Historial de Accesos', icon: <ArrowUpTrayIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
   ], []);
 

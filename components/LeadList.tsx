@@ -37,20 +37,20 @@ interface LeadListProps {
   onAddNew: () => void;
   onEdit: (lead: Lead) => void;
   onDelete: (leadId: string) => void;
-  // ACTUALIZADO: Acepta la pestaña
   onViewDetails: (lead: Lead, tab?: 'info' | 'activity' | 'appointments') => void;
   onOpenReports: () => void;
   onOpenImport: () => void;
   onOpenWhatsApp: (lead: Lead) => void;
   onOpenEmail: (lead: Lead) => void;
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
+  userRole?: 'admin' | 'advisor' | 'moderator'; // NUEVO: Recibimos el rol
 }
 
 type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date';
 type SortDirection = 'asc' | 'desc';
 type ViewMode = 'list' | 'kanban';
 
-const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenImport, onOpenWhatsApp, onOpenEmail, onUpdateLead }) => {
+const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses, licenciaturas, onAddNew, onEdit, onDelete, onViewDetails, onOpenReports, onOpenImport, onOpenWhatsApp, onOpenEmail, onUpdateLead, userRole }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
@@ -332,16 +332,19 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                     <span className="hidden sm:inline">Reporte</span>
                 </Button>
 
-                <Button 
-                    onClick={handleExportCSV} 
-                    variant="secondary" 
-                    size="sm" 
-                    className="px-3 sm:px-4"
-                    title="Exportar CSV"
-                >
-                    <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" />
-                    <span className="hidden sm:inline">Exportar</span>
-                </Button>
+                {/* Botón Exportar: Solo visible para ADMIN */}
+                {userRole === 'admin' && (
+                    <Button 
+                        onClick={handleExportCSV} 
+                        variant="secondary" 
+                        size="sm" 
+                        className="px-3 sm:px-4"
+                        title="Exportar CSV"
+                    >
+                        <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" />
+                        <span className="hidden sm:inline">Exportar</span>
+                    </Button>
+                )}
 
                 <Button 
                     onClick={onAddNew} 
@@ -507,12 +510,10 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                           </td>
                           <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-center">
                           {isUrgent ? (
-                              // PASAR 'appointments'
                               <button onClick={() => onViewDetails(lead, 'appointments')} className="text-red-500 hover:scale-110 transition-transform" title="Cita Urgente">
                                 <BellAlertIcon className="w-5 h-5 inline-block animate-pulse" />
                               </button>
                           ) : lead.appointments?.some(a => a.status === 'scheduled') ? (
-                              // PASAR 'appointments'
                               <button onClick={() => onViewDetails(lead, 'appointments')} className="text-emerald-500 hover:scale-110 transition-transform" title="Cita Programada">
                                 <CalendarIcon className="w-5 h-5 inline-block" />
                               </button>

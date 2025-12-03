@@ -1,29 +1,23 @@
-export interface Profile {
-  id: string;
-  full_name: string;
-  email: string;
-  role: 'admin' | 'advisor';
-}
 export interface FollowUp {
   id: string;
-  date: string; // Fecha de contacto seleccionada por el usuario
+  date: string;
   notes: string;
   lead_id: string;
   created_by?: Profile;
-  created_at?: string; // Fecha real de registro en sistema
+  created_at?: string;
 }
 
 export interface Appointment {
   id: string;
   title: string;
-  date: string; // Fecha programada de la cita
+  date: string;
   duration: number;
   details: string;
   status: 'scheduled' | 'completed' | 'canceled';
   lead_id: string;
-  created_at: string; // Cuándo se creó
-  updated_at: string; // Cuándo se editó
-  created_by?: Profile; // Quién la creó/editó
+  created_at: string;
+  updated_at: string;
+  created_by?: Profile;
 }
 
 export interface StatusChange {
@@ -32,7 +26,7 @@ export interface StatusChange {
   new_status_id: string;
   date: string;
   lead_id: string;
-  created_by?: Profile; // Quién cambió el estado
+  created_by?: Profile;
 }
 
 export interface Licenciatura {
@@ -55,6 +49,14 @@ export interface Lead {
   follow_ups?: FollowUp[];
   appointments?: Appointment[];
   status_history?: StatusChange[];
+}
+
+
+export interface Profile {
+  id: string; 
+  full_name: string;
+  email: string;
+  role: 'admin' | 'advisor' | 'moderator'; 
 }
 
 export type StatusCategory = 'active' | 'won' | 'lost';

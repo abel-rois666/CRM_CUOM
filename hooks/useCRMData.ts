@@ -1,11 +1,11 @@
+// hooks/useCRMData.ts
 import { useState, useEffect, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate } from '../types';
 import { useToast } from '../context/ToastContext';
 
-// CAMBIO: Ahora aceptamos role y userId para filtrar la consulta desde el origen
-export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor', userId?: string) => {
+export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
   const { error: toastError } = useToast();
   
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -15,16 +15,22 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   const [leads, setLeads] = useState<Lead[]>([]);
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  
+  // Iniciamos true solo para la primera carga
   const [loadingData, setLoadingData] = useState(true);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isBackgroundRefresh = false) => {
     if (!session) return;
     
-    setLoadingData(true);
+    // CAMBIO CLAVE: Solo ponemos loading en true si NO es una actualización de fondo
+    // y si no tenemos datos aún. Esto evita el "parpadeo" al cambiar de pestaña.
+    if (!isBackgroundRefresh && leads.length === 0) {
+        setLoadingData(true);
+    }
+
     try {
-      
-      // 1. Construimos la consulta de Leads de forma dinámica
-let leadsQuery = supabase
+      // 1. Construimos la consulta de Leads
+      let leadsQuery = supabase
         .from('leads')
         .select(`
             *, 
@@ -33,16 +39,14 @@ let leadsQuery = supabase
             status_history(*, created_by(full_name))
         `);
 
-      // FILTRO DE SEGURIDAD FRONTEND:
-      // Si es asesor, forzamos la consulta para traer solo sus registros.
-      // Esto actúa como doble verificación junto con el RLS del backend.
+      // Filtro de seguridad (aunque RLS ya protege, esto optimiza la query)
       if (userRole === 'advisor' && userId) {
           leadsQuery = leadsQuery.eq('advisor_id', userId);
       }
 
-      // Ejecutamos las peticiones en paralelo
+      // Ejecutamos peticiones
       const results = await Promise.allSettled([
-        leadsQuery, // Usamos la consulta filtrada
+        leadsQuery,
         supabase.from('profiles').select('*'),
         supabase.from('statuses').select('*'),
         supabase.from('sources').select('*'),
@@ -66,6 +70,7 @@ let leadsQuery = supabase
         return fallback;
       };
 
+      // Actualizamos estado (React solo re-renderizará si los datos son diferentes)
       setLeads(getData<Lead>(0));
       setProfiles(getData<Profile>(1));
       setStatuses(getData<Status>(2));
@@ -80,11 +85,13 @@ let leadsQuery = supabase
     } finally {
       setLoadingData(false);
     }
-  }, [session, userRole, userId, toastError]); // Dependencias actualizadas
+  }, [session, userRole, userId, toastError]); // Dependencias
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Al montar o cambiar sesión, verificamos si ya tenemos datos para decidir el tipo de carga
+    const hasData = leads.length > 0;
+    fetchData(hasData); 
+  }, [fetchData]); // Quitamos leads.length de dependencias para evitar loop, fetchData ya lo maneja
 
   const updateLocalLead = (updatedLead: Lead) => {
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
@@ -116,6 +123,6 @@ let leadsQuery = supabase
     updateLocalLead,
     addLocalLead,
     removeLocalLead,
-    refetch: fetchData
+    refetch: () => fetchData(true) // Refetch manual siempre en background
   };
 };

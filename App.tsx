@@ -80,9 +80,8 @@ const AppContent: React.FC = () => {
     setLeadFormOpen(true);
   };
 
-  // ACTUALIZADO: Acepta la pestaña como argumento opcional
   const handleViewDetails = async (lead: Lead, tab: 'info' | 'activity' | 'appointments' = 'info') => {
-    setDetailInitialTab(tab); // Establecemos la pestaña deseada
+    setDetailInitialTab(tab); 
     setSelectedLead(lead);
     setDetailViewOpen(true);
 
@@ -418,6 +417,8 @@ const AppContent: React.FC = () => {
               setIsEmailModalOpen(true); 
           }}
           onUpdateLead={handleUpdateLeadDetails}
+          // PASAMOS EL ROL AQUÍ
+          userRole={profile?.role}
         />
       </main>
 
@@ -460,7 +461,7 @@ const AppContent: React.FC = () => {
           onDeleteAppointment={handleDeleteAppointment}
           onTransferLead={handleTransferLead}
           currentUser={profile}
-          initialTab={detailInitialTab} // PASAMOS LA PESTAÑA INICIAL
+          initialTab={detailInitialTab}
         />
       )}
       
@@ -522,7 +523,7 @@ const AppContent: React.FC = () => {
             isOpen={isEmailModalOpen} 
             onClose={() => setIsEmailModalOpen(false)} 
             lead={selectedLeadForEmail}
-            templates={emailTemplates}
+            templates={emailTemplates} 
             initialTemplateId={initialEmailTemplateId}
           />
       )}
