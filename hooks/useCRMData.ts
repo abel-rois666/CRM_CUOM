@@ -22,10 +22,16 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     
     setLoadingData(true);
     try {
+      
       // 1. Construimos la consulta de Leads de forma dinámica
-      let leadsQuery = supabase
+let leadsQuery = supabase
         .from('leads')
-        .select('*, appointments(*), follow_ups(*), status_history(*)');
+        .select(`
+            *, 
+            appointments(*, created_by(full_name)), 
+            follow_ups(*, created_by(full_name)), 
+            status_history(*, created_by(full_name))
+        `);
 
       // FILTRO DE SEGURIDAD FRONTEND:
       // Si es asesor, forzamos la consulta para traer solo sus registros.

@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Lead, Profile, Status, Licenciatura, StatusCategory } from '../types';
 import Button from './common/Button';
 import Badge from './common/Badge';
-import ConfirmationModal from './common/ConfirmationModal'; // Importamos el modal
+import ConfirmationModal from './common/ConfirmationModal';
 import EditIcon from './icons/EditIcon';
 import TrashIcon from './icons/TrashIcon';
 import PlusIcon from './icons/PlusIcon';
@@ -37,7 +37,8 @@ interface LeadListProps {
   onAddNew: () => void;
   onEdit: (lead: Lead) => void;
   onDelete: (leadId: string) => void;
-  onViewDetails: (lead: Lead) => void;
+  // ACTUALIZADO: Acepta la pestaña
+  onViewDetails: (lead: Lead, tab?: 'info' | 'activity' | 'appointments') => void;
   onOpenReports: () => void;
   onOpenImport: () => void;
   onOpenWhatsApp: (lead: Lead) => void;
@@ -56,7 +57,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
   
-  // Estado para el modal de confirmación de eliminación
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<FilterState>({
@@ -309,9 +309,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                     )}
                 </p>
             </div>
-{/* BARRA DE ACCIONES RESPONSIVE */}
              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                {/* Botón Importar: Icono en móvil, Texto en PC */}
                 <Button 
                     onClick={onOpenImport} 
                     variant="secondary" 
@@ -323,7 +321,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                     <span className="hidden sm:inline">Importar</span>
                 </Button>
 
-                {/* Botón Reporte: Icono en móvil, Texto en PC */}
                 <Button 
                     onClick={onOpenReports} 
                     variant="secondary" 
@@ -335,7 +332,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                     <span className="hidden sm:inline">Reporte</span>
                 </Button>
 
-                {/* Botón Exportar: Icono en móvil, Texto en PC */}
                 <Button 
                     onClick={handleExportCSV} 
                     variant="secondary" 
@@ -347,7 +343,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                     <span className="hidden sm:inline">Exportar</span>
                 </Button>
 
-                {/* Botón Nuevo Lead: SE OCULTA EN MÓVIL (hidden) porque usas el FAB flotante */}
                 <Button 
                     onClick={onAddNew} 
                     leftIcon={<PlusIcon className="w-5 h-5"/>} 
@@ -434,7 +429,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
           </div>
       </div>
       
-      {/* Active Filters Pills */}
       {activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
               {Object.entries(filters).map(([key, value]) => {
@@ -513,11 +507,13 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
                           </td>
                           <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-center">
                           {isUrgent ? (
-                              <button onClick={() => onViewDetails(lead)} className="text-red-500 hover:scale-110 transition-transform" title="Cita Urgente">
+                              // PASAR 'appointments'
+                              <button onClick={() => onViewDetails(lead, 'appointments')} className="text-red-500 hover:scale-110 transition-transform" title="Cita Urgente">
                                 <BellAlertIcon className="w-5 h-5 inline-block animate-pulse" />
                               </button>
                           ) : lead.appointments?.some(a => a.status === 'scheduled') ? (
-                              <button onClick={() => onViewDetails(lead)} className="text-emerald-500 hover:scale-110 transition-transform" title="Cita Programada">
+                              // PASAR 'appointments'
+                              <button onClick={() => onViewDetails(lead, 'appointments')} className="text-emerald-500 hover:scale-110 transition-transform" title="Cita Programada">
                                 <CalendarIcon className="w-5 h-5 inline-block" />
                               </button>
                           ) : (
@@ -577,7 +573,7 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
               advisors={advisors}
               licenciaturas={licenciaturas}
               onEdit={onEdit}
-              onDelete={(id) => setLeadToDelete(id)} // Conectamos Kanban con el modal
+              onDelete={(id) => setLeadToDelete(id)} 
               onViewDetails={onViewDetails}
               onOpenWhatsApp={onOpenWhatsApp}
               onOpenEmail={onOpenEmail}
@@ -638,7 +634,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         onClearFilters={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
       />
 
-      {/* MODAL DE CONFIRMACIÓN */}
       <ConfirmationModal
         isOpen={!!leadToDelete}
         onClose={() => setLeadToDelete(null)}
@@ -652,7 +647,6 @@ const LeadList: React.FC<LeadListProps> = ({ loading, leads, advisors, statuses,
         confirmButtonVariant="danger"
       />
 
-      {/* FAB: Botón Flotante para Móvil */}
       <button
         onClick={onAddNew}
         className="fixed bottom-6 right-6 md:hidden z-30 bg-brand-secondary text-white p-4 rounded-full shadow-lg hover:bg-blue-600 transition-all hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-secondary"

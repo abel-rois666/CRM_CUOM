@@ -1,32 +1,43 @@
-
+export interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+  role: 'admin' | 'advisor';
+}
 export interface FollowUp {
   id: string;
-  date: string; // ISO string format
+  date: string; // Fecha de contacto seleccionada por el usuario
   notes: string;
   lead_id: string;
+  created_by?: Profile;
+  created_at?: string; // Fecha real de registro en sistema
 }
 
 export interface Appointment {
   id: string;
   title: string;
-  date: string; // ISO string for date and time
-  duration: number; // in minutes
+  date: string; // Fecha programada de la cita
+  duration: number;
   details: string;
   status: 'scheduled' | 'completed' | 'canceled';
   lead_id: string;
-}
-
-export interface Licenciatura {
-  id: string;
-  name: string;
+  created_at: string; // Cuándo se creó
+  updated_at: string; // Cuándo se editó
+  created_by?: Profile; // Quién la creó/editó
 }
 
 export interface StatusChange {
   id: string;
   old_status_id: string | null;
   new_status_id: string;
-  date: string; // ISO string
+  date: string;
   lead_id: string;
+  created_by?: Profile; // Quién cambió el estado
+}
+
+export interface Licenciatura {
+  id: string;
+  name: string;
 }
 
 export interface Lead {
@@ -38,20 +49,12 @@ export interface Lead {
   phone: string;
   program_id: string;
   status_id: string;
-  advisor_id: string; // Corresponds to a user's UUID in auth.users
+  advisor_id: string;
   source_id: string;
-  registration_date: string; // ISO string format
+  registration_date: string;
   follow_ups?: FollowUp[];
   appointments?: Appointment[];
   status_history?: StatusChange[];
-}
-
-// Replaces Advisor
-export interface Profile {
-  id:string; // This is the user's UUID from auth.users
-  full_name: string;
-  email: string;
-  role: 'admin' | 'advisor';
 }
 
 export type StatusCategory = 'active' | 'won' | 'lost';
@@ -59,7 +62,7 @@ export type StatusCategory = 'active' | 'won' | 'lost';
 export interface Status {
   id: string;
   name: string;
-  color: string; // e.g., 'bg-blue-500'
+  color: string;
   category: StatusCategory;
 }
 
