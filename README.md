@@ -67,11 +67,23 @@ El sistema implementa **Row Level Security (RLS)** en base de datos para garanti
     VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
     ```
 
-4.  **Configurar Base de Datos:**
-    Ejecuta los scripts SQL proporcionados en la documentación interna para:
-    - Crear tablas (`leads`, `profiles`, `appointments`, etc.).
-    - Configurar las políticas de seguridad (RLS).
-    - Establecer los triggers de auditoría.
+4. Configuración de Base de Datos
+
+El sistema requiere una estructura de tablas y políticas de seguridad específicas en Supabase.
+
+    1.  En tu proyecto local, localiza el archivo `db_schema.sql` en la raíz.
+    2.  Ve a tu panel de **Supabase** > **SQL Editor**.
+    3.  Crea una **New Query**.
+    4.  Copia todo el contenido de `db_schema.sql` y pégalo en el editor.
+    5.  Haz clic en **Run**.
+    
+    **Nota:** Esto creará todas las tablas (`leads`, `profiles`, etc.), configurará los roles (`admin`, `moderator`, `advisor`) y aplicará las políticas de seguridad (Row Level Security) automáticamente.
+    
+    **Primer Acceso:**
+    Una vez ejecutado el script, deberás crear tu primer usuario manualmente desde la sección **Authentication** de Supabase y luego asignarle el rol de admin insertando una fila en la tabla `profiles` desde el      **Table Editor**:
+    ```sql
+    INSERT INTO public.profiles (id, full_name, email, role) 
+    VALUES ('UUID_DEL_USUARIO', 'Nombre Admin', 'correo@admin.com', 'admin');
 
 5.  **Ejecutar en Desarrollo:**
     ```bash
