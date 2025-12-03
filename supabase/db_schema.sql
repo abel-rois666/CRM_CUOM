@@ -257,7 +257,7 @@ CREATE POLICY "Bitácora: Eliminar solo Admin" ON public.follow_ups FOR DELETE T
 -- >>> POLÍTICAS DE PLANTILLAS Y CATÁLOGOS
 -- Lectura para todos, Modificación solo Admin/Mod (y Asesor para plantillas)
 CREATE POLICY "Plantillas: Ver todos" ON public.whatsapp_templates FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Plantillas: Gestión" ON public.whatsapp_templates FOR ALL TO authenticated USING (true); -- Simplificado para permitir gestión a auth users, o restringir si se desea.
+CREATE POLICY "Plantillas: Gestión" ON public.whatsapp_templates FOR ALL TO authenticated USING (true);
 
 CREATE POLICY "Plantillas Email: Ver todos" ON public.email_templates FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Plantillas Email: Gestión" ON public.email_templates FOR ALL TO authenticated USING (true);
@@ -267,7 +267,7 @@ CREATE POLICY "Catalogos: Lectura" ON public.statuses FOR SELECT TO authenticate
 CREATE POLICY "Catalogos: Admin" ON public.statuses FOR ALL TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
--- (Repetir lógica para sources y licenciaturas si se desea estricto, o dejar abierto para select)
+
 ALTER TABLE public.sources ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Sources read" ON public.sources FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Sources write" ON public.sources FOR ALL TO authenticated USING (
@@ -284,3 +284,21 @@ CREATE POLICY "Licenciaturas write" ON public.licenciaturas FOR ALL TO authentic
 -- ==============================================================================
 -- Crear primer usuario admin manualmente en Supabase Auth y luego:
 -- INSERT INTO public.profiles (id, full_name, email, role) VALUES ('ID_DEL_USUARIO_AUTH', 'Super Admin', 'admin@cuom.edu.mx', 'admin');
+
+-- 5. ÍNDICES DE RENDIMIENTO (OPTIMIZACIÓN)
+-- ==============================================================================
+
+-- Índices para búsquedas frecuentes y claves foráneas
+CREATE INDEX IF NOT EXISTS idx_leads_advisor ON public.leads(advisor_id);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON public.leads(status_id);
+CREATE INDEX IF NOT EXISTS idx_leads_program ON public.leads(program_id);
+CREATE INDEX IF NOT EXISTS idx_leads_email ON public.leads(email);
+CREATE INDEX IF NOT EXISTS idx_leads_phone ON public.leads(phone);
+
+-- Índice compuesto para reportes (filtro por fechas)
+CREATE INDEX IF NOT EXISTS idx_leads_registration_date ON public.leads(registration_date);
+
+-- Índices para actividades
+CREATE INDEX IF NOT EXISTS idx_appointments_lead ON public.appointments(lead_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_date ON public.appointments(date);
+CREATE INDEX IF NOT EXISTS idx_followups_lead ON public.follow_ups(lead_id);
