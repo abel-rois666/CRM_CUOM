@@ -240,6 +240,9 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
   const [isFollowUpModalOpen, setFollowUpModalOpen] = useState(false);
   const [isTransferModalOpen, setTransferModalOpen] = useState(false);
   const [isCancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  
+  // NUEVO: Estado para confirmar eliminación de nota
+  const [followUpToDelete, setFollowUpToDelete] = useState<string | null>(null);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -348,14 +351,11 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
             
             {/* Header del Expediente - RESPONSIVE MEJORADO Y COMPACTO */}
             <div className="flex flex-col sm:flex-row items-center gap-4 mb-4 pb-4 border-b border-gray-100 flex-shrink-0">
-                {/* 1. Avatar y Nombre: Usamos flex-1 y min-w-0 para permitir truncamiento */}
                 <div className="flex items-center gap-3 w-full sm:flex-1 sm:min-w-0">
                     <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-brand-primary text-white flex-shrink-0 flex items-center justify-center text-xl sm:text-2xl font-bold shadow-md ring-2 sm:ring-4 ring-gray-50">
                         {lead.first_name.charAt(0)}
                     </div>
-                    {/* Contenedor flexible que trunca si es necesario */}
                     <div className="flex-1 min-w-0">
-                        {/* Reducido a text-xl en tablet para que quepa mejor */}
                         <h4 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight truncate" title={fullName}>
                             {fullName}
                         </h4>
@@ -375,7 +375,6 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                     </div>
                 </div>
                 
-                {/* 2. Selector de estado: Fijo, no se encoge */}
                 <div className="w-full sm:w-auto flex-shrink-0">
                      <Select 
                         name="status_id"
@@ -502,7 +501,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                                 <span className="text-xs text-gray-500">Por: <span className="text-brand-secondary font-semibold">{item.user}</span></span>
                                             </div>
                                             {isAdmin && (
-                                                <button onClick={() => onDeleteFollowUp(lead.id, item.data.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                                // CAMBIO AQUÍ: Ahora llama a setFollowUpToDelete
+                                                <button onClick={() => setFollowUpToDelete(item.data.id)} className="text-gray-300 hover:text-red-500 transition-colors">
                                                     <TrashIcon className="w-3 h-3"/>
                                                 </button>
                                             )}
@@ -662,6 +662,21 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
         }}
         title="Cancelar Cita"
         message="¿Confirmas que deseas cancelar esta cita? Quedará registrada en el historial como cancelada."
+        confirmButtonVariant="danger"
+      />
+
+      {/* NUEVO MODAL: Confirmación para eliminar NOTAS */}
+      <ConfirmationModal
+        isOpen={!!followUpToDelete}
+        onClose={() => setFollowUpToDelete(null)}
+        onConfirm={() => {
+            if (followUpToDelete) {
+                onDeleteFollowUp(lead.id, followUpToDelete);
+                setFollowUpToDelete(null);
+            }
+        }}
+        title="¿Eliminar Nota?"
+        message="Esta acción no se puede deshacer. ¿Seguro que deseas eliminar esta nota de seguimiento?"
         confirmButtonVariant="danger"
       />
 
