@@ -1,22 +1,26 @@
 // App.tsx
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react'; // 1. AGREGADO Suspense
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
 import Header from './components/Header';
 import LeadList from './components/LeadList';
 import LeadFormModal from './components/LeadFormModal';
-import LeadDetailModal from './components/LeadDetailModal';
-import SettingsModal from './components/SettingsModal';
-import ReportModal from './components/ReportModal';
+// NOTA: LeadDetailModal, SettingsModal, etc. se importan abajo con Lazy
 import WhatsAppModal from './components/WhatsAppModal';
 import EmailModal from './components/EmailModal';
-import BulkImportModal from './components/BulkImportModal';
 import AutomationChoiceModal from './components/AutomationChoiceModal';
 import { Lead, Appointment, FollowUp, StatusChange } from './types';
 import LoginPage from './components/auth/LoginPage';
 import LeadListSkeleton from './components/LeadListSkeleton';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { useCRMData } from './hooks/useCRMData';
+
+// 2. IMPORTACIÓN DIFERIDA (Code Splitting)
+// Esto hace que estos componentes pesados solo se descarguen cuando se necesitan
+const LeadDetailModal = React.lazy(() => import('./components/LeadDetailModal'));
+const SettingsModal = React.lazy(() => import('./components/SettingsModal'));
+const ReportModal = React.lazy(() => import('./components/ReportModal'));
+const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'));
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
@@ -53,7 +57,6 @@ const AppContent: React.FC = () => {
   const [isBulkImportOpen, setBulkImportOpen] = useState(false);
   const [isAutomationChoiceOpen, setIsAutomationChoiceOpen] = useState(false);
   
-  // NUEVO: Estado para la pestaña inicial del detalle
   const [detailInitialTab, setDetailInitialTab] = useState<'info' | 'activity' | 'appointments'>('info');
 
   // Estados de Selección
@@ -147,7 +150,6 @@ const AppContent: React.FC = () => {
   
   const handleSaveLead = async (leadData: Omit<Lead, 'id' | 'registration_date' | 'status_history'>, leadIdToEdit?: string) => {
     if (leadIdToEdit) {
-      // EDICIÓN
       const oldLead = leads.find(l => l.id === leadIdToEdit);
       const { data, error } = await supabase
         .from('leads')
@@ -180,7 +182,6 @@ const AppContent: React.FC = () => {
       success("Lead actualizado.");
 
     } else {
-      // CREACIÓN
       const newLeadPayload = { ...leadData, registration_date: new Date().toISOString() };
       const { data, error } = await supabase.from('leads').insert(newLeadPayload).select().single();
       
@@ -417,7 +418,6 @@ const AppContent: React.FC = () => {
               setIsEmailModalOpen(true); 
           }}
           onUpdateLead={handleUpdateLeadDetails}
-          // PASAMOS EL ROL AQUÍ
           userRole={profile?.role}
         />
       </main>
@@ -444,69 +444,73 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {isDetailViewOpen && selectedLead && (
-        <LeadDetailModal
-          isOpen={isDetailViewOpen}
-          onClose={() => setDetailViewOpen(false)}
-          lead={selectedLead}
-          advisors={profiles.filter(p => p.role === 'advisor')}
-          statuses={statuses}
-          sources={sources}
-          licenciaturas={licenciaturas}
-          onAddFollowUp={handleAddFollowUp}
-          onDeleteFollowUp={handleDeleteFollowUp}
-          onUpdateLead={handleUpdateLeadDetails}
-          onSaveAppointment={handleSaveAppointment}
-          onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
-          onDeleteAppointment={handleDeleteAppointment}
-          onTransferLead={handleTransferLead}
-          currentUser={profile}
-          initialTab={detailInitialTab}
-        />
-      )}
-      
-      {isSettingsOpen && (
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          profiles={profiles}
-          statuses={statuses}
-          sources={sources}
-          licenciaturas={licenciaturas}
-          whatsappTemplates={whatsappTemplates}
-          emailTemplates={emailTemplates}
-          currentUserProfile={profile}
-          onProfilesUpdate={setProfiles}
-          onStatusesUpdate={setStatuses}
-          onSourcesUpdate={setSources}
-          onLicenciaturasUpdate={setLicenciaturas}
-          onWhatsappTemplatesUpdate={setWhatsappTemplates}
-          onEmailTemplatesUpdate={setEmailTemplates}
-        />
-      )}
-
-      {isReportModalOpen && (
-        <ReportModal 
-            isOpen={isReportModalOpen}
-            onClose={() => setReportModalOpen(false)}
-            leads={leads}
-            statuses={statuses}
-            advisors={profiles.filter(p => p.role === 'advisor')}
-            sources={sources}
-        />
-      )}
-      
-      {isBulkImportOpen && (
-          <BulkImportModal 
-            isOpen={isBulkImportOpen} 
-            onClose={() => setBulkImportOpen(false)}
-            onSuccess={() => { refetch(); setBulkImportOpen(false); }}
+      {/* 3. ENVUELTO EN SUSPENSE PARA CARGA DIFERIDA */}
+      <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-secondary"></div></div>}>
+        
+        {isDetailViewOpen && selectedLead && (
+            <LeadDetailModal
+            isOpen={isDetailViewOpen}
+            onClose={() => setDetailViewOpen(false)}
+            lead={selectedLead}
             advisors={profiles.filter(p => p.role === 'advisor')}
             statuses={statuses}
             sources={sources}
             licenciaturas={licenciaturas}
-          />
-      )}
+            onAddFollowUp={handleAddFollowUp}
+            onDeleteFollowUp={handleDeleteFollowUp}
+            onUpdateLead={handleUpdateLeadDetails}
+            onSaveAppointment={handleSaveAppointment}
+            onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+            onDeleteAppointment={handleDeleteAppointment}
+            onTransferLead={handleTransferLead}
+            currentUser={profile}
+            initialTab={detailInitialTab}
+            />
+        )}
+        
+        {isSettingsOpen && (
+            <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setSettingsOpen(false)}
+            profiles={profiles}
+            statuses={statuses}
+            sources={sources}
+            licenciaturas={licenciaturas}
+            whatsappTemplates={whatsappTemplates}
+            emailTemplates={emailTemplates}
+            currentUserProfile={profile}
+            onProfilesUpdate={setProfiles}
+            onStatusesUpdate={setStatuses}
+            onSourcesUpdate={setSources}
+            onLicenciaturasUpdate={setLicenciaturas}
+            onWhatsappTemplatesUpdate={setWhatsappTemplates}
+            onEmailTemplatesUpdate={setEmailTemplates}
+            />
+        )}
+
+        {isReportModalOpen && (
+            <ReportModal 
+                isOpen={isReportModalOpen}
+                onClose={() => setReportModalOpen(false)}
+                leads={leads}
+                statuses={statuses}
+                advisors={profiles.filter(p => p.role === 'advisor')}
+                sources={sources}
+            />
+        )}
+        
+        {isBulkImportOpen && (
+            <BulkImportModal 
+                isOpen={isBulkImportOpen} 
+                onClose={() => setBulkImportOpen(false)}
+                onSuccess={() => { refetch(); setBulkImportOpen(false); }}
+                advisors={profiles.filter(p => p.role === 'advisor')}
+                statuses={statuses}
+                sources={sources}
+                licenciaturas={licenciaturas}
+            />
+        )}
+      </Suspense>
 
       {isWhatsAppModalOpen && (
           <WhatsAppModal 
