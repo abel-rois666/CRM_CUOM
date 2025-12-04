@@ -7,7 +7,7 @@ import ClockIcon from './icons/ClockIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
 import ListBulletIcon from './icons/ListBulletIcon';
-// Nuevos imports de Recharts
+import CheckCircleIcon from './icons/CheckCircleIcon';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps 
@@ -23,7 +23,6 @@ interface DashboardStatsProps {
     onFilterChange: (filter: QuickFilterType) => void;
 }
 
-// Mapeo de colores Tailwind a Hex para Recharts
 const tailwindColorMap: { [key: string]: string } = {
     'bg-slate-500': '#64748b', 'bg-gray-500': '#6b7280', 'bg-zinc-500': '#71717a',
     'bg-neutral-500': '#737373', 'bg-stone-500': '#78716c', 'bg-red-500': '#ef4444',
@@ -35,7 +34,6 @@ const tailwindColorMap: { [key: string]: string } = {
     'bg-rose-500': '#f43f5e'
 };
 
-// Tooltip personalizado para las gráficas
 const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
     if (active && payload && payload.length) {
       return (
@@ -70,32 +68,35 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
         const statusCounts: Record<string, number> = {};
         const advisorCounts: Record<string, number> = {};
 
-        // Inicializar contadores para asegurar que todos los asesores aparezcan aunque tengan 0 leads
+        const statusCategoryMap = new Map(statuses.map(s => [s.id, s.category || 'active']));
+
         advisors.forEach(a => advisorCounts[a.id] = 0);
 
         leads.forEach(lead => {
-            // 1. Citas
-            const hasAppointmentToday = lead.appointments?.some(appt => {
-                const apptDate = new Date(appt.date);
-                apptDate.setHours(0,0,0,0);
-                return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
-            });
-            if (hasAppointmentToday) appointmentsToday++;
-
-            // 2. Sin seguimiento
             const regDate = new Date(lead.registration_date);
             const regDateZero = new Date(lead.registration_date);
             regDateZero.setHours(0,0,0,0);
-            const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
-            if (hasNoFollowUps && regDate < threeDaysAgo) noFollowUp++;
 
-            // 3. Stale
-            if (lead.follow_ups && lead.follow_ups.length > 0) {
-                const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                if (new Date(lastFollowUp.date) < sevenDaysAgo) staleFollowUp++;
+            const category = statusCategoryMap.get(lead.status_id);
+            const isActive = category === 'active';
+
+            if (isActive) {
+                const hasAppointmentToday = lead.appointments?.some(appt => {
+                    const apptDate = new Date(appt.date);
+                    apptDate.setHours(0,0,0,0);
+                    return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
+                });
+                if (hasAppointmentToday) appointmentsToday++;
+
+                const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
+                if (hasNoFollowUps && regDate < threeDaysAgo) noFollowUp++;
+
+                if (lead.follow_ups && lead.follow_ups.length > 0) {
+                    const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                    if (new Date(lastFollowUp.date) < sevenDaysAgo) staleFollowUp++;
+                }
             }
 
-            // 4. Analytics
             if (regDateZero.getTime() === today.getTime()) newLeadsToday++;
             statusCounts[lead.status_id] = (statusCounts[lead.status_id] || 0) + 1;
             advisorCounts[lead.advisor_id] = (advisorCounts[lead.advisor_id] || 0) + 1;
@@ -113,7 +114,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
 
         const advisorData = advisors
             .map(a => ({ 
-                name: a.full_name.split(' ')[0], // Solo primer nombre para la gráfica
+                name: a.full_name.split(' ')[0], 
                 fullName: a.full_name,
                 value: advisorCounts[a.id] || 0 
             }))
@@ -126,6 +127,30 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
         onFilterChange(activeFilter === filter ? null : filter);
     };
 
+    const getNoFollowUpStyles = () => {
+        const isActive = activeFilter === 'no_followup';
+        if (stats.noFollowUp > 0) {
+            return isActive 
+                ? 'bg-red-50 ring-2 ring-red-500 shadow-lg shadow-red-100' 
+                : 'bg-white border border-red-200 shadow-md shadow-red-50 hover:border-red-400';
+        }
+        return isActive 
+            ? 'bg-white ring-2 ring-green-500 shadow-lg' 
+            : 'bg-white border border-gray-100 hover:shadow-lg';
+    };
+
+    const getStaleStyles = () => {
+        const isActive = activeFilter === 'stale_followup';
+        if (stats.staleFollowUp > 0) {
+            return isActive 
+                ? 'bg-amber-50 ring-2 ring-amber-500 shadow-lg shadow-amber-100'
+                : 'bg-white border border-amber-200 shadow-md shadow-amber-50 hover:border-amber-400';
+        }
+        return isActive 
+            ? 'bg-white ring-2 ring-gray-400 shadow-lg' 
+            : 'bg-white border border-gray-100 hover:shadow-lg';
+    };
+
     return (
         <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md">
             <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">
@@ -136,7 +161,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                     >
                         <div className="flex items-center gap-2">
                             <ListBulletIcon className="w-4 h-4"/>
-                            Agenda
+                            Indicadores de Atención
                         </div>
                     </button>
                     <button 
@@ -145,7 +170,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                     >
                         <div className="flex items-center gap-2">
                             <ChartBarIcon className="w-4 h-4"/>
-                            Métricas
+                            Métricas Globales
                         </div>
                     </button>
                 </div>
@@ -158,75 +183,82 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                 <div className="p-6 animate-fade-in bg-gray-50/30">
                     {activeTab === 'agenda' ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {/* Card 1: Citas Hoy */}
+                            
+                            {/* Card 1: Agenda */}
                             <div 
                                 onClick={() => handleCardClick('appointments_today')}
                                 className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group
                                     ${activeFilter === 'appointments_today' 
-                                        ? 'bg-white ring-2 ring-blue-500 shadow-lg shadow-blue-100' 
+                                        ? 'bg-blue-50 ring-2 ring-blue-500 shadow-lg shadow-blue-100' 
                                         : 'bg-white border border-gray-100 hover:shadow-lg hover:-translate-y-1'
                                     }`}
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
-                                        <p className="text-sm font-semibold text-gray-500 mb-2">Citas para Hoy</p>
-                                        <p className={`text-4xl font-bold tracking-tight ${activeFilter === 'appointments_today' ? 'text-blue-600' : 'text-gray-800'}`}>
+                                        <p className="text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">Citas para Hoy</p>
+                                        <p className={`text-4xl font-black tracking-tight ${activeFilter === 'appointments_today' ? 'text-blue-700' : 'text-gray-800'}`}>
                                             {stats.appointmentsToday}
                                         </p>
+                                        <p className="text-xs text-gray-400 font-medium mt-2">Eventos programados</p>
                                     </div>
-                                    <div className={`p-3 rounded-xl ${activeFilter === 'appointments_today' ? 'bg-blue-100 text-blue-600' : 'bg-blue-50 text-blue-500 group-hover:bg-blue-100 transition-colors'}`}>
+                                    <div className={`p-3 rounded-xl transition-colors ${stats.appointmentsToday > 0 ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
                                         <CalendarIcon className="w-6 h-6" />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Card 2: Sin Seguimiento */}
+                            {/* Card 2: Nuevos sin Atender */}
                             <div 
                                 onClick={() => handleCardClick('no_followup')}
-                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group
-                                    ${activeFilter === 'no_followup' 
-                                        ? 'bg-white ring-2 ring-red-500 shadow-lg shadow-red-100' 
-                                        : 'bg-white border border-gray-100 hover:shadow-lg hover:-translate-y-1'
-                                    }`}
+                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1
+                                    ${getNoFollowUpStyles()}`}
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
-                                        <p className="text-sm font-semibold text-gray-500 mb-2">Sin Interacción (+3 días)</p>
-                                        <p className={`text-4xl font-bold tracking-tight ${activeFilter === 'no_followup' ? 'text-red-600' : 'text-gray-800'}`}>
+                                        <p className={`text-sm font-bold mb-2 uppercase tracking-wide ${stats.noFollowUp > 0 ? 'text-red-700' : 'text-gray-600'}`}>
+                                            Nuevos sin Atender
+                                        </p>
+                                        <p className={`text-4xl font-black tracking-tight ${stats.noFollowUp > 0 ? 'text-red-600' : 'text-gray-800'}`}>
                                             {stats.noFollowUp}
                                         </p>
+                                        <p className={`text-xs font-medium mt-2 ${stats.noFollowUp > 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                            {stats.noFollowUp > 0 ? '¡Requiere contacto urgente!' : 'Bandeja de entrada al día'}
+                                        </p>
                                     </div>
-                                    <div className={`p-3 rounded-xl ${activeFilter === 'no_followup' ? 'bg-red-100 text-red-600' : 'bg-red-50 text-red-500 group-hover:bg-red-100 transition-colors'}`}>
-                                        <BellAlertIcon className="w-6 h-6" />
+                                    <div className={`p-3 rounded-xl transition-colors 
+                                        ${stats.noFollowUp > 0 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-green-100 text-green-600'}`}>
+                                        {stats.noFollowUp > 0 ? <BellAlertIcon className="w-6 h-6" /> : <CheckCircleIcon className="w-6 h-6" />}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Card 3: Atrasados */}
+                            {/* Card 3: Seguimiento Vencido */}
                             <div 
                                 onClick={() => handleCardClick('stale_followup')}
-                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group
-                                    ${activeFilter === 'stale_followup' 
-                                        ? 'bg-white ring-2 ring-amber-500 shadow-lg shadow-amber-100' 
-                                        : 'bg-white border border-gray-100 hover:shadow-lg hover:-translate-y-1'
-                                    }`}
+                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1
+                                    ${getStaleStyles()}`}
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
-                                        <p className="text-sm font-semibold text-gray-500 mb-2">Requieren Atención</p>
-                                        <p className={`text-4xl font-bold tracking-tight ${activeFilter === 'stale_followup' ? 'text-amber-600' : 'text-gray-800'}`}>
+                                        <p className={`text-sm font-bold mb-2 uppercase tracking-wide ${stats.staleFollowUp > 0 ? 'text-amber-700' : 'text-gray-600'}`}>
+                                            Seguimiento Vencido
+                                        </p>
+                                        <p className={`text-4xl font-black tracking-tight ${stats.staleFollowUp > 0 ? 'text-amber-600' : 'text-gray-800'}`}>
                                             {stats.staleFollowUp}
                                         </p>
+                                        <p className={`text-xs font-medium mt-2 ${stats.staleFollowUp > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                                            {stats.staleFollowUp > 0 ? '> 7 días sin actualización' : 'Cartera activa actualizada'}
+                                        </p>
                                     </div>
-                                    <div className={`p-3 rounded-xl ${activeFilter === 'stale_followup' ? 'bg-amber-100 text-amber-600' : 'bg-amber-50 text-amber-500 group-hover:bg-amber-100 transition-colors'}`}>
+                                    <div className={`p-3 rounded-xl transition-colors ${stats.staleFollowUp > 0 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'}`}>
                                         <ClockIcon className="w-6 h-6" />
                                     </div>
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-8">
-                            {/* KPIs Principales */}
+                        <div className="space-y-8 animate-fade-in">
+                            {/* Analytics View (Sin cambios) */}
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="bg-gradient-to-br from-brand-primary/5 to-brand-primary/10 p-6 rounded-2xl border border-brand-primary/10 flex flex-col justify-center items-center text-center">
                                     <p className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-2">Total Leads</p>
@@ -239,36 +271,20 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                             </div>
                             
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                                {/* Gráfica de Donas: Distribución por Estado */}
                                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                    <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                        Distribución por Estado
-                                    </h4>
+                                    <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">Distribución por Estado</h4>
                                     <div className="h-64 w-full flex items-center justify-center">
                                         {stats.statusData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <PieChart>
-                                                    <Pie
-                                                        data={stats.statusData}
-                                                        cx="50%"
-                                                        cy="50%"
-                                                        innerRadius={60}
-                                                        outerRadius={80}
-                                                        paddingAngle={5}
-                                                        dataKey="value"
-                                                    >
-                                                        {stats.statusData.map((entry, index) => (
-                                                            <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                                                        ))}
+                                                    <Pie data={stats.statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                                        {stats.statusData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="none" />))}
                                                     </Pie>
                                                     <Tooltip content={<CustomTooltip />} />
                                                 </PieChart>
                                             </ResponsiveContainer>
-                                        ) : (
-                                            <div className="text-gray-400 text-sm">Sin datos disponibles</div>
-                                        )}
+                                        ) : (<div className="text-gray-400 text-sm">Sin datos disponibles</div>)}
                                     </div>
-                                    {/* Leyenda personalizada compacta */}
                                     <div className="mt-4 grid grid-cols-2 gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
                                         {stats.statusData.map(item => (
                                             <div key={item.name} className="flex items-center justify-between text-xs p-1.5 hover:bg-gray-50 rounded-lg transition-colors">
@@ -282,33 +298,21 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                     </div>
                                 </div>
 
-                                {/* Gráfica de Barras: Leads por Asesor */}
                                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                    <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                        Leads por Asesor
-                                    </h4>
+                                    <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">Leads por Asesor</h4>
                                     <div className="h-64 w-full">
                                         {stats.advisorData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={stats.advisorData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                                     <XAxis type="number" hide />
-                                                    <YAxis 
-                                                        dataKey="name" 
-                                                        type="category" 
-                                                        tick={{ fontSize: 11, fill: '#64748b' }} 
-                                                        width={70}
-                                                    />
-                                                    <Tooltip 
-                                                        cursor={{ fill: '#f8fafc' }}
-                                                        content={({ active, payload }) => {
+                                                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#64748b' }} width={70} />
+                                                    <Tooltip cursor={{ fill: '#f8fafc' }} content={({ active, payload }) => {
                                                             if (active && payload && payload.length) {
                                                                 return (
                                                                     <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl text-xs">
                                                                         <p className="font-bold text-gray-800 mb-1">{payload[0].payload.fullName}</p>
-                                                                        <p className="text-gray-600">
-                                                                            <span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads asignados
-                                                                        </p>
+                                                                        <p className="text-gray-600"><span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads asignados</p>
                                                                     </div>
                                                                 );
                                                             }
@@ -318,9 +322,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                                     <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
                                                 </BarChart>
                                             </ResponsiveContainer>
-                                        ) : (
-                                            <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de asesores</div>
-                                        )}
+                                        ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de asesores</div>)}
                                     </div>
                                 </div>
                             </div>

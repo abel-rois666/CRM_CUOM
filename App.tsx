@@ -1,11 +1,10 @@
 // App.tsx
-import React, { useState, Suspense } from 'react'; // 1. AGREGADO Suspense
+import React, { useState, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
 import Header from './components/Header';
 import LeadList from './components/LeadList';
 import LeadFormModal from './components/LeadFormModal';
-// NOTA: LeadDetailModal, SettingsModal, etc. se importan abajo con Lazy
 import WhatsAppModal from './components/WhatsAppModal';
 import EmailModal from './components/EmailModal';
 import AutomationChoiceModal from './components/AutomationChoiceModal';
@@ -15,8 +14,7 @@ import LeadListSkeleton from './components/LeadListSkeleton';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { useCRMData } from './hooks/useCRMData';
 
-// 2. IMPORTACIÓN DIFERIDA (Code Splitting)
-// Esto hace que estos componentes pesados solo se descarguen cuando se necesitan
+// IMPORTACIÓN DIFERIDA
 const LeadDetailModal = React.lazy(() => import('./components/LeadDetailModal'));
 const SettingsModal = React.lazy(() => import('./components/SettingsModal'));
 const ReportModal = React.lazy(() => import('./components/ReportModal'));
@@ -44,7 +42,8 @@ const AppContent: React.FC = () => {
     updateLocalLead,
     addLocalLead,
     removeLocalLead,
-    refetch
+    removeManyLocalLeads, // <--- NUEVA FUNCIÓN DESDE EL HOOK
+    refetch 
   } = useCRMData(session, profile?.role, profile?.id);
 
   // Estados de UI
@@ -67,6 +66,9 @@ const AppContent: React.FC = () => {
   
   const [initialEmailTemplateId, setInitialEmailTemplateId] = useState<string | undefined>(undefined);
   const [initialWhatsAppTemplateId, setInitialWhatsAppTemplateId] = useState<string | undefined>(undefined);
+
+  // Filtro de Personal (Asesores + Moderadores)
+  const assignableStaff = profiles.filter(p => p.role === 'advisor' || p.role === 'moderator');
 
   if (authLoading) return <LeadListSkeleton />;
   if (!session) return <LoginPage />;
@@ -139,7 +141,12 @@ const AppContent: React.FC = () => {
   // --- CRUD HANDLERS ---
 
   const handleDelete = async (leadId: string) => {
-       const { error } = await supabase.from('leads').delete().eq('id', leadId);
+       // HARD DELETE (Borrado físico)
+       const { error } = await supabase
+           .from('leads')
+           .delete()
+           .eq('id', leadId);
+
        if (error) {
          toastError("Error al eliminar el lead.");
        } else {
@@ -398,7 +405,7 @@ const AppContent: React.FC = () => {
         <LeadList
           loading={loadingData}
           leads={leads}
-          advisors={profiles.filter(p => p.role === 'advisor')}
+          advisors={assignableStaff} 
           statuses={statuses}
           licenciaturas={licenciaturas}
           onAddNew={handleAddNew}
@@ -419,6 +426,9 @@ const AppContent: React.FC = () => {
           }}
           onUpdateLead={handleUpdateLeadDetails}
           userRole={profile?.role}
+          onRefresh={refetch}
+          // PASAMOS LA FUNCIÓN PARA BORRADO OPTIMISTA
+          onLocalDeleteMany={removeManyLocalLeads} 
         />
       </main>
 
@@ -436,7 +446,7 @@ const AppContent: React.FC = () => {
           onClose={() => setLeadFormOpen(false)}
           onSave={(leadData, leadId) => handleSaveLead(leadData, leadId)}
           leadToEdit={selectedLead}
-          advisors={profiles.filter(p => p.role === 'advisor')}
+          advisors={assignableStaff}
           statuses={statuses}
           sources={sources}
           licenciaturas={licenciaturas}
@@ -444,7 +454,6 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {/* 3. ENVUELTO EN SUSPENSE PARA CARGA DIFERIDA */}
       <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-secondary"></div></div>}>
         
         {isDetailViewOpen && selectedLead && (
@@ -452,7 +461,7 @@ const AppContent: React.FC = () => {
             isOpen={isDetailViewOpen}
             onClose={() => setDetailViewOpen(false)}
             lead={selectedLead}
-            advisors={profiles.filter(p => p.role === 'advisor')}
+            advisors={assignableStaff}
             statuses={statuses}
             sources={sources}
             licenciaturas={licenciaturas}
@@ -494,7 +503,7 @@ const AppContent: React.FC = () => {
                 onClose={() => setReportModalOpen(false)}
                 leads={leads}
                 statuses={statuses}
-                advisors={profiles.filter(p => p.role === 'advisor')}
+                advisors={assignableStaff}
                 sources={sources}
             />
         )}
@@ -504,7 +513,7 @@ const AppContent: React.FC = () => {
                 isOpen={isBulkImportOpen} 
                 onClose={() => setBulkImportOpen(false)}
                 onSuccess={() => { refetch(); setBulkImportOpen(false); }}
-                advisors={profiles.filter(p => p.role === 'advisor')}
+                advisors={assignableStaff}
                 statuses={statuses}
                 sources={sources}
                 licenciaturas={licenciaturas}

@@ -47,7 +47,6 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         source_id: leadToEdit.source_id,
       });
     } else {
-      // Lógica de defaults
       const defaultAdvisorId = currentUser?.role === 'advisor' ? currentUser.id : ''; 
       const defaultStatus = statuses.find(s => s.name === 'Sin Contactar');
       const defaultStatusId = defaultStatus ? defaultStatus.id : (statuses[0]?.id || '');
@@ -66,6 +65,14 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
     }
   }, [leadToEdit, isOpen, advisors, statuses, sources, licenciaturas, currentUser]);
 
+  // UTILIDAD: Función para capitalizar palabras (Title Case)
+  const toTitleCase = (str: string) => {
+    return str.replace(
+      /\w\S*/g,
+      (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    );
+  };
+
   const validateEmailFormat = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
@@ -73,13 +80,26 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Lógica especial: Email siempre minúsculas en tiempo real
+    const finalValue = name === 'email' ? value.toLowerCase() : value;
+
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
 
     if (name === 'email' && emailError) {
-        if (!value || validateEmailFormat(value)) {
+        if (!finalValue || validateEmailFormat(finalValue)) {
             setEmailError(null);
         }
     }
+  };
+
+  // NUEVO: Formatear al perder el foco (cuando el usuario termina de escribir)
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      // Solo aplicamos formato a campos de texto de nombre
+      if (['first_name', 'paternal_last_name', 'maternal_last_name'].includes(name)) {
+          setFormData(prev => ({ ...prev, [name]: toTitleCase(value.trim()) }));
+      }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,10 +110,13 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
         return;
     }
 
+    // Limpieza final antes de enviar (Trim + Formato asegurado)
     const leadPayload = {
         ...formData,
-        email: formData.email || undefined,
-        maternal_last_name: formData.maternal_last_name || undefined,
+        first_name: toTitleCase(formData.first_name.trim()),
+        paternal_last_name: toTitleCase(formData.paternal_last_name.trim()),
+        maternal_last_name: formData.maternal_last_name ? toTitleCase(formData.maternal_last_name.trim()) : undefined,
+        email: formData.email.trim() || undefined,
     };
     
     onSave(leadPayload, leadToEdit?.id);
@@ -115,6 +138,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
                 label="Nombre(s)" 
                 value={formData.first_name} 
                 onChange={handleChange} 
+                onBlur={handleBlur} // Aplicar formato al salir
                 required 
                 placeholder="Ej. María"
             />
@@ -123,6 +147,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
                 label="Apellido Paterno" 
                 value={formData.paternal_last_name} 
                 onChange={handleChange} 
+                onBlur={handleBlur} // Aplicar formato al salir
                 required 
                 placeholder="Ej. López"
             />
@@ -134,6 +159,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
                 label="Apellido Materno" 
                 value={formData.maternal_last_name} 
                 onChange={handleChange} 
+                onBlur={handleBlur} // Aplicar formato al salir
                 placeholder="Opcional"
             />
             <Input 

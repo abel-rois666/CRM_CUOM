@@ -1,5 +1,5 @@
 // hooks/useCRMData.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate } from '../types';
@@ -16,37 +16,40 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   
-  // Iniciamos true solo para la primera carga
   const [loadingData, setLoadingData] = useState(true);
+  
+  // Referencia para evitar re-fetch innecesario
+  const lastFetchedToken = useRef<string | undefined>(undefined);
 
-  const fetchData = useCallback(async (isBackgroundRefresh = false) => {
-    if (!session) return;
-    
-    // CAMBIO CLAVE: Solo ponemos loading en true si NO es una actualización de fondo
-    // y si no tenemos datos aún. Esto evita el "parpadeo" al cambiar de pestaña.
-    if (!isBackgroundRefresh && leads.length === 0) {
+  const fetchData = useCallback(async (force = false) => {
+    if (!session?.access_token) {
+        setLoadingData(false); 
+        return;
+    }
+
+    // Cache: Si ya tenemos datos y es el mismo token, no recargar a menos que sea forzado
+    if (!force && session.access_token === lastFetchedToken.current && leads.length > 0) {
+        setLoadingData(false);
+        return;
+    }
+
+    // Solo mostrar loading visual si es la primera carga o no hay datos
+    if (leads.length === 0) {
         setLoadingData(true);
     }
 
     try {
-      // 1. Construimos la consulta de Leads
-      let leadsQuery = supabase
-        .from('leads')
-        .select(`
-            *, 
-            appointments(*, created_by(full_name)), 
-            follow_ups(*, created_by(full_name)), 
-            status_history(*, created_by(full_name))
-        `);
+      lastFetchedToken.current = session.access_token;
 
-      // Filtro de seguridad (aunque RLS ya protege, esto optimiza la query)
-      if (userRole === 'advisor' && userId) {
-          leadsQuery = leadsQuery.eq('advisor_id', userId);
-      }
+      // --- LÓGICA DE CARGA RECURSIVA (BATCHING) ---
+      // Supabase limita a 1000 filas por defecto. Hacemos un bucle para traer todo.
+      let allLeads: Lead[] = [];
+      let hasMore = true;
+      let page = 0;
+      const PAGE_SIZE = 1000; // Tamaño del lote seguro
 
-      // Ejecutamos peticiones
+      // Consultas auxiliares (estas son pequeñas, no necesitan batching usualmente)
       const results = await Promise.allSettled([
-        leadsQuery,
         supabase.from('profiles').select('*'),
         supabase.from('statuses').select('*'),
         supabase.from('sources').select('*'),
@@ -60,24 +63,62 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
         if (result.status === 'fulfilled' && result.value.data) {
           return result.value.data as T[];
         }
-        if (result.status === 'rejected') {
-           console.warn(`Error fetching data at index ${index}:`, result.reason);
-        } else if (result.status === 'fulfilled' && result.value.error) {
-           if (result.value.error.code !== '42P01') {
-             console.error(`Supabase error at index ${index}:`, result.value.error);
-           }
-        }
         return fallback;
       };
 
-      // Actualizamos estado (React solo re-renderizará si los datos son diferentes)
-      setLeads(getData<Lead>(0));
-      setProfiles(getData<Profile>(1));
-      setStatuses(getData<Status>(2));
-      setSources(getData<Source>(3));
-      setLicenciaturas(getData<Licenciatura>(4));
-      setWhatsappTemplates(getData<WhatsAppTemplate>(5));
-      setEmailTemplates(getData<EmailTemplate>(6));
+      // BUCLE DE CARGA DE LEADS
+      while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          let query = supabase
+            .from('leads')
+            .select(`
+                *, 
+                appointments(*, created_by(full_name)), 
+                follow_ups(*, created_by(full_name)), 
+                status_history(*, created_by(full_name))
+            `)
+            .range(from, to); // Pedimos el rango específico
+
+          if (userRole === 'advisor' && userId) {
+              query = query.eq('advisor_id', userId);
+          }
+          
+          // Ejecutamos la consulta del lote actual
+          const { data, error } = await query;
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+              // @ts-ignore - Supabase types pueden ser estrictos, forzamos la unión
+              allLeads = [...allLeads, ...data];
+              
+              // Si el lote trajo MENOS del límite, significa que ya no hay más
+              if (data.length < PAGE_SIZE) {
+                  hasMore = false;
+              }
+          } else {
+              // Si no trajo nada, terminamos
+              hasMore = false;
+          }
+          
+          page++;
+          
+          // Freno de emergencia: Si llegamos a 30k leads, paramos para no colgar el navegador
+          if (allLeads.length > 30000) hasMore = false; 
+      }
+
+      // Asignamos TODOS los leads acumulados
+      setLeads(allLeads);
+      
+      // Asignamos el resto de datos
+      setProfiles(getData<Profile>(0));
+      setStatuses(getData<Status>(1));
+      setSources(getData<Source>(2));
+      setLicenciaturas(getData<Licenciatura>(3));
+      setWhatsappTemplates(getData<WhatsAppTemplate>(4));
+      setEmailTemplates(getData<EmailTemplate>(5));
 
     } catch (error) {
       console.error('Critical error fetching data:', error);
@@ -85,24 +126,31 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     } finally {
       setLoadingData(false);
     }
-  }, [session, userRole, userId, toastError]); // Dependencias
+  }, [session, userRole, userId, toastError]); 
 
   useEffect(() => {
-    // Al montar o cambiar sesión, verificamos si ya tenemos datos para decidir el tipo de carga
-    const hasData = leads.length > 0;
-    fetchData(hasData); 
-  }, [fetchData]); // Quitamos leads.length de dependencias para evitar loop, fetchData ya lo maneja
+    if (session) {
+        fetchData();
+    }
+  }, [session, fetchData]);
+
+  // --- FUNCIONES DE MUTACIÓN LOCAL (OPTIMISTIC UI) ---
 
   const updateLocalLead = (updatedLead: Lead) => {
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
   };
 
   const addLocalLead = (newLead: Lead) => {
-    setLeads(prev => [...prev, newLead]);
+    setLeads(prev => [newLead, ...prev]);
   };
 
   const removeLocalLead = (leadId: string) => {
     setLeads(prev => prev.filter(l => l.id !== leadId));
+  };
+
+  const removeManyLocalLeads = (leadIds: string[]) => {
+      const idsSet = new Set(leadIds);
+      setLeads(prev => prev.filter(l => !idsSet.has(l.id)));
   };
 
   return {
@@ -123,6 +171,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     updateLocalLead,
     addLocalLead,
     removeLocalLead,
-    refetch: () => fetchData(true) // Refetch manual siempre en background
+    removeManyLocalLeads, 
+    refetch: () => fetchData(true)
   };
 };

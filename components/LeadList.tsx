@@ -4,6 +4,8 @@ import { Lead, Profile, Status, Licenciatura, StatusCategory } from '../types';
 import Button from './common/Button';
 import Badge from './common/Badge';
 import ConfirmationModal from './common/ConfirmationModal';
+import Modal from './common/Modal'; 
+import { Select } from './common/FormElements'; 
 import EditIcon from './icons/EditIcon';
 import TrashIcon from './icons/TrashIcon';
 import PlusIcon from './icons/PlusIcon';
@@ -27,6 +29,12 @@ import FilterDrawer, { FilterState } from './FilterDrawer';
 import FunnelIcon from './icons/FunnelIcon';
 import MagnifyingGlassIcon from './icons/MagnifyingGlassIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
+import ClockIcon from './icons/ClockIcon';
+import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
+import BulkTransferModal from './BulkTransferModal';
+import TransferIcon from './icons/TransferIcon';
+import TagIcon from './icons/TagIcon';
+import { supabase } from '../lib/supabase';
 
 interface LeadListProps {
   loading: boolean;
@@ -44,13 +52,15 @@ interface LeadListProps {
   onOpenEmail: (lead: Lead) => void;
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
   userRole?: 'admin' | 'advisor' | 'moderator';
+  onRefresh?: () => void;
+  // NUEVA PROP
+  onLocalDeleteMany?: (ids: string[]) => void;
 }
 
-type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date';
+type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date' | 'urgency';
 type SortDirection = 'asc' | 'desc';
 type ViewMode = 'list' | 'kanban';
 
-// Utilidad para búsqueda insensible a acentos
 const normalizeText = (text: string) => {
   return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
@@ -59,15 +69,23 @@ const LeadList: React.FC<LeadListProps> = ({
   loading, leads, advisors, statuses, licenciaturas, 
   onAddNew, onEdit, onDelete, onViewDetails, 
   onOpenReports, onOpenImport, onOpenWhatsApp, 
-  onOpenEmail, onUpdateLead, userRole 
+  onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany 
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [isBulkTransferOpen, setIsBulkTransferOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
   
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isBulkStatusOpen, setIsBulkStatusOpen] = useState(false);
+  const [bulkTargetStatus, setBulkTargetStatus] = useState<string>('');
+  const [processingBulk, setProcessingBulk] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
 
   const [filters, setFilters] = useState<FilterState>({
     advisorId: 'all',
@@ -82,7 +100,6 @@ const LeadList: React.FC<LeadListProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Memos optimizados
   const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color, category: s.category || 'active' }])), [statuses]);
   const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
@@ -97,22 +114,52 @@ const LeadList: React.FC<LeadListProps> = ({
       return count;
   }, [filters]);
 
-  const isAppointmentUrgent = (lead: Lead): boolean => {
-    if(!lead.appointments) return false;
-    const activeAppointment = lead.appointments.find(a => a.status === 'scheduled');
-    if (!activeAppointment) return false;
-    const appointmentDate = new Date(activeAppointment.date);
+  const getLeadUrgency = (lead: Lead) => {
+    const status = statusMap.get(lead.status_id);
+    if (status?.category !== 'active') return 0;
+
+    if(lead.appointments?.some(a => a.status === 'scheduled')) {
+        const activeAppt = lead.appointments.find(a => a.status === 'scheduled');
+        if(activeAppt) {
+            const apptDate = new Date(activeAppt.date);
+            const now = new Date();
+            const hoursDiff = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+            if(hoursDiff > 0 && hoursDiff <= 48) return 3; 
+            return 1; 
+        }
+    }
+
+    const regDate = new Date(lead.registration_date);
     const now = new Date();
-    const fortyEightHoursFromNow = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-    return appointmentDate > now && appointmentDate <= fortyEightHoursFromNow;
+    const daysSinceReg = (now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24);
+    
+    if ((!lead.follow_ups || lead.follow_ups.length === 0) && daysSinceReg > 3) {
+        return 2; 
+    }
+
+    if (lead.follow_ups && lead.follow_ups.length > 0) {
+        const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        const daysSinceFollowUp = (now.getTime() - new Date(lastFollowUp.date).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceFollowUp > 7) return 2; 
+    }
+
+    return 0; 
   };
-  
+
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedIds(new Set()); 
   }, [filters, searchTerm, itemsPerPage, quickFilter, activeCategoryTab]);
 
+  const handleDashboardCardClick = (filter: QuickFilterType) => {
+    setQuickFilter(filter);
+    if (filter !== null) {
+        setActiveCategoryTab('active');
+        setCurrentPage(1);
+    }
+  };
+
   const filteredAndSortedLeads = useMemo(() => {
-    // 1. Preparar fechas de referencia
     const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : null;
     const end = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : null;
     const today = new Date();
@@ -122,26 +169,21 @@ const LeadList: React.FC<LeadListProps> = ({
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // 2. Normalizar términos de búsqueda
     const normalizedSearchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
 
     return leads.filter(lead => {
-        // Filtro por Tab (Categoría)
         const status = statusMap.get(lead.status_id);
         const category = status ? status.category : 'active';
         if (category !== activeCategoryTab) return false;
 
-        // Filtros del Drawer
         if (filters.advisorId !== 'all' && lead.advisor_id !== filters.advisorId) return false;
         if (filters.statusId !== 'all' && lead.status_id !== filters.statusId) return false;
         if (filters.programId !== 'all' && lead.program_id !== filters.programId) return false;
 
-        // Filtro Fechas
         const regDate = new Date(lead.registration_date);
         if (start && regDate < start) return false;
         if (end && regDate > end) return false;
 
-        // Filtro Rápido (Dashboard)
         if (quickFilter) {
             if (quickFilter === 'appointments_today') {
                 const hasAppt = lead.appointments?.some(appt => {
@@ -163,18 +205,15 @@ const LeadList: React.FC<LeadListProps> = ({
             }
         }
 
-        // Búsqueda de Texto (Optimizada con normalización)
         if (normalizedSearchTerms.length > 0) {
             const leadFullName = normalizeText(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`);
             const leadEmail = normalizeText(lead.email || '');
-            const leadPhone = lead.phone; // Teléfonos no necesitan normalización de acentos
+            const leadPhone = lead.phone;
             const leadProgram = normalizeText(licenciaturaMap.get(lead.program_id) || '');
             const leadStatus = normalizeText(statusMap.get(lead.status_id)?.name || '');
             const leadAdvisor = normalizeText(advisorMap.get(lead.advisor_id) || '');
             
             const searchableText = `${leadFullName} ${leadEmail} ${leadPhone} ${leadProgram} ${leadStatus} ${leadAdvisor}`;
-            
-            // Todos los términos deben coincidir
             if (!normalizedSearchTerms.every(term => searchableText.includes(term))) return false;
         }
 
@@ -182,6 +221,12 @@ const LeadList: React.FC<LeadListProps> = ({
     }).sort((a, b) => {
       let valA: string | number;
       let valB: string | number;
+
+      if (sortColumn === 'urgency') {
+          valA = getLeadUrgency(a);
+          valB = getLeadUrgency(b);
+          return sortDirection === 'asc' ? valA - valB : valB - valA;
+      }
 
       switch (sortColumn) {
         case 'name':
@@ -215,19 +260,138 @@ const LeadList: React.FC<LeadListProps> = ({
 
   }, [leads, filters, searchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter, activeCategoryTab]);
   
-  const totalPages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage);
+  const totalItems = filteredAndSortedLeads.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
   const paginatedLeads = useMemo(() => {
     if (viewMode === 'kanban') return filteredAndSortedLeads;
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredAndSortedLeads.slice(startIndex, startIndex + itemsPerPage);
   }, [currentPage, itemsPerPage, filteredAndSortedLeads, viewMode]);
 
+  // --- LÓGICA DE SELECCIÓN (SOLO PÁGINA ACTUAL) ---
+
+  const handleSelectAll = () => {
+      const allPageSelected = paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedIds.has(lead.id));
+      const newSelected = new Set(selectedIds);
+      
+      if (allPageSelected) {
+          paginatedLeads.forEach(lead => newSelected.delete(lead.id));
+      } else {
+          paginatedLeads.forEach(lead => newSelected.add(lead.id));
+      }
+      setSelectedIds(newSelected);
+  };
+
+  const handleSelectOne = (id: string) => {
+      const newSet = new Set(selectedIds);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      setSelectedIds(newSet);
+  };
+
+  // --- ACCIONES MASIVAS (HARD DELETE con Optimistic UI) ---
+
+  const executeBulkDelete = async () => {
+      setProcessingBulk(true);
+      setBulkProgress(0);
+      const ids = Array.from(selectedIds);
+      const BATCH_SIZE = 50; 
+      let errorOccurred = false;
+
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+          const chunk = ids.slice(i, i + BATCH_SIZE);
+          const { error } = await supabase
+              .from('leads')
+              .delete() // Hard Delete
+              .in('id', chunk);
+          
+          if (error) {
+              alert(`Error al eliminar lote ${i}-${i + chunk.length}: ${error.message}`);
+              errorOccurred = true;
+              break; 
+          }
+          setBulkProgress(Math.round(((i + chunk.length) / ids.length) * 100));
+      }
+      
+      if (!errorOccurred) {
+          // 1. Actualización Optimista (Instantánea)
+          if (onLocalDeleteMany) {
+              onLocalDeleteMany(ids);
+          }
+          
+          // 2. Refresco en segundo plano
+          if (onRefresh) onRefresh();
+
+          // 3. Limpieza
+          setSelectedIds(new Set());
+          setIsBulkDeleteOpen(false);
+      }
+      setProcessingBulk(false);
+      setBulkProgress(0);
+  };
+
+  const executeBulkStatusChange = async () => {
+      if (!bulkTargetStatus) return;
+      setProcessingBulk(true);
+      setBulkProgress(0);
+      const ids = Array.from(selectedIds);
+      const BATCH_SIZE = 50; 
+      let errorOccurred = false;
+
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+          const chunk = ids.slice(i, i + BATCH_SIZE);
+
+          const { error: updateError } = await supabase
+              .from('leads')
+              .update({ status_id: bulkTargetStatus })
+              .in('id', chunk);
+
+          if (updateError) {
+              alert(`Error al actualizar lote ${i}: ` + updateError.message);
+              errorOccurred = true;
+              break;
+          }
+
+          const historyEntries = chunk.map(id => ({
+              lead_id: id,
+              new_status_id: bulkTargetStatus,
+              old_status_id: null,
+              date: new Date().toISOString(),
+          }));
+
+          await supabase.from('status_history').insert(historyEntries);
+          setBulkProgress(Math.round(((i + chunk.length) / ids.length) * 100));
+      }
+
+      if(!errorOccurred) {
+          if (onRefresh) onRefresh();
+          else window.location.reload();
+          setSelectedIds(new Set());
+          setIsBulkStatusOpen(false);
+          setBulkTargetStatus('');
+      }
+      setProcessingBulk(false);
+      setBulkProgress(0);
+  };
+
+  const confirmIndividualDelete = async (id: string) => {
+      const { error } = await supabase.from('leads').delete().eq('id', id);
+      if (error) {
+          alert("Error al eliminar: " + error.message);
+      } else {
+          onDelete(id); 
+      }
+      setLeadToDelete(null);
+  };
+
   const handleSort = (column: SortableColumn) => {
     if (column === sortColumn) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortColumn(column);
-      setSortDirection('asc');
+      setSortDirection('asc'); 
+      if (column === 'urgency') setSortDirection('desc');
     }
   };
 
@@ -253,21 +417,14 @@ const LeadList: React.FC<LeadListProps> = ({
     ].join(','));
     
     const csvContent = [headers.join(','), ...rows].join('\n');
-    // FIX: Agregar BOM para soporte de Excel con caracteres latinos
     const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
-    
-    // FIX: Limpieza de memoria
-    setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-    }, 100);
+    setTimeout(() => { document.body.removeChild(link); window.URL.revokeObjectURL(url); }, 100);
   };
   
   const SortableHeader: React.FC<{ column: SortableColumn; label: string; className?: string }> = ({ column, label, className }) => {
@@ -277,11 +434,11 @@ const LeadList: React.FC<LeadListProps> = ({
         : <ChevronUpDownIcon className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />;
 
     return (
-        <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider ${className}`}>
-            <button onClick={() => handleSort(column)} className="flex items-center gap-1 group hover:bg-gray-100 px-2 py-1 rounded-md transition-colors">
-                <span className="group-hover:text-gray-800">{label}</span>
+        <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer group ${className}`} onClick={() => handleSort(column)}>
+            <div className="flex items-center gap-1">
+                <span className="group-hover:text-gray-800 transition-colors">{label}</span>
                 {icon}
-            </button>
+            </div>
         </th>
     )
   }
@@ -304,7 +461,7 @@ const LeadList: React.FC<LeadListProps> = ({
         statuses={statuses}
         advisors={advisors}
         activeFilter={quickFilter} 
-        onFilterChange={setQuickFilter} 
+        onFilterChange={handleDashboardCardClick} 
       />
 
       {/* Header Section */}
@@ -312,12 +469,11 @@ const LeadList: React.FC<LeadListProps> = ({
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div>
                 <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Clientes Potenciales</h2>
-                 
                  <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
                     {quickFilter ? (
                         <span className="text-brand-secondary font-semibold flex items-center gap-1 bg-brand-secondary/5 px-3 py-1 rounded-full animate-fade-in">
                             Filtrado por resumen
-                            <button onClick={() => setQuickFilter(null)} className="ml-1 text-gray-400 hover:text-gray-600" title="Quitar filtro">
+                            <button onClick={() => handleDashboardCardClick(null)} className="ml-1 text-gray-400 hover:text-gray-600" title="Quitar filtro">
                                 <XIcon className="w-3 h-3" />
                             </button>
                         </span>
@@ -327,46 +483,23 @@ const LeadList: React.FC<LeadListProps> = ({
                 </p>
             </div>
              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <Button 
-                    onClick={onOpenImport} 
-                    variant="secondary" 
-                    size="sm" 
-                    className="px-3 sm:px-4"
-                    title="Importar Leads"
-                >
-                    <ArrowUpTrayIcon className="w-5 h-5 sm:mr-2" />
-                    <span className="hidden sm:inline">Importar</span>
-                </Button>
-
-                <Button 
-                    onClick={onOpenReports} 
-                    variant="secondary" 
-                    size="sm" 
-                    className="px-3 sm:px-4"
-                    title="Generar Reporte"
-                >
-                    <ChartBarIcon className="w-5 h-5 sm:mr-2" />
-                    <span className="hidden sm:inline">Reporte</span>
-                </Button>
-
                 {userRole === 'admin' && (
-                    <Button 
-                        onClick={handleExportCSV} 
-                        variant="secondary" 
-                        size="sm" 
-                        className="px-3 sm:px-4"
-                        title="Exportar CSV"
-                    >
-                        <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" />
-                        <span className="hidden sm:inline">Exportar</span>
+                    <Button onClick={() => setIsBulkTransferOpen(true)} variant="secondary" size="sm" className="px-3 sm:px-4 border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-300" title="Reasignar Leads">
+                        <TransferIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reasignar</span>
                     </Button>
                 )}
-
-                <Button 
-                    onClick={onAddNew} 
-                    leftIcon={<PlusIcon className="w-5 h-5"/>} 
-                    className="shadow-lg shadow-brand-secondary/20 hidden md:flex"
-                >
+                <Button onClick={onOpenImport} variant="secondary" size="sm" className="px-3 sm:px-4">
+                    <ArrowUpTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Importar</span>
+                </Button>
+                <Button onClick={onOpenReports} variant="secondary" size="sm" className="px-3 sm:px-4">
+                    <ChartBarIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reporte</span>
+                </Button>
+                {userRole === 'admin' && (
+                    <Button onClick={handleExportCSV} variant="secondary" size="sm" className="px-3 sm:px-4">
+                        <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Exportar</span>
+                    </Button>
+                )}
+                <Button onClick={onAddNew} leftIcon={<PlusIcon className="w-5 h-5"/>} className="shadow-lg shadow-brand-secondary/20 hidden md:flex">
                     Nuevo Lead
                 </Button>
             </div>
@@ -383,11 +516,8 @@ const LeadList: React.FC<LeadListProps> = ({
                 ].map(tab => (
                     <button
                         key={tab.id}
-                        onClick={() => setActiveCategoryTab(tab.id as StatusCategory)}
-                        className={`
-                        whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                        ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                        `}
+                        onClick={() => { setActiveCategoryTab(tab.id as StatusCategory); setQuickFilter(null); }}
+                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
                     >
                         {tab.label}
                     </button>
@@ -420,26 +550,16 @@ const LeadList: React.FC<LeadListProps> = ({
                     >
                         <FunnelIcon className="w-4 h-4 mr-2" />
                         Filtros
-                        {activeFilterCount > 0 && (
-                            <span className="ml-2 bg-brand-secondary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                                {activeFilterCount}
-                            </span>
-                        )}
+                        {activeFilterCount > 0 && <span className="ml-2 bg-brand-secondary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilterCount}</span>}
                     </button>
 
                     <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
 
                     <div className="bg-gray-100 p-1 rounded-lg flex items-center gap-1">
-                        <button 
-                            onClick={() => setViewMode('list')} 
-                            className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
+                        <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                             <ListBulletIcon className="w-5 h-5" />
                         </button>
-                        <button 
-                            onClick={() => setViewMode('kanban')} 
-                            className={`p-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
+                        <button onClick={() => setViewMode('kanban')} className={`p-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                             <Squares2x2Icon className="w-5 h-5" />
                         </button>
                     </div>
@@ -458,17 +578,13 @@ const LeadList: React.FC<LeadListProps> = ({
                   if (key === 'programId') label = `Programa: ${licenciaturaMap.get(value)}`;
                   if (key === 'startDate') label = `Desde: ${value}`;
                   if (key === 'endDate') label = `Hasta: ${value}`;
-                  
                   return (
                       <span key={key} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 ring-1 ring-blue-700/10 animate-fade-in">
                           {label}
                       </span>
                   )
               })}
-               <button 
-                  onClick={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
-                  className="text-xs text-gray-500 hover:text-red-600 hover:underline ml-2 transition-colors"
-               >
+               <button onClick={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })} className="text-xs text-gray-500 hover:text-red-600 hover:underline ml-2 transition-colors">
                    Limpiar todo
                </button>
           </div>
@@ -476,11 +592,24 @@ const LeadList: React.FC<LeadListProps> = ({
       
       <div key={`${viewMode}-${activeCategoryTab}`} className="animate-fade-in">
         {viewMode === 'list' ? (
-          <div className="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-200">
+          <div className="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-200 flex flex-col">
               <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50/50">
                   <tr>
+                      {/* CHECKBOX HEADER (Solo Admin) */}
+                      {userRole === 'admin' && (
+                          <th scope="col" className="px-4 py-4 text-left w-10">
+                              <input 
+                                  type="checkbox" 
+                                  checked={paginatedLeads.length > 0 && paginatedLeads.every(l => selectedIds.has(l.id))}
+                                  onChange={handleSelectAll}
+                                  className="w-4 h-4 rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary cursor-pointer"
+                              />
+                          </th>
+                      )}
+                      
+                      <SortableHeader column="urgency" label="!" className="w-10 text-center" />
                       <SortableHeader column="name" label="Nombre" />
                       <SortableHeader column="advisor_id" label="Asesor" className="hidden md:table-cell" />
                       <SortableHeader column="status_id" label="Estado" />
@@ -493,10 +622,43 @@ const LeadList: React.FC<LeadListProps> = ({
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
                   {paginatedLeads.map((lead) => {
-                      const isUrgent = isAppointmentUrgent(lead);
+                      const urgencyLevel = getLeadUrgency(lead);
                       const status = statusMap.get(lead.status_id);
+                      
+                      let rowClasses = "group hover:bg-gray-50 transition-colors duration-200";
+                      let urgencyIndicator = null;
+
+                      if (urgencyLevel === 3) {
+                          rowClasses = "group bg-red-50/40 hover:bg-red-50 border-l-4 border-red-500";
+                          urgencyIndicator = <BellAlertIcon className="w-5 h-5 text-red-600 animate-pulse" title="Cita inminente (<48h)"/>;
+                      } else if (urgencyLevel === 2) {
+                          rowClasses = "group bg-amber-50/30 hover:bg-amber-50 border-l-4 border-amber-400";
+                          urgencyIndicator = <ExclamationCircleIcon className="w-5 h-5 text-amber-500" title="Requiere Atención (Sin seguimiento)"/>;
+                      } else {
+                          rowClasses += " border-l-4 border-transparent";
+                      }
+                      
+                      if (selectedIds.has(lead.id)) {
+                          rowClasses += " bg-blue-50";
+                      }
+
                       return (
-                      <tr key={lead.id} className={`group hover:bg-blue-50/30 transition-colors duration-200 ${isUrgent ? 'bg-red-50/30' : ''}`}>
+                      <tr key={lead.id} className={rowClasses}>
+                          {/* CHECKBOX ROW (Solo Admin) */}
+                          {userRole === 'admin' && (
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                  <input 
+                                      type="checkbox" 
+                                      checked={selectedIds.has(lead.id)}
+                                      onChange={() => handleSelectOne(lead.id)}
+                                      className="w-4 h-4 rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary cursor-pointer"
+                                  />
+                              </td>
+                          )}
+
+                          <td className="px-2 py-4 whitespace-nowrap text-center">
+                              <div className="flex justify-center">{urgencyIndicator}</div>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                                 <div className="h-9 w-9 rounded-full bg-brand-secondary/10 flex items-center justify-center text-brand-secondary font-bold text-sm mr-3">
@@ -522,14 +684,13 @@ const LeadList: React.FC<LeadListProps> = ({
                              {licenciaturaMap.get(lead.program_id) || '-'}
                           </td>
                           <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {new Date(lead.registration_date).toLocaleDateString()}
+                              <div className="flex items-center gap-1">
+                                <ClockIcon className="w-3 h-3"/>
+                                {new Date(lead.registration_date).toLocaleDateString()}
+                              </div>
                           </td>
                           <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-center">
-                          {isUrgent ? (
-                              <button onClick={() => onViewDetails(lead, 'appointments')} className="text-red-500 hover:scale-110 transition-transform" title="Cita Urgente">
-                                <BellAlertIcon className="w-5 h-5 inline-block animate-pulse" />
-                              </button>
-                          ) : lead.appointments?.some(a => a.status === 'scheduled') ? (
+                          {lead.appointments?.some(a => a.status === 'scheduled') ? (
                               <button onClick={() => onViewDetails(lead, 'appointments')} className="text-emerald-500 hover:scale-110 transition-transform" title="Cita Programada">
                                 <CalendarIcon className="w-5 h-5 inline-block" />
                               </button>
@@ -560,20 +721,13 @@ const LeadList: React.FC<LeadListProps> = ({
                   })}
                   {paginatedLeads.length === 0 && (
                       <tr>
-                          <td colSpan={8} className="text-center py-16">
+                          <td colSpan={10} className="text-center py-16">
                               <div className="bg-gray-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                                 <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
                               </div>
                               <p className="text-lg font-medium text-gray-900">No se encontraron leads</p>
                               <p className="text-sm text-gray-500 mt-1">Intenta ajustar los filtros o buscar con otros términos.</p>
-                              <Button 
-                                  variant="ghost" 
-                                  className="mt-4 text-brand-secondary font-medium" 
-                                  onClick={() => {
-                                      setSearchTerm('');
-                                      setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' });
-                                  }}
-                              >
+                              <Button variant="ghost" className="mt-4 text-brand-secondary font-medium" onClick={() => { setSearchTerm(''); setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' }); }}>
                                   Limpiar todos los filtros
                               </Button>
                           </td>
@@ -582,6 +736,48 @@ const LeadList: React.FC<LeadListProps> = ({
                   </tbody>
               </table>
               </div>
+              
+              {/* PAGINACIÓN FOOTER MEJORADO */}
+              {totalItems > 0 && (
+                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="text-sm text-gray-500 order-2 sm:order-1">
+                        Mostrando <span className="font-medium text-gray-900">{Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}</span> a <span className="font-medium text-gray-900">{Math.min(currentPage * itemsPerPage, totalItems)}</span> de <span className="font-medium text-gray-900">{totalItems}</span> resultados
+                    </div>
+
+                    <div className="flex items-center gap-4 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <select 
+                            value={itemsPerPage} 
+                            onChange={e => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} 
+                            className="pl-3 pr-8 py-1.5 text-xs sm:text-sm border-gray-300 bg-white rounded-lg focus:ring-brand-secondary focus:border-brand-secondary cursor-pointer shadow-sm"
+                        >
+                            <option value={10}>10 por pág</option>
+                            <option value={25}>25 por pág</option>
+                            <option value={50}>50 por pág</option>
+                            <option value={100}>100 por pág</option>
+                        </select>
+
+                        <div className="flex items-center bg-white rounded-lg border border-gray-200 shadow-sm p-0.5">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white transition-colors text-gray-600"
+                            >
+                                <ChevronLeftIcon className="w-4 h-4"/>
+                            </button>
+                            <span className="px-4 text-sm font-medium text-gray-700 border-x border-gray-100 h-full flex items-center">
+                                {currentPage}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white transition-colors text-gray-600"
+                            >
+                                <ChevronRightIcon className="w-4 h-4"/>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+              )}
           </div>
         ) : (
           <KanbanBoard 
@@ -598,47 +794,99 @@ const LeadList: React.FC<LeadListProps> = ({
           />
         )}
       </div>
-      
-      {viewMode === 'list' && totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 font-medium">Filas por página:</span>
-                <select 
-                    value={itemsPerPage} 
-                    onChange={e => setItemsPerPage(Number(e.target.value))} 
-                    className="pl-3 pr-8 py-1.5 text-sm border-gray-300 bg-gray-50 rounded-lg focus:ring-brand-secondary focus:border-brand-secondary cursor-pointer"
-                >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                </select>
-            </div>
 
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              leftIcon={<ChevronLeftIcon className="w-4 h-4"/>}
-            >
-              Anterior
-            </Button>
-            <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg">
-              {currentPage} / {totalPages}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-            >
-                Siguiente
-                <ChevronRightIcon className="w-4 h-4 ml-2"/>
-            </Button>
+      {/* BARRA FLOTANTE DE ACCIONES MASIVAS (Admin Only) */}
+      {userRole === 'admin' && selectedIds.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-white shadow-2xl rounded-full px-6 py-3 border border-gray-200 flex items-center gap-4 animate-slide-up">
+              <span className="text-sm font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
+                  {selectedIds.size} seleccionados
+              </span>
+              
+              <div className="h-6 w-px bg-gray-200"></div>
+
+              <button 
+                  onClick={() => setIsBulkStatusOpen(true)}
+                  className="flex items-center gap-2 text-sm font-bold text-gray-600 hover:text-brand-secondary transition-colors"
+              >
+                  <TagIcon className="w-5 h-5"/>
+                  Cambiar Estado
+              </button>
+
+              <button 
+                  onClick={() => setIsBulkDeleteOpen(true)}
+                  className="flex items-center gap-2 text-sm font-bold text-red-500 hover:text-red-700 transition-colors"
+              >
+                  <TrashIcon className="w-5 h-5"/>
+                  Eliminar
+              </button>
+
+              <div className="h-6 w-px bg-gray-200"></div>
+
+              <button 
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-gray-400 hover:text-gray-600 underline"
+              >
+                  Cancelar
+              </button>
           </div>
-        </div>
       )}
+
+      {/* MODALES DE ACCIÓN MASIVA */}
+      
+      {/* 1. Modal Confirmación Borrado Masivo (HARD DELETE) */}
+      <ConfirmationModal
+        isOpen={isBulkDeleteOpen}
+        onClose={() => setIsBulkDeleteOpen(false)}
+        onConfirm={executeBulkDelete}
+        title={`¿Eliminar ${selectedIds.size} leads?`}
+        message={
+            <>
+                Estás a punto de eliminar permanentemente <strong>{selectedIds.size} leads</strong>.
+                <br/>
+                <span className="text-red-600 font-bold">Esta acción no se puede deshacer.</span>
+                {processingBulk && <div className="mt-2 text-xs text-gray-500">Procesando lote... {bulkProgress}%</div>}
+            </>
+        }
+        confirmButtonText={processingBulk ? `Eliminando...` : "Sí, Eliminar Todo"}
+        confirmButtonVariant="danger"
+      />
+
+      {/* 2. Modal Cambio Estado Masivo */}
+      <Modal 
+        isOpen={isBulkStatusOpen} 
+        onClose={() => setIsBulkStatusOpen(false)} 
+        title="Cambio de Estado Masivo"
+        size="sm"
+      >
+          <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                  Selecciona el nuevo estado para los <strong>{selectedIds.size} leads</strong> seleccionados.
+              </p>
+              
+              <Select 
+                  label="Nuevo Estado"
+                  value={bulkTargetStatus}
+                  onChange={e => setBulkTargetStatus(e.target.value)}
+                  options={[{ value: '', label: '-- Seleccionar --' }, ...statuses.map(s => ({ value: s.id, label: s.name }))]}
+              />
+
+              {processingBulk && (
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                      <div className="bg-brand-secondary h-1.5 rounded-full transition-all duration-300" style={{ width: `${bulkProgress}%` }}></div>
+                  </div>
+              )}
+
+              <div className="flex justify-end gap-2 mt-4">
+                  <Button variant="ghost" onClick={() => setIsBulkStatusOpen(false)}>Cancelar</Button>
+                  <Button 
+                    onClick={executeBulkStatusChange} 
+                    disabled={!bulkTargetStatus || processingBulk}
+                  >
+                      {processingBulk ? 'Actualizando...' : 'Confirmar Cambio'}
+                  </Button>
+              </div>
+          </div>
+      </Modal>
 
       <FilterDrawer 
         isOpen={isFilterDrawerOpen} 
@@ -651,17 +899,27 @@ const LeadList: React.FC<LeadListProps> = ({
         onClearFilters={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
       />
 
+      {/* Modal Eliminación Individual (HARD DELETE) */}
       <ConfirmationModal
         isOpen={!!leadToDelete}
         onClose={() => setLeadToDelete(null)}
         onConfirm={() => {
-            if (leadToDelete) onDelete(leadToDelete);
-            setLeadToDelete(null);
+            if (leadToDelete) confirmIndividualDelete(leadToDelete);
         }}
         title="¿Eliminar Lead?"
         message="Estás a punto de eliminar este lead permanentemente. ¿Estás seguro?"
         confirmButtonText="Sí, Eliminar"
         confirmButtonVariant="danger"
+      />
+
+      <BulkTransferModal
+        isOpen={isBulkTransferOpen}
+        onClose={() => setIsBulkTransferOpen(false)}
+        advisors={advisors}
+        onSuccess={() => {
+            if(onRefresh) onRefresh();
+            else window.location.reload(); 
+        }}
       />
 
       <button

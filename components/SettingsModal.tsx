@@ -1,6 +1,6 @@
 // components/SettingsModal.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js'; // IMPORTANTE: Para el cliente temporal
+import { createClient } from '@supabase/supabase-js'; 
 import { Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, StatusCategory } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
@@ -20,7 +20,6 @@ import { useToast } from '../context/ToastContext';
 import EnvelopeIcon from './icons/EnvelopeIcon';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
-
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -72,9 +71,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         e.preventDefault();
         setLoading(true);
 
-        // --- SOLUCIÓN PANTALLA BLANCA ---
-        // Usamos un cliente temporal desconectado de la sesión global
-        // para crear el usuario sin cerrar la sesión del admin.
         const tempSupabase = createClient(
             import.meta.env.VITE_SUPABASE_URL,
             import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -87,7 +83,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             }
         );
 
-        // 1. Crear usuario en Auth (usando cliente temporal)
         const { data: { user: newUser }, error: signUpError } = await tempSupabase.auth.signUp({
             email,
             password,
@@ -105,7 +100,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             return;
         }
 
-        // 2. Crear perfil en base de datos (usando cliente principal con permisos de Admin)
         const { error: profileError } = await supabase.rpc('create_user_profile', {
             user_id: newUser.id,
             full_name: fullName,
@@ -147,8 +141,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 
         if (error) {
             console.error("Error updating user:", error);
-            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            toastError(`Error al actualizar: ${errorMessage}`);
+            toastError(`Error al actualizar: ${error.message}`);
         } else {
             onProfilesUpdate(profiles.map(p => p.id === userId ? { ...p, full_name: updates.fullName, role: updates.role } : p));
             success(`Usuario actualizado correctamente`);
@@ -165,8 +158,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 
         if (error) {
             console.error("Error deleting user:", error);
-            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            toastError(`Error al eliminar: ${errorMessage}`);
+            toastError(`Error al eliminar: ${error.message}`);
         } else {
             onProfilesUpdate(profiles.filter(p => p.id !== userToDelete.id));
             success(`Usuario eliminado correctamente`);
@@ -282,30 +274,25 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     
     const { success, error: toastError } = useToast();
 
+    // Filtramos los estados por categoría para mostrarlos ordenados
+    const activeStatuses = useMemo(() => statuses.filter(s => !s.category || s.category === 'active'), [statuses]);
+    const wonStatuses = useMemo(() => statuses.filter(s => s.category === 'won'), [statuses]);
+    const lostStatuses = useMemo(() => statuses.filter(s => s.category === 'lost'), [statuses]);
+
+    // Lista por defecto para nuevos despliegues
     const recommendedStatuses: {name: string, color: string, category: StatusCategory}[] = [
-        { name: 'Primer Contacto (Respuesta Pendiente)', color: 'bg-yellow-500', category: 'active' },
+        { name: 'Sin Contactar', color: 'bg-gray-500', category: 'active' },
+        { name: 'Primer Contacto', color: 'bg-yellow-500', category: 'active' },
         { name: 'En Seguimiento', color: 'bg-sky-500', category: 'active' },
         { name: 'Cita en Negociación', color: 'bg-cyan-500', category: 'active' },
         { name: 'Con Cita', color: 'bg-blue-500', category: 'active' },
-        { name: 'Siguiente ciclo', color: 'bg-violet-500', category: 'active' },
-        { name: 'Sin Respuesta (No hay interacción)', color: 'bg-orange-500', category: 'active' },
-        { name: 'Sin Interés', color: 'bg-red-500', category: 'lost' },
-        { name: 'Fase de Cierre/Solo Solicitud', color: 'bg-lime-500', category: 'active' },
-        { name: 'Fase de Cierre/Solo Pago Parcial', color: 'bg-lime-500', category: 'active' },
-        { name: 'Fase de Cierre/Solicitud y Documentos', color: 'bg-lime-500', category: 'active' },
-        { name: 'Fase de Cierre/Solicitud y Pago Parcial', color: 'bg-emerald-500', category: 'active' },
-        { name: 'Fase de Cierre/Solicitud, Pago Parcial y Documentos', color: 'bg-emerald-500', category: 'active' },
         { name: 'Inscrito (a)', color: 'bg-green-500', category: 'won' },
-        { name: 'Número Equivocado/Inexistente', color: 'bg-stone-500', category: 'lost' },
-        { name: 'Contactar después', color: 'bg-purple-500', category: 'active' },
-        { name: 'Sin Contactar', color: 'bg-gray-500', category: 'active' },
+        { name: 'Sin Interés', color: 'bg-red-500', category: 'lost' },
     ];
 
     const handleSeedStatuses = async () => {
         setSeeding(true);
-        
         const existingStatusNames = new Set(statuses.map(s => s.name.toLowerCase()));
-        
         const newStatusesToInsert = recommendedStatuses.filter(
             rec => !existingStatusNames.has(rec.name.toLowerCase())
         );
@@ -328,7 +315,6 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
             onStatusesUpdate([...statuses, ...insertedData]);
             success(`¡Se añadieron ${insertedData.length} nuevos estados!`);
         }
-        
         setSeeding(false);
     };
 
@@ -372,29 +358,20 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
             .select('id', { count: 'exact', head: true })
             .eq('status_id', status.id);
 
-        if (checkError) {
-            console.error("Error al verificar el uso del estado:", checkError);
-        }
+        if (checkError) console.error(checkError);
 
         if (count && count > 0) {
-            toastError(`No se puede eliminar. El estado "${status.name}" está asignado a ${count} lead(s).`);
+            toastError(`No se puede eliminar. El estado "${status.name}" está en uso.`);
             return;
         }
-
         setStatusToDelete(status);
     }
 
     const handleConfirmDelete = async () => {
         if (!statusToDelete) return;
-
         const { error } = await supabase.from('statuses').delete().eq('id', statusToDelete.id);
         if(error) { 
-             if (error.code === '23503') {
-                toastError(`No se puede eliminar "${statusToDelete.name}" porque está en uso.`);
-            } else {
-                toastError(`Error al eliminar estado: ${error.message}`);
-            }
-            console.error(error); 
+             toastError(`Error al eliminar estado: ${error.message}`);
         } else {
             onStatusesUpdate(statuses.filter(s => s.id !== statusToDelete.id));
             success("Estado eliminado");
@@ -402,84 +379,97 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         }
     }
 
-    const getCategoryLabel = (cat: StatusCategory) => {
-        switch(cat) {
-            case 'won': return 'Inscritos (Ganados)';
-            case 'lost': return 'Bajas (Perdidos)';
-            default: return 'En Proceso (Activos)';
-        }
-    };
+    // COMPONENTE HELPER PARA LISTAR ESTADOS
+    const StatusListGroup = ({ title, list, titleColor }: {title: string, list: Status[], titleColor: string}) => (
+        <div className="mb-6">
+            <h5 className={`text-xs font-bold uppercase tracking-wider mb-3 pb-1 border-b border-gray-100 ${titleColor}`}>
+                {title} ({list.length})
+            </h5>
+            {list.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No hay estados en esta categoría.</p>
+            ) : (
+                <ul className="space-y-2">
+                    {list.map(status => (
+                        <li key={status.id} className="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100 hover:border-brand-secondary/30 transition-colors group">
+                            <div className="flex items-center gap-3">
+                                <span className={`w-3 h-3 rounded-full ${status.color}`}></span>
+                                <span className="font-medium text-sm text-gray-700">{status.name}</span>
+                            </div>
+                            <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                <Button variant="ghost" size="sm" onClick={() => handleEditClick(status)} title="Editar y Mover">
+                                    <EditIcon className="w-4 h-4 text-blue-500"/>
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(status)} title="Eliminar">
+                                    <TrashIcon className="w-4 h-4 text-red-500"/>
+                                </Button>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
 
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Estados</h3>
 
-            {!statusToEdit && (
+            {!statusToEdit && statuses.length === 0 && (
                 <div className="p-4 border rounded-lg bg-gray-50/70 mb-4">
                     <h4 className="font-semibold text-gray-700">Estados Predefinidos</h4>
-                    <p className="text-sm text-gray-600 mt-1 mb-3">Carga una lista de estados recomendados para empezar a organizar tus leads rápidamente.</p>
+                    <p className="text-sm text-gray-600 mt-1 mb-3">Carga una lista inicial para comenzar.</p>
                     <Button onClick={handleSeedStatuses} disabled={seeding} variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
                         {seeding ? 'Cargando...' : 'Cargar Estados Recomendados'}
                     </Button>
                 </div>
             )}
 
-            <div className="space-y-4 border rounded-lg p-4 bg-white shadow-sm">
-                <h4 className="font-semibold text-gray-700">{statusToEdit ? 'Editar Estado' : 'Añadir Nuevo Estado'}</h4>
-                <div className="grid grid-cols-1 gap-3">
+            {/* FORMULARIO DE CREACIÓN / EDICIÓN */}
+            <div className={`space-y-4 border-2 rounded-xl p-5 shadow-sm transition-colors ${statusToEdit ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-100'}`}>
+                <h4 className={`font-bold ${statusToEdit ? 'text-blue-800' : 'text-gray-800'}`}>
+                    {statusToEdit ? `Editando: ${statusToEdit.name}` : 'Añadir Nuevo Estado'}
+                </h4>
+                
+                <div className="grid grid-cols-1 gap-4">
                     <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Nombre</label>
-                        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Interesado" className="w-full px-3 py-2 border border-gray-300 rounded-md" />
+                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Nombre del Estado</label>
+                        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Interesado" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary transition-all" />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Color</label>
-                            <select value={color} onChange={e => setColor(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Color (Etiqueta)</label>
+                            <select value={color} onChange={e => setColor(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
                                 {colors.map(c => <option key={c} value={c}>{c.replace('bg-', '').replace('-500', '')}</option>)}
                             </select>
+                            <div className={`mt-2 h-2 w-full rounded-full ${color}`}></div>
                         </div>
                         <div>
-                             <label className="block text-xs font-medium text-gray-500 mb-1">Categoría (Vista)</label>
-                             <select value={category} onChange={e => setCategory(e.target.value as StatusCategory)} className="w-full px-3 py-2 border border-gray-300 rounded-md">
+                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Categoría (Pestaña)</label>
+                             <select value={category} onChange={e => setCategory(e.target.value as StatusCategory)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
                                 <option value="active">En Proceso (Activos)</option>
                                 <option value="won">Inscritos (Ganados)</option>
                                 <option value="lost">Bajas (Perdidos)</option>
                             </select>
+                            <p className="text-[10px] text-gray-400 mt-1">Define en qué pestaña del tablero aparecerá.</p>
                         </div>
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 pt-2">
                         {statusToEdit && (
                             <Button variant="ghost" onClick={() => { setStatusToEdit(null); setName(''); setCategory('active'); }}>Cancelar</Button>
                         )}
-                        <Button onClick={handleSave} leftIcon={!statusToEdit ? <PlusIcon className="w-4 h-4"/> : undefined}>
-                            {statusToEdit ? 'Actualizar' : 'Añadir Estado'}
+                        <Button onClick={handleSave} className={statusToEdit ? "shadow-lg shadow-blue-200" : "shadow-lg shadow-brand-secondary/20"} leftIcon={!statusToEdit ? <PlusIcon className="w-4 h-4"/> : undefined}>
+                            {statusToEdit ? 'Guardar Cambios' : 'Añadir Estado'}
                         </Button>
                     </div>
                 </div>
             </div>
-                
-            <h4 className="font-semibold text-gray-700 mt-6">Estados Actuales</h4>
-            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                {statuses.map(status => (
-                    <li key={status.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
-                        <div className="flex items-center gap-2">
-                            <span className={`w-4 h-4 rounded-full ${status.color}`}></span>
-                            <div>
-                                <span className="font-medium block">{status.name}</span>
-                                <span className="text-xs text-gray-500">{getCategoryLabel(status.category || 'active')}</span>
-                            </div>
-                        </div>
-                        <div className="flex gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(status)}>
-                                <EditIcon className="w-4 h-4 text-blue-500"/>
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(status)}>
-                                <TrashIcon className="w-4 h-4 text-red-500"/>
-                            </Button>
-                        </div>
-                    </li>
-                ))}
-            </ul>
+            
+            {/* LISTA AGRUPADA VISUALMENTE */}
+            <div className="mt-8 pt-4 border-t border-gray-100 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                <StatusListGroup title="En Proceso (Activos)" list={activeStatuses} titleColor="text-brand-secondary" />
+                <StatusListGroup title="Inscritos (Ganados)" list={wonStatuses} titleColor="text-green-600" />
+                <StatusListGroup title="Bajas / Archivo (Perdidos)" list={lostStatuses} titleColor="text-red-600" />
+            </div>
 
             <ConfirmationModal
                 isOpen={!!statusToDelete}
@@ -491,8 +481,6 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
                         Estás a punto de eliminar el estado <strong>{statusToDelete?.name}</strong>.
                         <br /><br />
                         <span className="text-red-600 font-semibold">Esta acción es irreversible.</span>
-                        <br />
-                        ¿Estás seguro de que deseas continuar?
                     </>
                 }
                 confirmButtonText="Sí, Eliminar"
@@ -1176,12 +1164,10 @@ const LoginHistorySettings: React.FC = () => {
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Historial de Accesos</h3>
             
-            {/* FIX CRÍTICO: 'overflow-x-auto' habilita el scroll horizontal en móviles */}
             <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            {/* 'whitespace-nowrap' fuerza a que la tabla se anche en lugar de aplastarse */}
                             <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Usuario</th>
                             <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Fecha y Hora</th>
                             <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Dispositivo</th>

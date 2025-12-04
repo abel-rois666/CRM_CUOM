@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
-import { Select } from './common/FormElements'; // Usamos el nuevo Select
+import { Select } from './common/FormElements';
 import { supabase } from '../lib/supabase';
 import { Profile, Status, Source, Licenciatura } from '../types';
 import Papa from 'papaparse';
@@ -27,6 +27,7 @@ interface CSVRow {
   [key: string]: string;
 }
 
+// 1. AMPLIAMOS LA INTERFAZ DE MAPEO
 interface ColumnMapping {
   first_name: string;
   paternal_last_name: string;
@@ -37,18 +38,34 @@ interface ColumnMapping {
   advisor_id: string;
   status_id: string;
   source_id: string;
+  registration_date: string;
+  note1_date: string;
+  note1_text: string;
+  note2_date: string;
+  note2_text: string;
+  note3_date: string;
+  note3_text: string;
 }
 
-const DB_FIELDS: { key: keyof ColumnMapping; label: string; required: boolean }[] = [
-  { key: 'first_name', label: 'Nombre(s)', required: true },
-  { key: 'paternal_last_name', label: 'Apellido Paterno', required: true },
-  { key: 'maternal_last_name', label: 'Apellido Materno', required: false },
-  { key: 'email', label: 'Email', required: false },
-  { key: 'phone', label: 'Teléfono', required: true },
-  { key: 'program_id', label: 'Licenciatura (Nombre)', required: false },
-  { key: 'advisor_id', label: 'Asesor (Nombre)', required: false },
-  { key: 'status_id', label: 'Estado (Nombre)', required: false },
-  { key: 'source_id', label: 'Origen (Nombre)', required: false },
+const DB_FIELDS: { key: keyof ColumnMapping; label: string; required: boolean; group?: string }[] = [
+  { key: 'first_name', label: 'Nombre(s)', required: true, group: 'Datos Personales' },
+  { key: 'paternal_last_name', label: 'Apellido Paterno', required: true, group: 'Datos Personales' },
+  { key: 'maternal_last_name', label: 'Apellido Materno', required: false, group: 'Datos Personales' },
+  { key: 'email', label: 'Email', required: false, group: 'Contacto' },
+  { key: 'phone', label: 'Teléfono', required: true, group: 'Contacto' },
+  { key: 'program_id', label: 'Licenciatura', required: false, group: 'Clasificación' },
+  { key: 'advisor_id', label: 'Asesor', required: false, group: 'Clasificación' },
+  { key: 'status_id', label: 'Estado', required: false, group: 'Clasificación' },
+  { key: 'source_id', label: 'Origen', required: false, group: 'Clasificación' },
+  { key: 'registration_date', label: 'Fecha de Registro (Original)', required: false, group: 'Sistema' },
+  
+  // Campos de Historial
+  { key: 'note1_date', label: 'Seguimiento 1: Fecha', required: false, group: 'Historial (Opcional)' },
+  { key: 'note1_text', label: 'Seguimiento 1: Nota', required: false, group: 'Historial (Opcional)' },
+  { key: 'note2_date', label: 'Seguimiento 2: Fecha', required: false, group: 'Historial (Opcional)' },
+  { key: 'note2_text', label: 'Seguimiento 2: Nota', required: false, group: 'Historial (Opcional)' },
+  { key: 'note3_date', label: 'Seguimiento 3: Fecha', required: false, group: 'Historial (Opcional)' },
+  { key: 'note3_text', label: 'Seguimiento 3: Nota', required: false, group: 'Historial (Opcional)' },
 ];
 
 const BulkImportModal: React.FC<BulkImportModalProps> = ({
@@ -67,7 +84,9 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
   
   const [mapping, setMapping] = useState<ColumnMapping>({
     first_name: '', paternal_last_name: '', maternal_last_name: '',
-    email: '', phone: '', program_id: '', advisor_id: '', status_id: '', source_id: ''
+    email: '', phone: '', program_id: '', advisor_id: '', status_id: '', source_id: '',
+    registration_date: '', 
+    note1_date: '', note1_text: '', note2_date: '', note2_text: '', note3_date: '', note3_text: ''
   });
 
   const [defaults, setDefaults] = useState({
@@ -78,6 +97,37 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
   });
 
   const [results, setResults] = useState<{ success: number; errors: string[] }>({ success: 0, errors: [] });
+
+  const handleDownloadSample = () => {
+    const headers = [
+      'Nombre', 'Apellido Paterno', 'Apellido Materno', 'Email', 'Teléfono', 
+      'Licenciatura', 'Asesor', 'Estado', 'Origen', 'Fecha Registro',
+      'Fecha Nota 1', 'Texto Nota 1',
+      'Fecha Nota 2', 'Texto Nota 2',
+      'Fecha Nota 3', 'Texto Nota 3'
+    ];
+    
+    const sampleRow = [
+      'Juan', 'Pérez', 'López', 'juan@ejemplo.com', '5512345678', 
+      'Derecho', 'Nombre Asesor', 'Primer Contacto', 'Facebook', '2024-01-10',
+      '2024-01-15', 'Solicitó informes de costos',
+      '2024-01-20', 'Se envió plan de estudios por WhatsApp',
+      '', ''
+    ];
+    
+    const csvContent = [headers.join(','), sampleRow.join(',')].join('\n');
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'plantilla_importacion_completa.csv');
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    }, 100);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -93,13 +143,18 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
             setCsvHeaders(results.meta.fields);
             const newMapping = { ...mapping };
             results.meta.fields.forEach(header => {
-              const lowerHeader = header.toLowerCase().replace(/_/g, '').replace(/ /g, '');
-              if (lowerHeader.includes('nombre') && !lowerHeader.includes('lic') && !lowerHeader.includes('aso')) newMapping.first_name = header;
-              if (lowerHeader.includes('paterno')) newMapping.paternal_last_name = header;
-              if (lowerHeader.includes('materno')) newMapping.maternal_last_name = header;
-              if (lowerHeader.includes('email') || lowerHeader.includes('correo')) newMapping.email = header;
-              if (lowerHeader.includes('tel') || lowerHeader.includes('cel')) newMapping.phone = header;
-              if (lowerHeader.includes('licenciatura') || lowerHeader.includes('carrera')) newMapping.program_id = header;
+              const lower = header.toLowerCase().replace(/_/g, '').replace(/ /g, '');
+              if (lower.includes('nombre') && !lower.includes('lic') && !lower.includes('aso')) newMapping.first_name = header;
+              if (lower.includes('paterno')) newMapping.paternal_last_name = header;
+              if (lower.includes('materno')) newMapping.maternal_last_name = header;
+              if (lower.includes('mail') || lower.includes('correo')) newMapping.email = header;
+              if (lower.includes('tel') || lower.includes('cel')) newMapping.phone = header;
+              if (lower.includes('carrera') || lower.includes('licenciatura')) newMapping.program_id = header;
+              if (lower.includes('fecha') && (lower.includes('registro') || lower.includes('ingreso') || lower.includes('alta'))) newMapping.registration_date = header;
+              if ((lower.includes('nota') || lower.includes('comentario')) && lower.includes('1')) newMapping.note1_text = header;
+              if ((lower.includes('fecha')) && lower.includes('1')) newMapping.note1_date = header;
+              if ((lower.includes('nota') || lower.includes('comentario')) && lower.includes('2')) newMapping.note2_text = header;
+              if ((lower.includes('fecha')) && lower.includes('2')) newMapping.note2_date = header;
             });
             setMapping(newMapping);
           }
@@ -120,25 +175,20 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
     });
   };
 
-  const handleDownloadSample = () => {
-    const headers = ['Nombre', 'Apellido Paterno', 'Apellido Materno', 'Email', 'Teléfono', 'Licenciatura', 'Asesor', 'Estado', 'Origen'];
-    const sampleRow = ['Juan', 'Pérez', 'López', 'juan@ejemplo.com', '5512345678', 'Derecho', 'Nombre Asesor', 'Primer Contacto', 'Facebook'];
-    const csvContent = [headers.join(','), sampleRow.join(',')].join('\n');
-    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'plantilla_importacion.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const handleMappingChange = (dbField: keyof ColumnMapping, csvHeader: string) => {
     setMapping(prev => ({ ...prev, [dbField]: csvHeader }));
   };
 
   const normalize = (str: string) => str.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // UTILIDAD: CAPITALIZAR (Title Case)
+  const toTitleCase = (str: string) => {
+    if (!str) return '';
+    return str.replace(
+      /\w\S*/g,
+      (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    );
+  };
 
   const findIdByName = (name: string, catalog: { id: string; name: string }[]) => {
     if (!name) return null;
@@ -154,50 +204,117 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
       return found ? found.id : null;
   }
 
+  const parseDate = (dateStr: string): string => {
+      if (!dateStr) return new Date().toISOString();
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) return date.toISOString();
+      return new Date().toISOString();
+  };
+
   const handleImport = async () => {
     setStep('processing');
     let successCount = 0;
     const errorLog: string[] = [];
-    const rowsToInsert = [];
-
-    for (let i = 0; i < csvData.length; i++) {
-      const row = csvData[i];
-      const rowNum = i + 2; 
-
-      const firstName = row[mapping.first_name]?.trim();
-      const paternal = row[mapping.paternal_last_name]?.trim();
-      const phone = row[mapping.phone]?.replace(/\D/g, '').trim(); 
-
-      if (!firstName || !paternal || !phone) {
-        errorLog.push(`Fila ${rowNum}: Falta Nombre, Apellido Paterno o Teléfono.`);
-        continue;
-      }
-
-      let programId = findIdByName(row[mapping.program_id], licenciaturas) || defaults.program_id;
-      let advisorId = findAdvisorByName(row[mapping.advisor_id]) || defaults.advisor_id;
-      let statusId = findIdByName(row[mapping.status_id], statuses) || defaults.status_id;
-      let sourceId = findIdByName(row[mapping.source_id], sources) || defaults.source_id;
-
-      rowsToInsert.push({
-        first_name: firstName,
-        paternal_last_name: paternal,
-        maternal_last_name: row[mapping.maternal_last_name]?.trim() || null,
-        email: row[mapping.email]?.trim() || null,
-        phone: phone,
-        program_id: programId,
-        advisor_id: advisorId,
-        status_id: statusId,
-        source_id: sourceId,
-        registration_date: new Date().toISOString(),
-      });
-    }
-
+    
     const chunkSize = 50;
-    for (let i = 0; i < rowsToInsert.length; i += chunkSize) {
-      const chunk = rowsToInsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from('leads').insert(chunk);
-      if (error) errorLog.push(`Error lote ${i}-${i+chunkSize}: ${error.message}`);
-      else successCount += chunk.length;
+    
+    for (let i = 0; i < csvData.length; i += chunkSize) {
+        const chunk = csvData.slice(i, i + chunkSize);
+        const leadsToInsert = [];
+        const validChunkIndices: number[] = []; 
+
+        for (let j = 0; j < chunk.length; j++) {
+            const row = chunk[j];
+            const rowNum = i + j + 2;
+
+            const firstName = row[mapping.first_name]?.trim();
+            const paternal = row[mapping.paternal_last_name]?.trim();
+            const phone = row[mapping.phone]?.replace(/\D/g, '').trim();
+
+            if (!firstName || !paternal || !phone) {
+                errorLog.push(`Fila ${rowNum}: Omitida por falta de datos obligatorios.`);
+                continue;
+            }
+
+            validChunkIndices.push(j); 
+
+            const regDate = row[mapping.registration_date] 
+                ? parseDate(row[mapping.registration_date]) 
+                : new Date().toISOString();
+
+            // LIMPIEZA DE DATOS AQUÍ
+            leadsToInsert.push({
+                first_name: toTitleCase(firstName),
+                paternal_last_name: toTitleCase(paternal),
+                maternal_last_name: row[mapping.maternal_last_name] ? toTitleCase(row[mapping.maternal_last_name].trim()) : null,
+                email: row[mapping.email] ? row[mapping.email].trim().toLowerCase() : null,
+                phone: phone,
+                program_id: findIdByName(row[mapping.program_id], licenciaturas) || defaults.program_id,
+                advisor_id: findAdvisorByName(row[mapping.advisor_id]) || defaults.advisor_id,
+                status_id: findIdByName(row[mapping.status_id], statuses) || defaults.status_id,
+                source_id: findIdByName(row[mapping.source_id], sources) || defaults.source_id,
+                registration_date: regDate, 
+            });
+        }
+
+        if (leadsToInsert.length === 0) continue;
+
+        const { data: insertedLeads, error: insertError } = await supabase
+            .from('leads')
+            .insert(leadsToInsert)
+            .select('id');
+
+        if (insertError) {
+            errorLog.push(`Error en lote ${i}-${i + chunkSize}: ${insertError.message}`);
+            continue;
+        }
+
+        if (!insertedLeads) continue;
+
+        successCount += insertedLeads.length;
+
+        const followUpsToInsert = [];
+
+        for (let k = 0; k < insertedLeads.length; k++) {
+            const leadId = insertedLeads[k].id;
+            const originalRowIndex = validChunkIndices[k];
+            const originalRow = chunk[originalRowIndex];
+
+            // Revisar par 1
+            if (originalRow[mapping.note1_text]) {
+                followUpsToInsert.push({
+                    lead_id: leadId,
+                    notes: originalRow[mapping.note1_text],
+                    date: parseDate(originalRow[mapping.note1_date]),
+                });
+            }
+            // Revisar par 2
+            if (originalRow[mapping.note2_text]) {
+                followUpsToInsert.push({
+                    lead_id: leadId,
+                    notes: originalRow[mapping.note2_text],
+                    date: parseDate(originalRow[mapping.note2_date]),
+                });
+            }
+            // Revisar par 3
+            if (originalRow[mapping.note3_text]) {
+                followUpsToInsert.push({
+                    lead_id: leadId,
+                    notes: originalRow[mapping.note3_text],
+                    date: parseDate(originalRow[mapping.note3_date]),
+                });
+            }
+        }
+
+        if (followUpsToInsert.length > 0) {
+            const { error: followUpError } = await supabase
+                .from('follow_ups')
+                .insert(followUpsToInsert);
+            
+            if (followUpError) {
+                errorLog.push(`Advertencia lote ${i}: Leads creados, pero error al guardar notas.`);
+            }
+        }
     }
 
     setResults({ success: successCount, errors: errorLog });
@@ -211,6 +328,13 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
     setCsvData([]);
     setResults({ success: 0, errors: [] });
   }
+
+  const groupedFields = DB_FIELDS.reduce((acc, field) => {
+      const group = field.group || 'Otros';
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(field);
+      return acc;
+  }, {} as Record<string, typeof DB_FIELDS>);
 
   const renderStep = () => {
     switch (step) {
@@ -252,23 +376,30 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
         return (
           <div className="space-y-5">
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm">
-                Confirma qué columna de tu CSV corresponde a cada dato del sistema.
+                Confirma qué columna de tu CSV corresponde a cada dato del sistema. Puedes importar hasta 3 notas históricas por lead.
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto p-1">
-              {DB_FIELDS.map(field => (
-                <div key={field.key} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                    {field.label} {field.required && <span className="text-red-500">*</span>}
-                  </label>
-                  <select
-                    value={mapping[field.key]}
-                    onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                    className="block w-full pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary rounded-lg"
-                  >
-                    <option value="">-- Ignorar / Automático --</option>
-                    {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                  </select>
-                </div>
+            <div className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar space-y-6">
+              {Object.entries(groupedFields).map(([groupName, fields]) => (
+                  <div key={groupName}>
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 border-b border-gray-100 pb-1">{groupName}</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {fields.map(field => (
+                            <div key={field.key} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                {field.label} {field.required && <span className="text-red-500">*</span>}
+                            </label>
+                            <select
+                                value={mapping[field.key]}
+                                onChange={(e) => handleMappingChange(field.key, e.target.value)}
+                                className="block w-full pl-3 pr-8 py-2 text-sm border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary rounded-lg"
+                            >
+                                <option value="">-- Ignorar --</option>
+                                {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            </div>
+                        ))}
+                      </div>
+                  </div>
               ))}
             </div>
             <div className="flex justify-between pt-4 border-t border-gray-100">
@@ -324,8 +455,8 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
         return (
            <div className="flex flex-col items-center justify-center py-16">
                <div className="animate-spin rounded-full h-14 w-14 border-4 border-gray-100 border-t-brand-secondary mb-6"></div>
-               <p className="text-lg font-bold text-gray-900">Procesando datos...</p>
-               <p className="text-sm text-gray-500">Por favor no cierres esta ventana.</p>
+               <p className="text-lg font-bold text-gray-900">Procesando e Historial...</p>
+               <p className="text-sm text-gray-500">Importando leads y generando bitácoras.</p>
            </div>
         );
 
@@ -338,14 +469,14 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
                    </div>
                    <h3 className="text-2xl font-bold text-gray-900">¡Importación completada!</h3>
                    <p className="text-gray-600 mt-2">
-                       Se han creado <span className="font-bold text-green-600">{results.success}</span> leads nuevos correctamente.
+                       Se han creado <span className="font-bold text-green-600">{results.success}</span> leads con su historial correspondiente.
                    </p>
                </div>
                
                {results.errors.length > 0 && (
                    <div className="bg-red-50 p-4 rounded-xl border border-red-100 max-h-48 overflow-y-auto custom-scrollbar">
                        <h4 className="text-sm font-bold text-red-800 mb-2 flex items-center gap-2">
-                           <ExclamationCircleIcon className="w-4 h-4" /> {results.errors.length} Errores encontrados:
+                           <ExclamationCircleIcon className="w-4 h-4" /> {results.errors.length} Alertas:
                        </h4>
                        <ul className="list-disc list-inside text-xs text-red-700 space-y-1 font-mono">
                            {results.errors.map((err, idx) => (
@@ -367,7 +498,7 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Importar Leads" size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Importar Leads e Historial" size="xl">
         {renderStep()}
     </Modal>
   );
