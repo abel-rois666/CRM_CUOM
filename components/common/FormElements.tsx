@@ -18,6 +18,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
         <input
           ref={ref}
+          // Agregamos title para ver el valor completo al hacer hover
+          title={props.value as string}
           className={`
             block w-full px-4 py-2.5 
             bg-gray-50 border border-gray-200 rounded-xl 
@@ -46,6 +48,9 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, options, placeholder, className = '', ...props }, ref) => {
+    // Buscamos el label de la opción seleccionada para el title
+    const selectedLabel = options.find(o => String(o.value) === String(props.value))?.label || props.value;
+
     return (
       <div className="w-full">
         {label && (
@@ -56,10 +61,12 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         <div className="relative">
             <select
             ref={ref}
+            // Title ayuda a leer el texto si el select es muy angosto
+            title={selectedLabel as string}
             className={`
                 block w-full pl-4 pr-10 py-2.5 
                 bg-gray-50 border border-gray-200 rounded-xl 
-                text-gray-900 text-sm
+                text-gray-900 text-sm text-ellipsis overflow-hidden whitespace-nowrap
                 focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary focus:bg-white
                 appearance-none transition-all duration-200 cursor-pointer
                 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed
@@ -68,7 +75,9 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             `}
             {...props}
             >
-            {placeholder && <option value="">{placeholder}</option>}
+            {/* Renderizamos el placeholder como opción deshabilitada y oculta si se selecciona algo más */}
+            {placeholder && <option value="" disabled className="text-gray-400">{placeholder}</option>}
+            
             {options.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                 {opt.label}

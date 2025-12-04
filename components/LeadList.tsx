@@ -762,20 +762,34 @@ const LeadList: React.FC<LeadListProps> = ({
                       </tr>
                       )
                   })}
-                  {paginatedLeads.length === 0 && (
-                      <tr>
-                          <td colSpan={10} className="text-center py-16">
-                              <div className="bg-gray-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                                <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
-                              </div>
-                              <p className="text-lg font-medium text-gray-900">No se encontraron leads</p>
-                              <p className="text-sm text-gray-500 mt-1">Intenta ajustar los filtros o buscar con otros términos.</p>
-                              <Button variant="ghost" className="mt-4 text-brand-secondary font-medium" onClick={() => { setSearchTerm(''); setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' }); }}>
-                                  Limpiar todos los filtros
-                              </Button>
-                          </td>
-                      </tr>
-                      )}
+{paginatedLeads.length === 0 && (
+    <tr>
+        <td colSpan={10} className="text-center py-20">
+            <div className="flex flex-col items-center justify-center animate-fade-in">
+                <div className="bg-gray-50 rounded-full w-20 h-20 flex items-center justify-center mb-4 shadow-inner">
+                    <MagnifyingGlassIcon className="w-10 h-10 text-gray-300" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">No se encontraron leads</h3>
+                <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
+                    No hay resultados que coincidan con los filtros aplicados o la búsqueda "{searchTerm}".
+                </p>
+                {(activeFilterCount > 0 || searchTerm) && (
+                    <Button 
+                        variant="secondary" 
+                        className="mt-6 border-brand-secondary text-brand-secondary hover:bg-brand-secondary/5" 
+                        onClick={() => { 
+                            setSearchTerm(''); 
+                            setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' }); 
+                            setQuickFilter(null);
+                        }}
+                    >
+                        Limpiar búsqueda y filtros
+                    </Button>
+                )}
+            </div>
+        </td>
+    </tr>
+)}
                   </tbody>
               </table>
               </div>

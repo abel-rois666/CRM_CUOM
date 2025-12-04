@@ -325,3 +325,52 @@ INSERT INTO public.statuses (name, color, category) VALUES
     ('Sin Interés', 'bg-red-500', 'lost'),
     ('Número Equivocado/Inexistente', 'bg-stone-500', 'lost')
 ON CONFLICT DO NOTHING; -- Evita errores si ya existen
+
+
+-- ==============================================================================
+-- 7. OPTIMIZACIONES Y VALIDACIONES (Agregado para validación de duplicados)
+-- ==============================================================================
+
+-- Trigger para mantener actualizada la fecha de modificación
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS update_leads_updated_at ON public.leads;
+CREATE TRIGGER update_leads_updated_at
+    BEFORE UPDATE ON public.leads
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Índices para acelerar el Dashboard y búsquedas
+CREATE INDEX IF NOT EXISTS idx_leads_status_date ON public.leads(status_id, registration_date);
+CREATE INDEX IF NOT EXISTS idx_leads_advisor_status ON public.leads(advisor_id, status_id);
+CREATE INDEX IF NOT EXISTS idx_leads_email_lower ON public.leads (lower(email));
+CREATE INDEX IF NOT EXISTS idx_leads_phone_clean ON public.leads (phone);
+CREATE INDEX IF NOT EXISTS idx_status_history_lead_date ON public.status_history(lead_id, date);
+CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_date ON public.follow_ups(lead_id, date);
+
+-- Función RPC segura para detectar duplicados desde el frontend
+CREATE OR REPLACE FUNCTION check_duplicate_lead(
+  check_email TEXT,
+  check_phone TEXT
+)
+RETURNS TABLE (id UUID, advisor_name TEXT) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    l.id, 
+    p.full_name as advisor_name
+  FROM public.leads l
+  LEFT JOIN public.profiles p ON l.advisor_id = p.id
+  WHERE 
+    (check_email IS NOT NULL AND check_email <> '' AND lower(l.email) = lower(check_email)) 
+    OR 
+    (check_phone IS NOT NULL AND check_phone <> '' AND l.phone = check_phone)
+  LIMIT 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
