@@ -8,6 +8,8 @@ import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
 import ListBulletIcon from './icons/ListBulletIcon';
 import CheckCircleIcon from './icons/CheckCircleIcon';
+// 1. IMPORTAR EL ÍCONO DE INFORMACIÓN
+import InformationCircleIcon from './icons/InformationCircleIcon';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps 
@@ -195,7 +197,9 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
-                                        <p className="text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">Citas para Hoy</p>
+                                        <div className="flex items-center gap-1 mb-2">
+                                            <p className="text-sm font-bold text-gray-600 uppercase tracking-wide">Citas para Hoy</p>
+                                        </div>
                                         <p className={`text-4xl font-black tracking-tight ${activeFilter === 'appointments_today' ? 'text-blue-700' : 'text-gray-800'}`}>
                                             {stats.appointmentsToday}
                                         </p>
@@ -207,7 +211,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                 </div>
                             </div>
 
-                            {/* Card 2: Nuevos sin Atender */}
+                            {/* Card 2: Nuevos sin Atender (CON INFO) */}
                             <div 
                                 onClick={() => handleCardClick('no_followup')}
                                 className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1
@@ -215,9 +219,20 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
-                                        <p className={`text-sm font-bold mb-2 uppercase tracking-wide ${stats.noFollowUp > 0 ? 'text-red-700' : 'text-gray-600'}`}>
-                                            Nuevos sin Atender
-                                        </p>
+                                        <div className="flex items-center gap-1 mb-2">
+                                            <p className={`text-sm font-bold uppercase tracking-wide ${stats.noFollowUp > 0 ? 'text-red-700' : 'text-gray-600'}`}>
+                                                Nuevos sin Atender
+                                            </p>
+                                            {/* ÍCONO DE INFORMACIÓN + TOOLTIP */}
+                                            <div 
+                                                className={`transition-colors ${stats.noFollowUp > 0 ? 'text-red-400 hover:text-red-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                                title="Criterio: Leads registrados hace más de 3 días que NO tienen ninguna nota de seguimiento en su historial."
+                                                onClick={(e) => e.stopPropagation()} // Evitar que el clic en el icono active el filtro
+                                            >
+                                                <InformationCircleIcon className="w-4 h-4 cursor-help" />
+                                            </div>
+                                        </div>
+                                        
                                         <p className={`text-4xl font-black tracking-tight ${stats.noFollowUp > 0 ? 'text-red-600' : 'text-gray-800'}`}>
                                             {stats.noFollowUp}
                                         </p>
@@ -232,7 +247,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                 </div>
                             </div>
 
-                            {/* Card 3: Seguimiento Vencido */}
+                            {/* Card 3: Seguimiento Vencido (CON INFO) */}
                             <div 
                                 onClick={() => handleCardClick('stale_followup')}
                                 className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1
@@ -240,9 +255,20 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
-                                        <p className={`text-sm font-bold mb-2 uppercase tracking-wide ${stats.staleFollowUp > 0 ? 'text-amber-700' : 'text-gray-600'}`}>
-                                            Seguimiento Vencido
-                                        </p>
+                                        <div className="flex items-center gap-1 mb-2">
+                                            <p className={`text-sm font-bold uppercase tracking-wide ${stats.staleFollowUp > 0 ? 'text-amber-700' : 'text-gray-600'}`}>
+                                                Seguimiento Vencido
+                                            </p>
+                                            {/* ÍCONO DE INFORMACIÓN + TOOLTIP */}
+                                            <div 
+                                                className={`transition-colors ${stats.staleFollowUp > 0 ? 'text-amber-500 hover:text-amber-700' : 'text-gray-400 hover:text-gray-600'}`}
+                                                title="Criterio: Leads con historial activo, pero cuya última nota de seguimiento fue registrada hace más de 7 días."
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <InformationCircleIcon className="w-4 h-4 cursor-help" />
+                                            </div>
+                                        </div>
+
                                         <p className={`text-4xl font-black tracking-tight ${stats.staleFollowUp > 0 ? 'text-amber-600' : 'text-gray-800'}`}>
                                             {stats.staleFollowUp}
                                         </p>
