@@ -1,3 +1,4 @@
+// components/WhatsAppModal.tsx
 import React, { useState, useEffect } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
@@ -10,17 +11,18 @@ interface WhatsAppModalProps {
   onClose: () => void;
   lead: Lead | null;
   templates: WhatsAppTemplate[];
-  initialTemplateId?: string; // Nueva prop para automatización
+  initialTemplateId?: string;
+  // CAMBIO: En lugar de currentUser, pedimos una función para avisar al padre
+  onMessageSent: (leadId: string, note: string) => void; 
 }
 
-const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, templates, initialTemplateId }) => {
+const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, templates, initialTemplateId, onMessageSent }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [message, setMessage] = useState('');
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      // Si viene una plantilla sugerida, la cargamos
       if (initialTemplateId) {
         const template = templates.find(t => t.id === initialTemplateId);
         if (template) {
@@ -30,7 +32,6 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
             return;
         }
       }
-      // Reset normal
       setSelectedTemplateId('');
       setMessage('');
       setGeneratedLink(null);
@@ -60,8 +61,13 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
   };
 
   const handleSend = () => {
-    if (generatedLink) {
+    if (generatedLink && lead) {
+      // 1. Abrir WhatsApp
       window.open(generatedLink, '_blank');
+
+      // 2. Avisar al componente padre para que guarde la nota correctamente
+      onMessageSent(lead.id, `📱 WhatsApp enviado: ${message}`);
+
       onClose();
     }
   };
@@ -71,7 +77,6 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Enviar WhatsApp" size="md">
       <div className="space-y-5">
-        {/* Info Card */}
         <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex items-center gap-3">
             <div className="bg-green-100 p-2 rounded-full text-green-600">
                 <ChatBubbleLeftRightIcon className="w-5 h-5" />
@@ -119,7 +124,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
              <div className="flex gap-2">
                 <Button onClick={() => setGeneratedLink(null)} variant="secondary">Editar</Button>
                 <Button onClick={handleSend} className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200 border-transparent focus:ring-green-500">
-                    Abrir WhatsApp
+                    Abrir y Registrar
                 </Button>
              </div>
           )}

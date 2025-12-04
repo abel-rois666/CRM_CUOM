@@ -141,7 +141,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 
         if (error) {
             console.error("Error updating user:", error);
-            toastError(`Error al actualizar: ${error.message}`);
+            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            toastError(`Error al actualizar: ${errorMessage}`);
         } else {
             onProfilesUpdate(profiles.map(p => p.id === userId ? { ...p, full_name: updates.fullName, role: updates.role } : p));
             success(`Usuario actualizado correctamente`);
@@ -158,7 +159,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 
         if (error) {
             console.error("Error deleting user:", error);
-            toastError(`Error al eliminar: ${error.message}`);
+            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            toastError(`Error al eliminar: ${errorMessage}`);
         } else {
             onProfilesUpdate(profiles.filter(p => p.id !== userToDelete.id));
             success(`Usuario eliminado correctamente`);
@@ -274,25 +276,34 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     
     const { success, error: toastError } = useToast();
 
-    // Filtramos los estados por categoría para mostrarlos ordenados
     const activeStatuses = useMemo(() => statuses.filter(s => !s.category || s.category === 'active'), [statuses]);
     const wonStatuses = useMemo(() => statuses.filter(s => s.category === 'won'), [statuses]);
     const lostStatuses = useMemo(() => statuses.filter(s => s.category === 'lost'), [statuses]);
 
-    // Lista por defecto para nuevos despliegues
     const recommendedStatuses: {name: string, color: string, category: StatusCategory}[] = [
-        { name: 'Sin Contactar', color: 'bg-gray-500', category: 'active' },
-        { name: 'Primer Contacto', color: 'bg-yellow-500', category: 'active' },
+        { name: 'Primer Contacto (Respuesta Pendiente)', color: 'bg-yellow-500', category: 'active' },
         { name: 'En Seguimiento', color: 'bg-sky-500', category: 'active' },
         { name: 'Cita en Negociación', color: 'bg-cyan-500', category: 'active' },
         { name: 'Con Cita', color: 'bg-blue-500', category: 'active' },
-        { name: 'Inscrito (a)', color: 'bg-green-500', category: 'won' },
+        { name: 'Siguiente ciclo', color: 'bg-violet-500', category: 'active' },
+        { name: 'Sin Respuesta (No hay interacción)', color: 'bg-orange-500', category: 'active' },
         { name: 'Sin Interés', color: 'bg-red-500', category: 'lost' },
+        { name: 'Fase de Cierre/Solo Solicitud', color: 'bg-lime-500', category: 'active' },
+        { name: 'Fase de Cierre/Solo Pago Parcial', color: 'bg-lime-500', category: 'active' },
+        { name: 'Fase de Cierre/Solicitud y Documentos', color: 'bg-lime-500', category: 'active' },
+        { name: 'Fase de Cierre/Solicitud y Pago Parcial', color: 'bg-emerald-500', category: 'active' },
+        { name: 'Fase de Cierre/Solicitud, Pago Parcial y Documentos', color: 'bg-emerald-500', category: 'active' },
+        { name: 'Inscrito (a)', color: 'bg-green-500', category: 'won' },
+        { name: 'Número Equivocado/Inexistente', color: 'bg-stone-500', category: 'lost' },
+        { name: 'Contactar después', color: 'bg-purple-500', category: 'active' },
+        { name: 'Sin Contactar', color: 'bg-gray-500', category: 'active' },
     ];
 
     const handleSeedStatuses = async () => {
         setSeeding(true);
+        
         const existingStatusNames = new Set(statuses.map(s => s.name.toLowerCase()));
+        
         const newStatusesToInsert = recommendedStatuses.filter(
             rec => !existingStatusNames.has(rec.name.toLowerCase())
         );
@@ -315,6 +326,7 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
             onStatusesUpdate([...statuses, ...insertedData]);
             success(`¡Se añadieron ${insertedData.length} nuevos estados!`);
         }
+        
         setSeeding(false);
     };
 
@@ -358,20 +370,29 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
             .select('id', { count: 'exact', head: true })
             .eq('status_id', status.id);
 
-        if (checkError) console.error(checkError);
+        if (checkError) {
+            console.error("Error al verificar el uso del estado:", checkError);
+        }
 
         if (count && count > 0) {
-            toastError(`No se puede eliminar. El estado "${status.name}" está en uso.`);
+            toastError(`No se puede eliminar. El estado "${status.name}" está asignado a ${count} lead(s).`);
             return;
         }
+
         setStatusToDelete(status);
     }
 
     const handleConfirmDelete = async () => {
         if (!statusToDelete) return;
+
         const { error } = await supabase.from('statuses').delete().eq('id', statusToDelete.id);
         if(error) { 
-             toastError(`Error al eliminar estado: ${error.message}`);
+             if (error.code === '23503') {
+                toastError(`No se puede eliminar "${statusToDelete.name}" porque está en uso.`);
+            } else {
+                toastError(`Error al eliminar estado: ${error.message}`);
+            }
+            console.error(error); 
         } else {
             onStatusesUpdate(statuses.filter(s => s.id !== statusToDelete.id));
             success("Estado eliminado");
@@ -379,7 +400,14 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         }
     }
 
-    // COMPONENTE HELPER PARA LISTAR ESTADOS
+    const getCategoryLabel = (cat: StatusCategory) => {
+        switch(cat) {
+            case 'won': return 'Inscritos (Ganados)';
+            case 'lost': return 'Bajas (Perdidos)';
+            default: return 'En Proceso (Activos)';
+        }
+    };
+
     const StatusListGroup = ({ title, list, titleColor }: {title: string, list: Status[], titleColor: string}) => (
         <div className="mb-6">
             <h5 className={`text-xs font-bold uppercase tracking-wider mb-3 pb-1 border-b border-gray-100 ${titleColor}`}>
@@ -424,7 +452,6 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
                 </div>
             )}
 
-            {/* FORMULARIO DE CREACIÓN / EDICIÓN */}
             <div className={`space-y-4 border-2 rounded-xl p-5 shadow-sm transition-colors ${statusToEdit ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-100'}`}>
                 <h4 className={`font-bold ${statusToEdit ? 'text-blue-800' : 'text-gray-800'}`}>
                     {statusToEdit ? `Editando: ${statusToEdit.name}` : 'Añadir Nuevo Estado'}
@@ -464,7 +491,6 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
                 </div>
             </div>
             
-            {/* LISTA AGRUPADA VISUALMENTE */}
             <div className="mt-8 pt-4 border-t border-gray-100 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                 <StatusListGroup title="En Proceso (Activos)" list={activeStatuses} titleColor="text-brand-secondary" />
                 <StatusListGroup title="Inscritos (Ganados)" list={wonStatuses} titleColor="text-green-600" />
@@ -585,23 +611,57 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
     );
 }
 
+// COMPONENTE ACTUALIZADO PARA LICENCIATURAS (OFERTA ACADÉMICA)
 const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void }> = ({ licenciaturas, onLicenciaturasUpdate }) => {
     const [name, setName] = useState('');
     const [licenciaturaToDelete, setLicenciaturaToDelete] = useState<Licenciatura | null>(null);
+    const [licenciaturaToEdit, setLicenciaturaToEdit] = useState<Licenciatura | null>(null); // ESTADO DE EDICIÓN
     const { success, error: toastError } = useToast();
 
-    const handleAdd = async () => {
-        if (name.trim()) {
+    // FUNCIÓN UNIFICADA PARA GUARDAR (CREAR O ACTUALIZAR)
+    const handleSave = async () => {
+        if (!name.trim()) return;
+
+        if (licenciaturaToEdit) {
+            // ACTUALIZAR
+            const { data, error } = await supabase
+                .from('licenciaturas')
+                .update({ name: name.trim() })
+                .eq('id', licenciaturaToEdit.id)
+                .select()
+                .single();
+
+            if (error) {
+                console.error(error);
+                toastError("Error al actualizar oferta académica");
+            } else {
+                onLicenciaturasUpdate(licenciaturas.map(l => l.id === licenciaturaToEdit.id ? data : l));
+                success("Oferta académica actualizada");
+                setLicenciaturaToEdit(null);
+                setName('');
+            }
+        } else {
+            // CREAR (Lógica original)
             const { data, error } = await supabase.from('licenciaturas').insert({ name: name.trim() }).select().single();
             if (error) { 
                 console.error(error); 
-                toastError("Error al crear licenciatura");
+                toastError("Error al crear oferta académica");
                 return; 
             }
             onLicenciaturasUpdate([...licenciaturas, data]);
-            success("Licenciatura creada");
+            success("Oferta académica creada");
             setName('');
         }
+    };
+
+    const handleEditClick = (lic: Licenciatura) => {
+        setLicenciaturaToEdit(lic);
+        setName(lic.name);
+    };
+
+    const handleCancelEdit = () => {
+        setLicenciaturaToEdit(null);
+        setName('');
     };
     
     const handleVerifyAndDelete = async (lic: Licenciatura) => {
@@ -628,54 +688,87 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
             if (error.code === '23503') {
                 toastError(`No se puede eliminar "${licenciaturaToDelete.name}" porque está en uso.`);
             } else {
-                toastError(`Error al eliminar licenciatura: ${error.message}`);
+                toastError(`Error al eliminar oferta académica: ${error.message}`);
             }
             console.error(error); 
         } else {
             onLicenciaturasUpdate(licenciaturas.filter(s => s.id !== licenciaturaToDelete.id));
-            success("Licenciatura eliminada");
+            success("Oferta académica eliminada");
             setLicenciaturaToDelete(null);
         }
     };
 
     return (
         <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Licenciaturas</h3>
-            <div className="space-y-4">
-                <h4 className="font-semibold text-gray-700">Añadir Nueva Licenciatura</h4>
+            {/* TÍTULO ACTUALIZADO */}
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Oferta Académica</h3>
+            
+            <div className={`space-y-4 border p-4 rounded-lg ${licenciaturaToEdit ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
+                {/* SUBTÍTULO DINÁMICO */}
+                <h4 className={`font-semibold ${licenciaturaToEdit ? 'text-blue-800' : 'text-gray-700'}`}>
+                    {licenciaturaToEdit ? `Editando: ${licenciaturaToEdit.name}` : 'Añadir Nueva Oferta Académica'}
+                </h4>
+                
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nombre de la Licenciatura" className="w-full px-3 py-2 border border-gray-300 rounded-md" />
-                    <Button onClick={handleAdd} size="sm" leftIcon={<PlusIcon className="w-4 h-4"/>}>Añadir Licenciatura</Button>
+                    <input 
+                        type="text" 
+                        value={name} 
+                        onChange={e => setName(e.target.value)} 
+                        placeholder="Nombre de la Licenciatura / Programa" 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md" 
+                    />
+                    <div className="flex gap-2">
+                         {licenciaturaToEdit && (
+                            <Button variant="ghost" onClick={handleCancelEdit}>Cancelar</Button>
+                        )}
+                        <Button 
+                            onClick={handleSave} 
+                            size="sm" 
+                            leftIcon={!licenciaturaToEdit ? <PlusIcon className="w-4 h-4"/> : undefined}
+                            className={licenciaturaToEdit ? "shadow-blue-200" : ""}
+                        >
+                            {licenciaturaToEdit ? 'Actualizar' : 'Añadir Oferta'}
+                        </Button>
+                    </div>
                 </div>
-                <hr className="my-4"/>
-                <h4 className="font-semibold text-gray-700">Licenciaturas Actuales</h4>
-                <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                    {licenciaturas.map(lic => (
-                        <li key={lic.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
-                            <span>{lic.name}</span>
-                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(lic)}>
+            </div>
+
+            <hr className="my-4"/>
+            
+            {/* TÍTULO LISTA ACTUALIZADO */}
+            <h4 className="font-semibold text-gray-700">Oferta Académica Actual</h4>
+            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                {licenciaturas.map(lic => (
+                    <li key={lic.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors">
+                        <span>{lic.name}</span>
+                        <div className="flex gap-1">
+                            {/* BOTÓN DE EDICIÓN AÑADIDO */}
+                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(lic)} title="Editar Nombre">
+                                <EditIcon className="w-4 h-4 text-blue-500"/>
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(lic)} title="Eliminar">
                                 <TrashIcon className="w-4 h-4 text-red-500"/>
                             </Button>
-                        </li>
-                    ))}
-                </ul>
+                        </div>
+                    </li>
+                ))}
+            </ul>
 
-                <ConfirmationModal
-                    isOpen={!!licenciaturaToDelete}
-                    onClose={() => setLicenciaturaToDelete(null)}
-                    onConfirm={handleConfirmDelete}
-                    title="¿Eliminar Licenciatura?"
-                    message={
-                        <>
-                            Se eliminará la licenciatura <strong>{licenciaturaToDelete?.name}</strong> del catálogo.
-                            <br /><br />
-                            <span className="text-red-600 font-bold">Esta acción es permanente.</span>
-                        </>
-                    }
-                    confirmButtonText="Eliminar"
-                    confirmButtonVariant="danger"
-                />
-            </div>
+            <ConfirmationModal
+                isOpen={!!licenciaturaToDelete}
+                onClose={() => setLicenciaturaToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="¿Eliminar Oferta Académica?"
+                message={
+                    <>
+                        Se eliminará <strong>{licenciaturaToDelete?.name}</strong> del catálogo.
+                        <br /><br />
+                        <span className="text-red-600 font-bold">Esta acción es permanente.</span>
+                    </>
+                }
+                confirmButtonText="Eliminar"
+                confirmButtonVariant="danger"
+            />
         </div>
     );
 }
@@ -1164,10 +1257,12 @@ const LoginHistorySettings: React.FC = () => {
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Historial de Accesos</h3>
             
+            {/* FIX CRÍTICO: 'overflow-x-auto' habilita el scroll horizontal en móviles */}
             <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
+                            {/* 'whitespace-nowrap' fuerza a que la tabla se anche en lugar de aplastarse */}
                             <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Usuario</th>
                             <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Fecha y Hora</th>
                             <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Dispositivo</th>
@@ -1205,16 +1300,16 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
   const [activeTab, setActiveTab] = useState<string>('');
 
   const allTabs = useMemo(() => [
-    { id: 'users', label: 'Usuarios', icon: <UserIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
-    { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
-    { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
-    { id: 'licenciaturas', label: 'Licenciaturas', icon: <AcademicCapIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
+    { id: 'users', label: 'Usuarios', icon: <UserIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+    { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+    { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+    { id: 'licenciaturas', label: 'Oferta Académica', icon: <AcademicCapIcon className="w-6 h-6 flex-shrink-0" />, allowedRoles: ['admin'] }, // Actualizado nombre y tamaño icono
     
     // Plantillas visibles para todos los roles con permisos de gestión
-    { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
-    { id: 'email', label: 'Plantillas Email', icon: <EnvelopeIcon className="w-5 h-5" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
+    { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
+    { id: 'email', label: 'Plantillas Email', icon: <EnvelopeIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
     
-    { id: 'audit', label: 'Historial de Accesos', icon: <ArrowUpTrayIcon className="w-5 h-5" />, allowedRoles: ['admin'] },
+    { id: 'audit', label: 'Historial de Accesos', icon: <ArrowUpTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
   ], []);
 
   const visibleTabs = useMemo(() => {

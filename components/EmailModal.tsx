@@ -11,15 +11,16 @@ interface EmailModalProps {
   onClose: () => void;
   lead: Lead;
   templates: EmailTemplate[];
-  initialTemplateId?: string; // Nueva prop opcional
+  initialTemplateId?: string;
+  // CAMBIO: Función callback
+  onMessageSent: (leadId: string, note: string) => void; 
 }
 
-const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, templates, initialTemplateId }) => {
+const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, templates, initialTemplateId, onMessageSent }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
 
-  // Efecto para cargar la plantilla inicial o resetear
   useEffect(() => {
     if (isOpen) {
       if (initialTemplateId) {
@@ -28,15 +29,14 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
             setSelectedTemplateId(template.id);
             setSubject(template.subject);
             setBody(template.body);
-            return; // Salimos para no limpiar
+            return;
         }
       }
-      // Default reset
       setSelectedTemplateId('');
       setSubject('');
       setBody('');
     }
-  }, [isOpen, initialTemplateId, templates]); // Dependencias clave
+  }, [isOpen, initialTemplateId, templates]);
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
@@ -58,9 +58,15 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
 
   const handleOpenMailClient = () => {
     if (!lead.email) return;
+    
+    // 1. Abrir Correo
     const plainBody = stripHtml(body);
     const mailtoLink = `mailto:${lead.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
     window.open(mailtoLink, '_blank');
+
+    // 2. Avisar al padre para registrar nota
+    onMessageSent(lead.id, `✉️ Correo enviado: ${subject}`);
+
     onClose();
   };
 
@@ -110,7 +116,7 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
                     disabled={!lead.email || !subject || !body}
                     leftIcon={<EnvelopeIcon className="w-5 h-5" />}
                 >
-                    Abrir Correo
+                    Abrir y Registrar
                 </Button>
             </div>
         </div>

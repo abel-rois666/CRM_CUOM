@@ -302,3 +302,26 @@ CREATE INDEX IF NOT EXISTS idx_leads_registration_date ON public.leads(registrat
 CREATE INDEX IF NOT EXISTS idx_appointments_lead ON public.appointments(lead_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_date ON public.appointments(date);
 CREATE INDEX IF NOT EXISTS idx_followups_lead ON public.follow_ups(lead_id);
+
+-- 6. DATOS PRECARGADOS (OPCIONAL - SEEDING)
+-- ==============================================================================
+
+-- Insertar estados predefinidos con sus categorías correctas
+INSERT INTO public.statuses (name, color, category) VALUES
+    ('Sin Contactar', 'bg-gray-500', 'active'),
+    ('Primer Contacto (Respuesta Pendiente)', 'bg-yellow-500', 'active'),
+    ('En Seguimiento', 'bg-sky-500', 'active'),
+    ('Cita en Negociación', 'bg-cyan-500', 'active'),
+    ('Con Cita', 'bg-blue-500', 'active'),
+    ('Siguiente ciclo', 'bg-violet-500', 'active'),
+    ('Fase de Cierre/Solo Solicitud', 'bg-lime-500', 'active'),
+    ('Fase de Cierre/Solo Pago Parcial', 'bg-lime-500', 'active'),
+    ('Fase de Cierre/Solicitud y Documentos', 'bg-lime-500', 'active'),
+    ('Fase de Cierre/Solicitud y Pago Parcial', 'bg-emerald-500', 'active'),
+    ('Fase de Cierre/Solicitud, Pago Parcial y Documentos', 'bg-emerald-500', 'active'),
+    ('Contactar después', 'bg-purple-500', 'active'),
+    ('Inscrito (a)', 'bg-green-500', 'won'),
+    ('Sin Respuesta (No hay interacción)', 'bg-orange-500', 'lost'),
+    ('Sin Interés', 'bg-red-500', 'lost'),
+    ('Número Equivocado/Inexistente', 'bg-stone-500', 'lost')
+ON CONFLICT DO NOTHING; -- Evita errores si ya existen

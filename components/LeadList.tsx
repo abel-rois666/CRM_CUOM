@@ -1,6 +1,6 @@
 // components/LeadList.tsx
 import React, { useState, useMemo, useEffect } from 'react';
-import { Lead, Profile, Status, Licenciatura, StatusCategory } from '../types';
+import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate } from '../types';
 import Button from './common/Button';
 import Badge from './common/Badge';
 import ConfirmationModal from './common/ConfirmationModal';
@@ -35,6 +35,7 @@ import BulkTransferModal from './BulkTransferModal';
 import TransferIcon from './icons/TransferIcon';
 import TagIcon from './icons/TagIcon';
 import { supabase } from '../lib/supabase';
+import BulkMessageModal from './BulkMessageModal';
 
 interface LeadListProps {
   loading: boolean;
@@ -42,6 +43,8 @@ interface LeadListProps {
   advisors: Profile[];
   statuses: Status[];
   licenciaturas: Licenciatura[];
+  whatsappTemplates: WhatsAppTemplate[];
+  emailTemplates: EmailTemplate[];
   onAddNew: () => void;
   onEdit: (lead: Lead) => void;
   onDelete: (leadId: string) => void;
@@ -53,7 +56,6 @@ interface LeadListProps {
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
   userRole?: 'admin' | 'advisor' | 'moderator';
   onRefresh?: () => void;
-  // NUEVA PROP
   onLocalDeleteMany?: (ids: string[]) => void;
 }
 
@@ -67,6 +69,7 @@ const normalizeText = (text: string) => {
 
 const LeadList: React.FC<LeadListProps> = ({ 
   loading, leads, advisors, statuses, licenciaturas, 
+  whatsappTemplates, emailTemplates,
   onAddNew, onEdit, onDelete, onViewDetails, 
   onOpenReports, onOpenImport, onOpenWhatsApp, 
   onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany 
@@ -77,15 +80,17 @@ const LeadList: React.FC<LeadListProps> = ({
   const [isBulkTransferOpen, setIsBulkTransferOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
-  
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
-
+  
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const [isBulkStatusOpen, setIsBulkStatusOpen] = useState(false);
   const [bulkTargetStatus, setBulkTargetStatus] = useState<string>('');
   const [processingBulk, setProcessingBulk] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
+  
+  const [isBulkMessageOpen, setIsBulkMessageOpen] = useState(false);
+  const [bulkMessageMode, setBulkMessageMode] = useState<'whatsapp' | 'email'>('whatsapp');
 
   const [filters, setFilters] = useState<FilterState>({
     advisorId: 'all',
@@ -115,35 +120,33 @@ const LeadList: React.FC<LeadListProps> = ({
   }, [filters]);
 
   const getLeadUrgency = (lead: Lead) => {
-    const status = statusMap.get(lead.status_id);
-    if (status?.category !== 'active') return 0;
+      const status = statusMap.get(lead.status_id);
+      if (status?.category !== 'active') return 0;
 
-    if(lead.appointments?.some(a => a.status === 'scheduled')) {
-        const activeAppt = lead.appointments.find(a => a.status === 'scheduled');
-        if(activeAppt) {
-            const apptDate = new Date(activeAppt.date);
-            const now = new Date();
-            const hoursDiff = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-            if(hoursDiff > 0 && hoursDiff <= 48) return 3; 
-            return 1; 
-        }
-    }
+      if(lead.appointments?.some(a => a.status === 'scheduled')) {
+          const activeAppt = lead.appointments.find(a => a.status === 'scheduled');
+          if(activeAppt) {
+              const apptDate = new Date(activeAppt.date);
+              const now = new Date();
+              const hoursDiff = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+              if(hoursDiff > 0 && hoursDiff <= 48) return 3; 
+              return 1; 
+          }
+      }
 
-    const regDate = new Date(lead.registration_date);
-    const now = new Date();
-    const daysSinceReg = (now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24);
-    
-    if ((!lead.follow_ups || lead.follow_ups.length === 0) && daysSinceReg > 3) {
-        return 2; 
-    }
+      const regDate = new Date(lead.registration_date);
+      const now = new Date();
+      const daysSinceReg = (now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24);
+      
+      if ((!lead.follow_ups || lead.follow_ups.length === 0) && daysSinceReg > 3) return 2; 
 
-    if (lead.follow_ups && lead.follow_ups.length > 0) {
-        const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-        const daysSinceFollowUp = (now.getTime() - new Date(lastFollowUp.date).getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSinceFollowUp > 7) return 2; 
-    }
+      if (lead.follow_ups && lead.follow_ups.length > 0) {
+          const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+          const daysSinceFollowUp = (now.getTime() - new Date(lastFollowUp.date).getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSinceFollowUp > 7) return 2; 
+      }
 
-    return 0; 
+      return 0; 
   };
 
   useEffect(() => {
@@ -160,103 +163,98 @@ const LeadList: React.FC<LeadListProps> = ({
   };
 
   const filteredAndSortedLeads = useMemo(() => {
-    const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : null;
-    const end = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : null;
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : null;
+      const end = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : null;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const normalizedSearchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
+      const normalizedSearchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
 
-    return leads.filter(lead => {
-        const status = statusMap.get(lead.status_id);
-        const category = status ? status.category : 'active';
-        if (category !== activeCategoryTab) return false;
+      return leads.filter(lead => {
+          const status = statusMap.get(lead.status_id);
+          const category = status ? status.category : 'active';
+          if (category !== activeCategoryTab) return false;
 
-        if (filters.advisorId !== 'all' && lead.advisor_id !== filters.advisorId) return false;
-        if (filters.statusId !== 'all' && lead.status_id !== filters.statusId) return false;
-        if (filters.programId !== 'all' && lead.program_id !== filters.programId) return false;
+          if (filters.advisorId !== 'all' && lead.advisor_id !== filters.advisorId) return false;
+          if (filters.statusId !== 'all' && lead.status_id !== filters.statusId) return false;
+          if (filters.programId !== 'all' && lead.program_id !== filters.programId) return false;
 
-        const regDate = new Date(lead.registration_date);
-        if (start && regDate < start) return false;
-        if (end && regDate > end) return false;
+          const regDate = new Date(lead.registration_date);
+          if (start && regDate < start) return false;
+          if (end && regDate > end) return false;
 
-        if (quickFilter) {
-            if (quickFilter === 'appointments_today') {
-                const hasAppt = lead.appointments?.some(appt => {
-                    const apptDate = new Date(appt.date);
-                    apptDate.setHours(0,0,0,0);
-                    return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
-                });
-                if (!hasAppt) return false;
-            }
-            if (quickFilter === 'no_followup') {
-                 const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
-                 if (!(hasNoFollowUps && regDate < threeDaysAgo)) return false;
-            }
-            if (quickFilter === 'stale_followup') {
-                if (!lead.follow_ups || lead.follow_ups.length === 0) return false;
-                const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                const lastDate = new Date(lastFollowUp.date);
-                if (!(lastDate < sevenDaysAgo)) return false;
-            }
+          if (quickFilter) {
+              if (quickFilter === 'appointments_today') {
+                  const hasAppt = lead.appointments?.some(appt => {
+                      const apptDate = new Date(appt.date);
+                      apptDate.setHours(0,0,0,0);
+                      return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
+                  });
+                  if (!hasAppt) return false;
+              }
+              if (quickFilter === 'no_followup') {
+                   const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
+                   if (!(hasNoFollowUps && regDate < threeDaysAgo)) return false;
+              }
+              if (quickFilter === 'stale_followup') {
+                  if (!lead.follow_ups || lead.follow_ups.length === 0) return false;
+                  const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                  const lastDate = new Date(lastFollowUp.date);
+                  if (!(lastDate < sevenDaysAgo)) return false;
+              }
+          }
+
+          if (normalizedSearchTerms.length > 0) {
+              const leadFullName = normalizeText(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`);
+              const leadEmail = normalizeText(lead.email || '');
+              const leadPhone = lead.phone;
+              const leadProgram = normalizeText(licenciaturaMap.get(lead.program_id) || '');
+              const leadStatus = normalizeText(statusMap.get(lead.status_id)?.name || '');
+              const leadAdvisor = normalizeText(advisorMap.get(lead.advisor_id) || '');
+              const searchableText = `${leadFullName} ${leadEmail} ${leadPhone} ${leadProgram} ${leadStatus} ${leadAdvisor}`;
+              if (!normalizedSearchTerms.every(term => searchableText.includes(term))) return false;
+          }
+          return true;
+      }).sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+        if (sortColumn === 'urgency') {
+            valA = getLeadUrgency(a);
+            valB = getLeadUrgency(b);
+            return sortDirection === 'asc' ? valA - valB : valB - valA;
         }
-
-        if (normalizedSearchTerms.length > 0) {
-            const leadFullName = normalizeText(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`);
-            const leadEmail = normalizeText(lead.email || '');
-            const leadPhone = lead.phone;
-            const leadProgram = normalizeText(licenciaturaMap.get(lead.program_id) || '');
-            const leadStatus = normalizeText(statusMap.get(lead.status_id)?.name || '');
-            const leadAdvisor = normalizeText(advisorMap.get(lead.advisor_id) || '');
-            
-            const searchableText = `${leadFullName} ${leadEmail} ${leadPhone} ${leadProgram} ${leadStatus} ${leadAdvisor}`;
-            if (!normalizedSearchTerms.every(term => searchableText.includes(term))) return false;
-        }
-
-        return true;
-    }).sort((a, b) => {
-      let valA: string | number;
-      let valB: string | number;
-
-      if (sortColumn === 'urgency') {
-          valA = getLeadUrgency(a);
-          valB = getLeadUrgency(b);
-          return sortDirection === 'asc' ? valA - valB : valB - valA;
-      }
-
-      switch (sortColumn) {
-        case 'name':
-          valA = `${a.first_name} ${a.paternal_last_name}`.toLowerCase();
-          valB = `${b.first_name} ${b.paternal_last_name}`.toLowerCase();
-          break;
-        case 'advisor_id':
-          valA = advisorMap.get(a.advisor_id)?.toLowerCase() || '';
-          valB = advisorMap.get(b.advisor_id)?.toLowerCase() || '';
-          break;
-        case 'status_id':
-          valA = statusMap.get(a.status_id)?.name.toLowerCase() || '';
-          valB = statusMap.get(b.status_id)?.name.toLowerCase() || '';
-          break;
-        case 'program_id':
-            valA = licenciaturaMap.get(a.program_id)?.toLowerCase() || '';
-            valB = licenciaturaMap.get(b.program_id)?.toLowerCase() || '';
+        switch (sortColumn) {
+          case 'name':
+            valA = `${a.first_name} ${a.paternal_last_name}`.toLowerCase();
+            valB = `${b.first_name} ${b.paternal_last_name}`.toLowerCase();
             break;
-        case 'registration_date':
-          valA = new Date(a.registration_date).getTime();
-          valB = new Date(b.registration_date).getTime();
-          break;
-        default:
-          return 0;
-      }
-      
-      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
+          case 'advisor_id':
+            valA = advisorMap.get(a.advisor_id)?.toLowerCase() || '';
+            valB = advisorMap.get(b.advisor_id)?.toLowerCase() || '';
+            break;
+          case 'status_id':
+            valA = statusMap.get(a.status_id)?.name.toLowerCase() || '';
+            valB = statusMap.get(b.status_id)?.name.toLowerCase() || '';
+            break;
+          case 'program_id':
+              valA = licenciaturaMap.get(a.program_id)?.toLowerCase() || '';
+              valB = licenciaturaMap.get(b.program_id)?.toLowerCase() || '';
+              break;
+          case 'registration_date':
+            valA = new Date(a.registration_date).getTime();
+            valB = new Date(b.registration_date).getTime();
+            break;
+          default:
+            return 0;
+        }
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
 
   }, [leads, filters, searchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter, activeCategoryTab]);
   
@@ -269,12 +267,9 @@ const LeadList: React.FC<LeadListProps> = ({
     return filteredAndSortedLeads.slice(startIndex, startIndex + itemsPerPage);
   }, [currentPage, itemsPerPage, filteredAndSortedLeads, viewMode]);
 
-  // --- LÓGICA DE SELECCIÓN (SOLO PÁGINA ACTUAL) ---
-
   const handleSelectAll = () => {
       const allPageSelected = paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedIds.has(lead.id));
       const newSelected = new Set(selectedIds);
-      
       if (allPageSelected) {
           paginatedLeads.forEach(lead => newSelected.delete(lead.id));
       } else {
@@ -290,7 +285,7 @@ const LeadList: React.FC<LeadListProps> = ({
       setSelectedIds(newSet);
   };
 
-  // --- ACCIONES MASIVAS (HARD DELETE con Optimistic UI) ---
+  // --- ACCIONES MASIVAS ---
 
   const executeBulkDelete = async () => {
       setProcessingBulk(true);
@@ -303,7 +298,7 @@ const LeadList: React.FC<LeadListProps> = ({
           const chunk = ids.slice(i, i + BATCH_SIZE);
           const { error } = await supabase
               .from('leads')
-              .delete() // Hard Delete
+              .delete()
               .in('id', chunk);
           
           if (error) {
@@ -315,15 +310,8 @@ const LeadList: React.FC<LeadListProps> = ({
       }
       
       if (!errorOccurred) {
-          // 1. Actualización Optimista (Instantánea)
-          if (onLocalDeleteMany) {
-              onLocalDeleteMany(ids);
-          }
-          
-          // 2. Refresco en segundo plano
+          if (onLocalDeleteMany) onLocalDeleteMany(ids);
           if (onRefresh) onRefresh();
-
-          // 3. Limpieza
           setSelectedIds(new Set());
           setIsBulkDeleteOpen(false);
       }
@@ -341,7 +329,6 @@ const LeadList: React.FC<LeadListProps> = ({
 
       for (let i = 0; i < ids.length; i += BATCH_SIZE) {
           const chunk = ids.slice(i, i + BATCH_SIZE);
-
           const { error: updateError } = await supabase
               .from('leads')
               .update({ status_id: bulkTargetStatus })
@@ -404,24 +391,80 @@ const LeadList: React.FC<LeadListProps> = ({
     return stringField;
   };
 
+  // --- EXPORTACIÓN AVANZADA (Columnas Separadas) ---
   const handleExportCSV = () => {
-    const headers = ['Nombre Completo', 'Email', 'Teléfono', 'Asesor', 'Estado', 'Licenciatura', 'Fecha Registro'];
-    const rows = filteredAndSortedLeads.map(lead => [
-        escapeCsvField(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim()),
-        escapeCsvField(lead.email),
-        escapeCsvField(lead.phone),
-        escapeCsvField(advisorMap.get(lead.advisor_id)),
-        escapeCsvField(statusMap.get(lead.status_id)?.name),
-        escapeCsvField(licenciaturaMap.get(lead.program_id)),
-        escapeCsvField(new Date(lead.registration_date).toLocaleDateString())
-    ].join(','));
+    // 1. Calcular máximos para generar columnas dinámicas
+    const maxNotes = filteredAndSortedLeads.reduce((max, lead) => Math.max(max, lead.follow_ups?.length || 0), 0);
+    const maxAppts = filteredAndSortedLeads.reduce((max, lead) => Math.max(max, lead.appointments?.length || 0), 0);
+
+    // 2. Generar Cabeceras Dinámicas
+    let headers = ['Nombre Completo', 'Email', 'Teléfono', 'Asesor', 'Estado', 'Licenciatura', 'Fecha Registro'];
+    
+    for (let i = 1; i <= maxNotes; i++) {
+        headers.push(`Fecha Nota ${i}`, `Nota ${i}`);
+    }
+    for (let i = 1; i <= maxAppts; i++) {
+        headers.push(`Fecha Cita ${i}`, `Detalle Cita ${i}`);
+    }
+
+    // 3. Generar Filas
+    const rows = filteredAndSortedLeads.map(lead => {
+        const baseData = [
+            escapeCsvField(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim()),
+            escapeCsvField(lead.email),
+            escapeCsvField(lead.phone),
+            escapeCsvField(advisorMap.get(lead.advisor_id)),
+            escapeCsvField(statusMap.get(lead.status_id)?.name),
+            escapeCsvField(licenciaturaMap.get(lead.program_id)),
+            escapeCsvField(new Date(lead.registration_date).toLocaleDateString())
+        ];
+
+        // Procesar Notas (Ordenadas por fecha descendente: la 1 es la más reciente)
+        const sortedNotes = lead.follow_ups 
+            ? [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            : [];
+        
+        const noteCols: string[] = [];
+        for (let i = 0; i < maxNotes; i++) {
+            if (i < sortedNotes.length) {
+                const note = sortedNotes[i];
+                noteCols.push(
+                    escapeCsvField(new Date(note.date).toLocaleDateString()),
+                    escapeCsvField(note.notes)
+                );
+            } else {
+                noteCols.push('""', '""'); // Celdas vacías si no tiene esa nota
+            }
+        }
+
+        // Procesar Citas (Ordenadas por fecha descendente)
+        const sortedAppts = lead.appointments
+            ? [...lead.appointments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            : [];
+
+        const apptCols: string[] = [];
+        for (let i = 0; i < maxAppts; i++) {
+             if (i < sortedAppts.length) {
+                const appt = sortedAppts[i];
+                const apptDetails = `${appt.title} (${appt.status}) - ${appt.details || ''}`;
+                apptCols.push(
+                    escapeCsvField(new Date(appt.date).toLocaleString()),
+                    escapeCsvField(apptDetails)
+                );
+            } else {
+                apptCols.push('""', '""');
+            }
+        }
+
+        return [...baseData, ...noteCols, ...apptCols].join(',');
+    });
     
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `leads_completo_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     setTimeout(() => { document.body.removeChild(link); window.URL.revokeObjectURL(url); }, 100);
@@ -820,6 +863,27 @@ const LeadList: React.FC<LeadListProps> = ({
                   Eliminar
               </button>
 
+              {/* BOTONES SEPARADOS PARA MENSAJES */}
+              <button 
+                  onClick={() => {
+                      setBulkMessageMode('whatsapp');
+                      setIsBulkMessageOpen(true);
+                  }}
+                  className="flex items-center gap-2 text-sm font-bold text-green-600 hover:text-green-800 transition-colors"
+              >
+                  <ChatBubbleLeftRightIcon className="w-5 h-5"/> WhatsApp
+              </button>
+
+              <button 
+                  onClick={() => {
+                      setBulkMessageMode('email');
+                      setIsBulkMessageOpen(true);
+                  }}
+                  className="flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                  <EnvelopeIcon className="w-5 h-5"/> Correo
+              </button>
+
               <div className="h-6 w-px bg-gray-200"></div>
 
               <button 
@@ -833,7 +897,7 @@ const LeadList: React.FC<LeadListProps> = ({
 
       {/* MODALES DE ACCIÓN MASIVA */}
       
-      {/* 1. Modal Confirmación Borrado Masivo (HARD DELETE) */}
+      {/* 1. Modal Confirmación Borrado Masivo */}
       <ConfirmationModal
         isOpen={isBulkDeleteOpen}
         onClose={() => setIsBulkDeleteOpen(false)}
@@ -888,6 +952,19 @@ const LeadList: React.FC<LeadListProps> = ({
           </div>
       </Modal>
 
+      {/* 3. Modal Mensaje Masivo */}
+      <BulkMessageModal
+        isOpen={isBulkMessageOpen}
+        onClose={() => setIsBulkMessageOpen(false)}
+        mode={bulkMessageMode}
+        leads={leads.filter(l => selectedIds.has(l.id))}
+        whatsappTemplates={whatsappTemplates}
+        emailTemplates={emailTemplates}
+        onComplete={() => {
+             // Opcional
+        }}
+      />
+
       <FilterDrawer 
         isOpen={isFilterDrawerOpen} 
         onClose={() => setIsFilterDrawerOpen(false)}
@@ -899,7 +976,7 @@ const LeadList: React.FC<LeadListProps> = ({
         onClearFilters={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
       />
 
-      {/* Modal Eliminación Individual (HARD DELETE) */}
+      {/* Modal Eliminación Individual */}
       <ConfirmationModal
         isOpen={!!leadToDelete}
         onClose={() => setLeadToDelete(null)}

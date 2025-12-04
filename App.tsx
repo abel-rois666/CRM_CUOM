@@ -42,8 +42,8 @@ const AppContent: React.FC = () => {
     updateLocalLead,
     addLocalLead,
     removeLocalLead,
-    removeManyLocalLeads, // <--- NUEVA FUNCIÓN DESDE EL HOOK
-    refetch 
+    removeManyLocalLeads,
+    refetch
   } = useCRMData(session, profile?.role, profile?.id);
 
   // Estados de UI
@@ -67,8 +67,10 @@ const AppContent: React.FC = () => {
   const [initialEmailTemplateId, setInitialEmailTemplateId] = useState<string | undefined>(undefined);
   const [initialWhatsAppTemplateId, setInitialWhatsAppTemplateId] = useState<string | undefined>(undefined);
 
-  // Filtro de Personal (Asesores + Moderadores)
-  const assignableStaff = profiles.filter(p => p.role === 'advisor' || p.role === 'moderator');
+  // Filtro de Personal (Asesores + Moderadores + Admin)
+  const assignableStaff = profiles.filter(p => 
+      p.role === 'advisor' || p.role === 'moderator' || p.role === 'admin'
+  );
 
   if (authLoading) return <LeadListSkeleton />;
   if (!session) return <LoginPage />;
@@ -141,11 +143,8 @@ const AppContent: React.FC = () => {
   // --- CRUD HANDLERS ---
 
   const handleDelete = async (leadId: string) => {
-       // HARD DELETE (Borrado físico)
-       const { error } = await supabase
-           .from('leads')
-           .delete()
-           .eq('id', leadId);
+       // HARD DELETE (Según configuración actual de BD)
+       const { error } = await supabase.from('leads').delete().eq('id', leadId);
 
        if (error) {
          toastError("Error al eliminar el lead.");
@@ -300,6 +299,7 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // Función central para añadir notas (usada por modales y manual)
   const handleAddFollowUp = async (leadId: string, followUp: Omit<FollowUp, 'id' | 'lead_id'>) => {
     const { data, error } = await supabase.from('follow_ups').insert({ 
         ...followUp, 
@@ -311,13 +311,21 @@ const AppContent: React.FC = () => {
 
     const l = leads.find(l => l.id === leadId);
     if(l && data) { 
-        const newFollowUp = { ...data, created_by: profile };
+        const newFollowUp = { ...data, created_by: profile }; // Asignar perfil actual para que aparezca el nombre
         const up = { ...l, follow_ups: [...(l.follow_ups || []), newFollowUp] }; 
         
         updateLocalLead(up); 
         if(selectedLead?.id === leadId) setSelectedLead(up); 
         success("Nota guardada."); 
     }
+  };
+
+  // Función callback para modales de mensaje (evita duplicar lógica)
+  const handleMessageSent = (leadId: string, note: string) => {
+      handleAddFollowUp(leadId, {
+          date: new Date().toISOString(),
+          notes: note
+      });
   };
 
   const handleDeleteFollowUp = async (leadId: string, followUpId: string) => {
@@ -426,9 +434,11 @@ const AppContent: React.FC = () => {
           }}
           onUpdateLead={handleUpdateLeadDetails}
           userRole={profile?.role}
+          currentUser={profile}
           onRefresh={refetch}
-          // PASAMOS LA FUNCIÓN PARA BORRADO OPTIMISTA
-          onLocalDeleteMany={removeManyLocalLeads} 
+          onLocalDeleteMany={removeManyLocalLeads}
+          whatsappTemplates={whatsappTemplates}
+          emailTemplates={emailTemplates}
         />
       </main>
 
@@ -521,6 +531,7 @@ const AppContent: React.FC = () => {
         )}
       </Suspense>
 
+      {/* MODALES INDIVIDUALES ACTUALIZADOS: USAN handleMessageSent */}
       {isWhatsAppModalOpen && (
           <WhatsAppModal 
             isOpen={isWhatsAppModalOpen} 
@@ -528,6 +539,7 @@ const AppContent: React.FC = () => {
             lead={selectedLeadForWhatsApp} 
             templates={whatsappTemplates} 
             initialTemplateId={initialWhatsAppTemplateId}
+            onMessageSent={handleMessageSent} // CORRECCIÓN CLAVE
           />
       )}
 
@@ -538,6 +550,7 @@ const AppContent: React.FC = () => {
             lead={selectedLeadForEmail}
             templates={emailTemplates} 
             initialTemplateId={initialEmailTemplateId}
+            onMessageSent={handleMessageSent} // CORRECCIÓN CLAVE
           />
       )}
     </div>
