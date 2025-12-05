@@ -6,12 +6,12 @@ import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTem
 import { useToast } from '../context/ToastContext';
 
 export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
-  const { error: toastError } = useToast();
+  const { error: toastError, info: toastInfo, success: toastSuccess } = useToast();
   
   // Datos principales
   const [leads, setLeads] = useState<Lead[]>([]);
   
-  // Catálogos (Datos estáticos)
+  // Catálogos
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
@@ -19,22 +19,20 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   
-  // Estados de carga separados
   const [loadingData, setLoadingData] = useState(true);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [catalogsLoaded, setCatalogsLoaded] = useState(false);
   
-  // Referencia para evitar re-fetch innecesario
   const lastFetchedToken = useRef<string | undefined>(undefined);
 
-  // 1. Cargar Catálogos (Solo una vez o cuando cambia la sesión drásticamente)
+  // 1. Cargar Catálogos (Estáticos)
   const fetchCatalogs = useCallback(async () => {
     if (!session?.access_token) return;
     
     try {
       const results = await Promise.allSettled([
         supabase.from('profiles').select('*'),
-        supabase.from('statuses').select('*').order('id'), // Orden consistente
+        supabase.from('statuses').select('*').order('id'),
         supabase.from('sources').select('*'),
         supabase.from('licenciaturas').select('*'),
         supabase.from('whatsapp_templates').select('*'),
@@ -56,22 +54,21 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       setCatalogsLoaded(true);
     } catch (error) {
       console.error('Error fetching catalogs:', error);
-      toastError('Error al cargar catálogos del sistema.');
+      toastError('Error al cargar catálogos.');
     }
   }, [session, toastError]);
 
-  // 2. Cargar Leads (Batching recursivo)
+  // 2. Cargar Leads (Batching)
   const fetchLeads = useCallback(async (force = false) => {
     if (!session?.access_token) return;
 
-    // Cache simple: si es el mismo token y ya tenemos datos, no recargar a menos que sea forzado
     if (!force && session.access_token === lastFetchedToken.current && leads.length > 0) {
         setLoadingData(false);
         return;
     }
 
     setLoadingLeads(true);
-    if (leads.length === 0) setLoadingData(true); // Loading global solo si está vacío
+    if (leads.length === 0) setLoadingData(true);
 
     try {
       lastFetchedToken.current = session.access_token;
@@ -95,7 +92,6 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
             .order('registration_date', { ascending: false })
             .range(from, to);
 
-          // Filtrado del lado del servidor para asesores
           if (userRole === 'advisor' && userId) {
               query = query.eq('advisor_id', userId);
           }
@@ -113,7 +109,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
           }
           
           page++;
-          if (allLeads.length > 30000) hasMore = false; // Safety break
+          if (allLeads.length > 30000) hasMore = false; 
       }
 
       setLeads(allLeads);
@@ -127,15 +123,74 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     }
   }, [session, userRole, userId, toastError, leads.length]);
 
-  // Efecto inicial
+  // 3. Suscripción a Realtime (NUEVO FEATURE)
   useEffect(() => {
-    if (session) {
-        if (!catalogsLoaded) fetchCatalogs();
-        fetchLeads();
-    }
-  }, [session, fetchCatalogs, fetchLeads, catalogsLoaded]);
+    if (!session?.access_token) return;
 
-  // --- Helpers de Optimistic UI ---
+    // Solo cargamos datos iniciales si no están cargados
+    if (!catalogsLoaded) fetchCatalogs();
+    fetchLeads();
+
+    // Configuración del canal de Realtime
+    const channel = supabase
+      .channel('crm_leads_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Escuchar INSERT, UPDATE y DELETE
+          schema: 'public',
+          table: 'leads',
+        },
+        async (payload) => {
+          // console.log('Cambio detectado en Realtime:', payload);
+
+          if (payload.eventType === 'INSERT') {
+            const newLead = payload.new as Lead;
+            // Si soy asesor y el lead no es mío, lo ignoro
+            if (userRole === 'advisor' && userId && newLead.advisor_id !== userId) return;
+            
+            // Para tener los datos relacionales (appointments, etc) completos, 
+            // a veces es mejor hacer un fetch de esa sola fila o inyectarlo así:
+            const leadWithRelations = { 
+                ...newLead, 
+                appointments: [], 
+                follow_ups: [], 
+                status_history: [] 
+            };
+            
+            setLeads(prev => [leadWithRelations, ...prev]);
+            toastInfo('🔔 Nuevo lead recibido en tiempo real');
+          } 
+          else if (payload.eventType === 'UPDATE') {
+            const updatedLead = payload.new as Lead;
+            // Si soy asesor y me quitaron el lead (ya no soy advisor_id), lo remuevo
+            if (userRole === 'advisor' && userId && updatedLead.advisor_id !== userId) {
+                setLeads(prev => prev.filter(l => l.id !== updatedLead.id));
+                toastInfo('🔄 Un lead ha sido reasignado a otro asesor.');
+                return;
+            }
+
+            // Actualizamos el estado local manteniendo las relaciones existentes (arrays)
+            setLeads(prev => prev.map(l => {
+                if (l.id === updatedLead.id) {
+                    return { ...l, ...updatedLead }; // Merge de datos nuevos con relaciones viejas
+                }
+                return l;
+            }));
+          } 
+          else if (payload.eventType === 'DELETE') {
+            setLeads(prev => prev.filter(l => l.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session, fetchCatalogs, fetchLeads, userRole, userId]);
+
+  // --- Helpers Locales ---
 
   const updateLocalLead = (updatedLead: Lead) => {
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
@@ -155,7 +210,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   };
 
   return {
-    loadingData: loadingData || loadingLeads, // Global loading state
+    loadingData: loadingData || loadingLeads,
     leads,
     profiles,
     statuses,
@@ -173,7 +228,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     addLocalLead,
     removeLocalLead,
     removeManyLocalLeads, 
-    refetch: () => fetchLeads(true), // Refetch solo leads, no catálogos
+    refetch: () => fetchLeads(true),
     refreshCatalogs: fetchCatalogs
   };
 };

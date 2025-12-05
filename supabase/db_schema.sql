@@ -374,3 +374,33 @@ BEGIN
   LIMIT 1;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ==============================================================================
+-- 8. ÍNDICES DE ALTO RENDIMIENTO (OPTIMIZACIÓN PARA VOLUMEN +10K)
+-- Agregado para garantizar velocidad en paginación y filtros complejos
+-- ==============================================================================
+
+-- Índice compuesto vital para el hook useCRMData (Paginación estable)
+-- Permite saltar miles de registros instantáneamente sin 'scan' secuencial
+CREATE INDEX IF NOT EXISTS idx_leads_pagination 
+ON public.leads(registration_date DESC, id);
+
+-- Índice para la vista principal del Asesor ('Mis Leads')
+CREATE INDEX IF NOT EXISTS idx_leads_advisor_pagination 
+ON public.leads(advisor_id, registration_date DESC);
+
+-- Búsquedas de texto insensibles a mayúsculas (Email)
+CREATE INDEX IF NOT EXISTS idx_leads_email_search 
+ON public.leads (lower(email));
+
+-- Filtrado rápido para el Tablero Kanban (Estado + Fecha)
+CREATE INDEX IF NOT EXISTS idx_leads_status_board 
+ON public.leads(status_id, registration_date DESC);
+
+-- Optimización de la vista de detalle (Historial cronológico inverso)
+CREATE INDEX IF NOT EXISTS idx_followups_lead_date 
+ON public.follow_ups(lead_id, date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_appointments_lead_date 
+ON public.appointments(lead_id, date DESC);
