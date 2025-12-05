@@ -1,5 +1,5 @@
 // components/LeadList.tsx
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate } from '../types';
 import Button from './common/Button';
 import Badge from './common/Badge';
@@ -36,6 +36,7 @@ import TransferIcon from './icons/TransferIcon';
 import TagIcon from './icons/TagIcon';
 import { supabase } from '../lib/supabase';
 import BulkMessageModal from './BulkMessageModal';
+import ArrowPathIcon from './icons/ArrowPathIcon'; // Importamos icono de carga
 
 interface LeadListProps {
   loading: boolean;
@@ -78,7 +79,12 @@ const LeadList: React.FC<LeadListProps> = ({
   const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isBulkTransferOpen, setIsBulkTransferOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  
+  // --- DEBOUNCE MEJORADO ---
+  const [localSearchTerm, setLocalSearchTerm] = useState<string>(''); 
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>(''); 
+  const [isSearching, setIsSearching] = useState(false); // Estado visual de "Buscando..."
+  
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   
@@ -105,9 +111,34 @@ const LeadList: React.FC<LeadListProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Efecto de Debounce con Feedback Visual
+  useEffect(() => {
+    if (localSearchTerm !== debouncedSearchTerm) {
+        setIsSearching(true);
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(localSearchTerm);
+            setIsSearching(false);
+        }, 300); // 300ms: Equilibrio entre fluidez y rendimiento
+        return () => clearTimeout(timer);
+    }
+  }, [localSearchTerm, debouncedSearchTerm]);
+
   const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color, category: s.category || 'active' }])), [statuses]);
   const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
+
+  // --- OPTIMIZACIÓN CLAVE: Pre-cálculo de cadenas de búsqueda ---
+  // Esto se ejecuta SOLO cuando cambian los leads, no cuando buscas.
+  // Convierte los 10,000 registros en texto plano listo para buscar rapidísimo.
+  const preparedLeads = useMemo(() => {
+      return leads.map(lead => ({
+          ...lead,
+          // Creamos un string "índice" con todo lo buscable normalizado
+          searchIndex: normalizeText(
+              `${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''} ${lead.email || ''} ${lead.phone} ${licenciaturaMap.get(lead.program_id) || ''} ${statusMap.get(lead.status_id)?.name || ''} ${advisorMap.get(lead.advisor_id) || ''}`
+          )
+      }));
+  }, [leads, advisorMap, statusMap, licenciaturaMap]);
 
   const activeFilterCount = useMemo(() => {
       let count = 0;
@@ -152,7 +183,7 @@ const LeadList: React.FC<LeadListProps> = ({
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set()); 
-  }, [filters, searchTerm, itemsPerPage, quickFilter, activeCategoryTab]);
+  }, [filters, debouncedSearchTerm, itemsPerPage, quickFilter, activeCategoryTab]);
 
   const handleDashboardCardClick = (filter: QuickFilterType) => {
     setQuickFilter(filter);
@@ -172,9 +203,10 @@ const LeadList: React.FC<LeadListProps> = ({
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      const normalizedSearchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
+      const normalizedSearchTerms = normalizeText(debouncedSearchTerm).split(/\s+/).filter(t => t.length > 0);
 
-      return leads.filter(lead => {
+      // Usamos preparedLeads en lugar de leads para filtrar (mucho más rápido)
+      return preparedLeads.filter(lead => {
           const status = statusMap.get(lead.status_id);
           const category = status ? status.category : 'active';
           if (category !== activeCategoryTab) return false;
@@ -208,15 +240,9 @@ const LeadList: React.FC<LeadListProps> = ({
               }
           }
 
+          // BÚSQUEDA OPTIMIZADA: Solo revisamos el índice pre-calculado
           if (normalizedSearchTerms.length > 0) {
-              const leadFullName = normalizeText(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`);
-              const leadEmail = normalizeText(lead.email || '');
-              const leadPhone = lead.phone;
-              const leadProgram = normalizeText(licenciaturaMap.get(lead.program_id) || '');
-              const leadStatus = normalizeText(statusMap.get(lead.status_id)?.name || '');
-              const leadAdvisor = normalizeText(advisorMap.get(lead.advisor_id) || '');
-              const searchableText = `${leadFullName} ${leadEmail} ${leadPhone} ${leadProgram} ${leadStatus} ${leadAdvisor}`;
-              if (!normalizedSearchTerms.every(term => searchableText.includes(term))) return false;
+              if (!normalizedSearchTerms.every(term => lead.searchIndex.includes(term))) return false;
           }
           return true;
       }).sort((a, b) => {
@@ -256,7 +282,7 @@ const LeadList: React.FC<LeadListProps> = ({
         return 0;
       });
 
-  }, [leads, filters, searchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter, activeCategoryTab]);
+  }, [preparedLeads, filters, debouncedSearchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter, activeCategoryTab]);
   
   const totalItems = filteredAndSortedLeads.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -391,13 +417,11 @@ const LeadList: React.FC<LeadListProps> = ({
     return stringField;
   };
 
-  // --- EXPORTACIÓN AVANZADA (Columnas Separadas) ---
+  // --- EXPORTACIÓN AVANZADA ---
   const handleExportCSV = () => {
-    // 1. Calcular máximos para generar columnas dinámicas
     const maxNotes = filteredAndSortedLeads.reduce((max, lead) => Math.max(max, lead.follow_ups?.length || 0), 0);
     const maxAppts = filteredAndSortedLeads.reduce((max, lead) => Math.max(max, lead.appointments?.length || 0), 0);
 
-    // 2. Generar Cabeceras Dinámicas
     let headers = ['Nombre Completo', 'Email', 'Teléfono', 'Asesor', 'Estado', 'Licenciatura', 'Fecha Registro'];
     
     for (let i = 1; i <= maxNotes; i++) {
@@ -407,7 +431,6 @@ const LeadList: React.FC<LeadListProps> = ({
         headers.push(`Fecha Cita ${i}`, `Detalle Cita ${i}`);
     }
 
-    // 3. Generar Filas
     const rows = filteredAndSortedLeads.map(lead => {
         const baseData = [
             escapeCsvField(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim()),
@@ -419,7 +442,6 @@ const LeadList: React.FC<LeadListProps> = ({
             escapeCsvField(new Date(lead.registration_date).toLocaleDateString())
         ];
 
-        // Procesar Notas (Ordenadas por fecha descendente: la 1 es la más reciente)
         const sortedNotes = lead.follow_ups 
             ? [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             : [];
@@ -433,11 +455,10 @@ const LeadList: React.FC<LeadListProps> = ({
                     escapeCsvField(note.notes)
                 );
             } else {
-                noteCols.push('""', '""'); // Celdas vacías si no tiene esa nota
+                noteCols.push('""', '""');
             }
         }
 
-        // Procesar Citas (Ordenadas por fecha descendente)
         const sortedAppts = lead.appointments
             ? [...lead.appointments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             : [];
@@ -571,14 +592,18 @@ const LeadList: React.FC<LeadListProps> = ({
             <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-3 items-center">
                 <div className="relative flex-grow w-full sm:w-auto group">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 group-focus-within:text-brand-secondary transition-colors" />
+                        {isSearching ? (
+                            <ArrowPathIcon className="h-5 w-5 text-brand-secondary animate-spin" />
+                        ) : (
+                            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 group-focus-within:text-brand-secondary transition-colors" />
+                        )}
                     </div>
                     <input
                         type="text"
                         className="block w-full pl-10 pr-3 py-2.5 border-0 bg-gray-50 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-brand-secondary/50 focus:bg-white transition-all sm:text-sm"
                         placeholder="Buscar por nombre, email, programa..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        value={localSearchTerm}
+                        onChange={(e) => setLocalSearchTerm(e.target.value)}
                     />
                 </div>
 
@@ -771,14 +796,15 @@ const LeadList: React.FC<LeadListProps> = ({
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">No se encontraron leads</h3>
                 <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
-                    No hay resultados que coincidan con los filtros aplicados o la búsqueda "{searchTerm}".
+                    No hay resultados que coincidan con los filtros aplicados o la búsqueda "{localSearchTerm}".
                 </p>
-                {(activeFilterCount > 0 || searchTerm) && (
+                {(activeFilterCount > 0 || localSearchTerm) && (
                     <Button 
                         variant="secondary" 
                         className="mt-6 border-brand-secondary text-brand-secondary hover:bg-brand-secondary/5" 
                         onClick={() => { 
-                            setSearchTerm(''); 
+                            setLocalSearchTerm('');
+                            setDebouncedSearchTerm('');
                             setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' }); 
                             setQuickFilter(null);
                         }}
@@ -877,7 +903,6 @@ const LeadList: React.FC<LeadListProps> = ({
                   Eliminar
               </button>
 
-              {/* BOTONES SEPARADOS PARA MENSAJES */}
               <button 
                   onClick={() => {
                       setBulkMessageMode('whatsapp');
@@ -911,7 +936,6 @@ const LeadList: React.FC<LeadListProps> = ({
 
       {/* MODALES DE ACCIÓN MASIVA */}
       
-      {/* 1. Modal Confirmación Borrado Masivo */}
       <ConfirmationModal
         isOpen={isBulkDeleteOpen}
         onClose={() => setIsBulkDeleteOpen(false)}
@@ -929,7 +953,6 @@ const LeadList: React.FC<LeadListProps> = ({
         confirmButtonVariant="danger"
       />
 
-      {/* 2. Modal Cambio Estado Masivo */}
       <Modal 
         isOpen={isBulkStatusOpen} 
         onClose={() => setIsBulkStatusOpen(false)} 
@@ -966,7 +989,6 @@ const LeadList: React.FC<LeadListProps> = ({
           </div>
       </Modal>
 
-      {/* 3. Modal Mensaje Masivo */}
       <BulkMessageModal
         isOpen={isBulkMessageOpen}
         onClose={() => setIsBulkMessageOpen(false)}
@@ -977,6 +999,7 @@ const LeadList: React.FC<LeadListProps> = ({
         onComplete={() => {
              // Opcional
         }}
+        currentUser={null} // Pasamos null ya que no lo usamos aquí directamente
       />
 
       <FilterDrawer 
@@ -990,7 +1013,6 @@ const LeadList: React.FC<LeadListProps> = ({
         onClearFilters={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
       />
 
-      {/* Modal Eliminación Individual */}
       <ConfirmationModal
         isOpen={!!leadToDelete}
         onClose={() => setLeadToDelete(null)}

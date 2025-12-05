@@ -1,5 +1,5 @@
 // components/KanbanBoard.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Lead, Status, Profile, Licenciatura } from '../types';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
 import EnvelopeIcon from './icons/EnvelopeIcon';
@@ -9,6 +9,8 @@ import CalendarIcon from './icons/CalendarIcon';
 import BellAlertIcon from './icons/BellAlertIcon';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import ClockIcon from './icons/ClockIcon';
+import ChevronLeftIcon from './icons/ChevronLeftIcon'; // Usado para colapsar
+import ChevronRightIcon from './icons/ChevronRightIcon'; // Usado para expandir
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import Badge from './common/Badge';
 
@@ -37,20 +39,20 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onOpenEmail,
   onLeadMove,
 }) => {
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+
   const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
   const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
-  // Agregado mapa de estatus para acceder a la categoría
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { category: s.category || 'active', color: s.color }])), [statuses]);
 
   // --- LÓGICA DE URGENCIA CENTRALIZADA ---
   const getLeadUrgency = (lead: Lead) => {
-    // 1. VERIFICAR CATEGORÍA: Si no es 'active', no hay urgencia.
     const statusInfo = statusMap.get(lead.status_id);
     if (statusInfo?.category !== 'active') return 0;
 
     const now = new Date();
     
-    // NIVEL 3: Cita próxima (< 48h) -> ROJO
+    // NIVEL 3: Cita próxima (< 48h)
     if(lead.appointments?.some(a => a.status === 'scheduled')) {
         const activeAppt = lead.appointments.find(a => a.status === 'scheduled');
         if(activeAppt) {
@@ -60,7 +62,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
         }
     }
 
-    // NIVEL 2: Leads Desatendidos -> AMARILLO
+    // NIVEL 2: Leads Desatendidos
     const regDate = new Date(lead.registration_date);
     const daysSinceReg = (now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24);
     
@@ -79,6 +81,16 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     return 0; // Normal
   };
 
+  const toggleColumn = (statusId: string) => {
+      const newCollapsed = new Set(collapsedColumns);
+      if (newCollapsed.has(statusId)) {
+          newCollapsed.delete(statusId);
+      } else {
+          newCollapsed.add(statusId);
+      }
+      setCollapsedColumns(newCollapsed);
+  };
+
   const onDragEnd = (result: DropResult) => {
       const { destination, source, draggableId } = result;
       if (!destination) return;
@@ -90,25 +102,60 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex overflow-x-auto pb-6 h-[calc(100dvh-240px)] space-x-4 p-2 snap-x snap-mandatory sm:space-x-6 scroll-smooth">
+        <div className="flex overflow-x-auto pb-6 h-[calc(100dvh-240px)] space-x-4 p-2 snap-x snap-mandatory sm:space-x-6 scroll-smooth items-start">
         {statuses.map((status) => {
             const statusLeads = leads.filter((l) => l.status_id === status.id);
+            const isCollapsed = collapsedColumns.has(status.id);
             
+            // COLUMNA COLAPSADA
+            if (isCollapsed) {
+                return (
+                    <div 
+                        key={status.id}
+                        className="flex-shrink-0 w-16 h-full flex flex-col items-center bg-gray-100/50 rounded-2xl border border-gray-200 py-4 cursor-pointer hover:bg-gray-200/50 transition-colors"
+                        onClick={() => toggleColumn(status.id)}
+                        title={`Expandir ${status.name}`}
+                    >
+                        <button className="p-1 mb-4 text-gray-500 hover:text-brand-secondary">
+                            <ChevronRightIcon className="w-5 h-5"/>
+                        </button>
+                        <div className="flex-1 w-full flex items-center justify-center">
+                            <h3 className="transform -rotate-90 whitespace-nowrap font-bold text-gray-500 text-sm tracking-wide uppercase">
+                                {status.name}
+                            </h3>
+                        </div>
+                        <span className="mt-4 bg-white text-gray-600 text-xs font-bold px-2 py-1 rounded-full shadow-sm border border-gray-200">
+                            {statusLeads.length}
+                        </span>
+                    </div>
+                );
+            }
+
+            // COLUMNA EXPANDIDA
             return (
             <div 
                 key={status.id} 
-                className="flex-shrink-0 w-[85vw] sm:w-80 flex flex-col bg-gray-50/50 rounded-2xl border border-gray-200/60 max-h-full shadow-sm backdrop-blur-sm snap-center"
+                className="flex-shrink-0 w-[85vw] sm:w-80 flex flex-col bg-gray-50/50 rounded-2xl border border-gray-200/60 max-h-full shadow-sm backdrop-blur-sm snap-center transition-all duration-300"
             >
-                <div className="p-4 flex justify-between items-center sticky top-0 z-10 bg-gray-50/95 rounded-t-2xl backdrop-blur-md border-b border-gray-200/50">
-                    <div className="flex items-center gap-2.5">
-                        <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${status.color}`}></span>
-                        <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide truncate max-w-[150px]" title={status.name}>
+                <div className="p-4 flex justify-between items-center sticky top-0 z-10 bg-gray-50/95 rounded-t-2xl backdrop-blur-md border-b border-gray-200/50 group">
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                        <span className={`w-2.5 h-2.5 rounded-full shadow-sm flex-shrink-0 ${status.color}`}></span>
+                        <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide truncate" title={status.name}>
                             {status.name}
                         </h3>
                     </div>
-                    <span className="bg-white text-gray-500 text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-200 shadow-sm">
-                        {statusLeads.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className="bg-white text-gray-500 text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-200 shadow-sm">
+                            {statusLeads.length}
+                        </span>
+                        <button 
+                            onClick={() => toggleColumn(status.id)}
+                            className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Colapsar columna"
+                        >
+                            <ChevronLeftIcon className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
 
                 <Droppable droppableId={status.id}>
@@ -123,25 +170,24 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                 const urgencyLevel = getLeadUrgency(lead);
                                 const hasAppointment = lead.appointments?.some(a => a.status === 'scheduled');
 
-                                // Estilos dinámicos basados en urgencia
                                 let cardClasses = "group relative bg-white p-4 rounded-xl border transition-all duration-300 active:scale-95 cursor-grab active:cursor-grabbing";
                                 let urgencyBadge = null;
 
-                                if (urgencyLevel === 3) { // Muy Urgente (Rojo)
+                                if (urgencyLevel === 3) { 
                                     cardClasses += " border-red-200 shadow-md shadow-red-100 ring-1 ring-red-300";
                                     urgencyBadge = (
                                         <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-sm z-10 animate-pulse" title="Cita Inminente">
                                             <BellAlertIcon className="w-3 h-3" />
                                         </div>
                                     );
-                                } else if (urgencyLevel === 2) { // Atención (Amarillo)
+                                } else if (urgencyLevel === 2) { 
                                     cardClasses += " border-amber-200 shadow-sm shadow-amber-50 ring-1 ring-amber-200";
                                     urgencyBadge = (
-                                        <div className="absolute -top-2 -right-2 bg-amber-400 text-white rounded-full p-1 shadow-sm z-10" title="Requiere Atención (Sin seguimiento)">
+                                        <div className="absolute -top-2 -right-2 bg-amber-400 text-white rounded-full p-1 shadow-sm z-10" title="Requiere Atención">
                                             <ExclamationCircleIcon className="w-3 h-3" />
                                         </div>
                                     );
-                                } else { // Normal
+                                } else { 
                                     cardClasses += " border-gray-100 shadow-sm hover:shadow-md hover:border-brand-secondary/30";
                                 }
 
@@ -185,7 +231,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                         <Badge color="bg-gray-100" size="sm">
                                                             {licenciaturaMap.get(lead.program_id) || 'Sin programa'}
                                                         </Badge>
-                                                        {/* Mostrar fecha relativa si está "enfriándose" */}
                                                         {urgencyLevel === 2 && (
                                                             <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded">
                                                                 <ClockIcon className="w-3 h-3"/> +3d
@@ -232,7 +277,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                     <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
                                         <span className="text-xl">∅</span>
                                     </div>
-                                    <span className="text-xs font-medium">Sin leads</span>
+                                    <span className="text-xs font-medium">Vacío</span>
                                 </div>
                             )}
                         </div>
