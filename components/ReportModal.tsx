@@ -12,13 +12,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps 
 } from 'recharts';
 
-declare global {
-  interface Window {
-    jspdf: any;
-    html2canvas: any;
-  }
-}
-
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -79,7 +72,7 @@ const tailwindColorMap: { [key: string]: string } = {
 
 // --- Tooltips Personalizados ---
 
-const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
@@ -423,7 +416,8 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
     // y que Recharts renderice la versión sin animaciones antes de capturar
     setTimeout(async () => {
         try {
-            const { jsPDF } = window.jspdf;
+            const { jsPDF } = await import('jspdf');
+            const html2canvas = (await import('html2canvas')).default;
             const content = reportContentRef.current;
             if (!content) return;
 
@@ -458,7 +452,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
 
             document.body.appendChild(clone);
 
-            const canvas = await window.html2canvas(clone, { 
+            const canvas = await html2canvas(clone, { 
                 scale: 2, // Escala alta para buena calidad
                 useCORS: true, 
                 backgroundColor: '#ffffff',

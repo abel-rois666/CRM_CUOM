@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@theme {
+  /* --- TU IDENTIDAD (HEX) --- */
+  --color-brand-primary: #0A2540;
+  --color-brand-secondary: #0077FF;
+  --color-brand-accent: #F5A623;
+
+  /* --- FUENTE Y ANIMACIONES --- */
+  --font-sans: "Inter", sans-serif;
+  --animate-fade-in: fade-in 0.3s ease-in-out;
+  --animate-slide-up: slide-up 0.4s ease-out;
+  --animate-scale-in: scale-in 0.2s ease-out;
+
+  @keyframes fade-in {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  @keyframes slide-up {
+    0% { transform: translateY(10px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes scale-in {
+    0% { transform: scale(0.95); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* --- CORRECCIÓN PARA PDF (SOBREESCRIBIR DEFAULTS A HEX) --- */
+  /* Esto elimina el error 'oklch' forzando colores que html2canvas sí entiende */
+
+  /* Blancos y Negros */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Grises (Usados en fondos y textos) */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+
+  /* Azules (Usados en botones y enlaces) */
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+
+  /* Verdes (Usados en éxitos y badges) */
+  --color-green-50: #f0fdf4;
+  --color-green-100: #dcfce7;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-green-700: #15803d;
+
+  /* Rojos (Usados en errores y alertas) */
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+
+  /* Amarillos/Ambar (Usados en warnings) */
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+}
