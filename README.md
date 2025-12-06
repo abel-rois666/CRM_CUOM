@@ -51,13 +51,13 @@ El sistema implementa **Row Level Security (RLS)** en base de datos para garanti
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone [https://github.com/tu-usuario/crm-universitario.git](https://github.com/tu-usuario/crm-universitario.git)
-    cd crm-universitario
+    git clone https://github.com/abel-rois666/CRM_CUOM
+    cd CRM_CUOM
     ```
 
 2.  **Instalar dependencias:**
     ```bash
-    npm install
+    npm install --legacy-peer-deps
     ```
 
 3.  **Configurar Variables de Entorno:**

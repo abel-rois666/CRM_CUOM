@@ -6,7 +6,7 @@ import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTem
 import { useToast } from '../context/ToastContext';
 
 export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
-  const { error: toastError, info: toastInfo, success: toastSuccess } = useToast();
+  const { error: toastError, info: toastInfo } = useToast();
   
   // Datos principales
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -24,6 +24,16 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   const [catalogsLoaded, setCatalogsLoaded] = useState(false);
   
   const lastFetchedToken = useRef<string | undefined>(undefined);
+
+  // --- SOLUCIÓN: Cache de IDs procesados ---
+  // Almacena IDs de leads que acabamos de crear o recibir para evitar duplicados inmediatos.
+  const processedIds = useRef<Set<string>>(new Set());
+
+  // Referencia para mantener el estado actualizado sin recargas
+  const leadsRef = useRef<Lead[]>([]);
+  useEffect(() => {
+    leadsRef.current = leads;
+  }, [leads]);
 
   // 1. Cargar Catálogos (Estáticos)
   const fetchCatalogs = useCallback(async () => {
@@ -121,36 +131,43 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       setLoadingData(false);
       setLoadingLeads(false);
     }
-  }, [session, userRole, userId, toastError, leads.length]);
+  }, [session, userRole, userId, toastError]); 
 
-  // 3. Suscripción a Realtime (NUEVO FEATURE)
+  // 3. Suscripción a Realtime (OPTIMIZADA)
   useEffect(() => {
     if (!session?.access_token) return;
 
-    // Solo cargamos datos iniciales si no están cargados
+    // Carga inicial
     if (!catalogsLoaded) fetchCatalogs();
     fetchLeads();
 
-    // Configuración del canal de Realtime
     const channel = supabase
       .channel('crm_leads_changes')
       .on(
         'postgres_changes',
         {
-          event: '*', // Escuchar INSERT, UPDATE y DELETE
+          event: '*',
           schema: 'public',
           table: 'leads',
         },
         async (payload) => {
-          // console.log('Cambio detectado en Realtime:', payload);
-
+          // --- EVENTO INSERT ---
           if (payload.eventType === 'INSERT') {
             const newLead = payload.new as Lead;
-            // Si soy asesor y el lead no es mío, lo ignoro
-            if (userRole === 'advisor' && userId && newLead.advisor_id !== userId) return;
             
-            // Para tener los datos relacionales (appointments, etc) completos, 
-            // a veces es mejor hacer un fetch de esa sola fila o inyectarlo así:
+            // 1. BLOQUEO DE DUPLICADOS (La corrección clave)
+            // Si el ID ya fue procesado recientemente (por duplicación de evento o insert manual), paramos aquí.
+            if (processedIds.current.has(newLead.id)) {
+                return;
+            }
+
+            // 2. Filtro de Rol
+            if (userRole === 'advisor' && userId && newLead.advisor_id !== userId) return;
+
+            // 3. Registrar ID como procesado y programar limpieza
+            processedIds.current.add(newLead.id);
+            setTimeout(() => processedIds.current.delete(newLead.id), 5000);
+
             const leadWithRelations = { 
                 ...newLead, 
                 appointments: [], 
@@ -158,26 +175,34 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
                 status_history: [] 
             };
             
-            setLeads(prev => [leadWithRelations, ...prev]);
+            // 4. Actualizar Estado
+            setLeads(prev => {
+                // Doble seguridad: verificamos si existe en la lista actual
+                if (prev.some(l => l.id === newLead.id)) return prev;
+                return [leadWithRelations, ...prev];
+            });
+
+            // Solo mostramos notificación si pasó los filtros anteriores
             toastInfo('🔔 Nuevo lead recibido en tiempo real');
           } 
+          // --- EVENTO UPDATE ---
           else if (payload.eventType === 'UPDATE') {
             const updatedLead = payload.new as Lead;
-            // Si soy asesor y me quitaron el lead (ya no soy advisor_id), lo remuevo
+            
             if (userRole === 'advisor' && userId && updatedLead.advisor_id !== userId) {
                 setLeads(prev => prev.filter(l => l.id !== updatedLead.id));
                 toastInfo('🔄 Un lead ha sido reasignado a otro asesor.');
                 return;
             }
 
-            // Actualizamos el estado local manteniendo las relaciones existentes (arrays)
             setLeads(prev => prev.map(l => {
                 if (l.id === updatedLead.id) {
-                    return { ...l, ...updatedLead }; // Merge de datos nuevos con relaciones viejas
+                    return { ...l, ...updatedLead };
                 }
                 return l;
             }));
           } 
+          // --- EVENTO DELETE ---
           else if (payload.eventType === 'DELETE') {
             setLeads(prev => prev.filter(l => l.id !== payload.old.id));
           }
@@ -188,7 +213,8 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, fetchCatalogs, fetchLeads, userRole, userId]);
+    // Quitamos fetchCatalogs y fetchLeads de dependencias para evitar reinicios de suscripción
+  }, [session, userRole, userId]); 
 
   // --- Helpers Locales ---
 
@@ -197,7 +223,18 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   };
 
   const addLocalLead = (newLead: Lead) => {
-    setLeads(prev => [newLead, ...prev]);
+    // IMPORTANTE: Al agregar localmente, marcamos el ID como procesado.
+    // Así, cuando llegue el evento de Realtime segundos después, será ignorado
+    // y no verás ni duplicados ni doble notificación.
+    if (newLead.id) {
+        processedIds.current.add(newLead.id);
+        setTimeout(() => processedIds.current.delete(newLead.id), 5000);
+    }
+    
+    setLeads(prev => {
+        if (prev.some(l => l.id === newLead.id)) return prev;
+        return [newLead, ...prev];
+    });
   };
 
   const removeLocalLead = (leadId: string) => {

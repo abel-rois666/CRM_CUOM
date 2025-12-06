@@ -92,3 +92,14 @@ export interface LoginHistory {
   login_at: string;
   user_agent: string | null;
 }
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'success' | 'error';
+  is_read: boolean;
+  created_at: string;
+  link?: string;
+}

@@ -404,3 +404,76 @@ ON public.follow_ups(lead_id, date DESC);
 
 CREATE INDEX IF NOT EXISTS idx_appointments_lead_date 
 ON public.appointments(lead_id, date DESC);
+
+-- ==============================================================================
+-- 🔔9.- SISTEMA DE NOTIFICACIONES - SCRIPT COMPLETO
+-- ==============================================================================
+
+-- 1. Crear la Tabla de Notificaciones
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT,
+  type TEXT CHECK (type IN ('info', 'warning', 'success', 'error')) DEFAULT 'info',
+  is_read BOOLEAN DEFAULT FALSE,
+  link TEXT, -- Opcional: Para redirigir al hacer clic
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. Habilitar Seguridad (RLS)
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- Política: Los usuarios solo pueden ver sus propias notificaciones
+DROP POLICY IF EXISTS "Users can see their own notifications" ON public.notifications;
+CREATE POLICY "Users can see their own notifications" 
+ON public.notifications FOR SELECT 
+TO authenticated 
+USING (user_id = auth.uid());
+
+-- Política: Los usuarios pueden actualizar (marcar como leída) sus notificaciones
+DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
+CREATE POLICY "Users can update their own notifications" 
+ON public.notifications FOR UPDATE 
+TO authenticated 
+USING (user_id = auth.uid());
+
+-- 3. Crear Índices para Rendimiento
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread 
+ON public.notifications(user_id) 
+WHERE is_read = FALSE;
+
+-- 4. Función de Automatización (CON VALIDACIÓN DE AUTO-ASIGNACIÓN)
+CREATE OR REPLACE FUNCTION notify_lead_assignment()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Lógica:
+  -- 1. Detectar si es un nuevo lead o si cambió el asesor (UPDATE)
+  -- 2. Verificar que haya un asesor asignado (no nulo)
+  -- 3. CRÍTICO: Verificar que el asesor asignado NO SEA el mismo usuario que ejecuta la acción (auth.uid())
+  
+  IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.advisor_id IS DISTINCT FROM NEW.advisor_id)) THEN
+    
+    IF NEW.advisor_id IS NOT NULL AND NEW.advisor_id != auth.uid() THEN
+      
+      INSERT INTO public.notifications (user_id, title, message, type)
+      VALUES (
+        NEW.advisor_id,
+        'Nuevo Lead Asignado',
+        'Se te ha asignado el lead: ' || NEW.first_name || ' ' || NEW.paternal_last_name,
+        'info'
+      );
+      
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 5. Crear el Trigger en la tabla de Leads
+DROP TRIGGER IF EXISTS on_lead_assigned ON public.leads;
+CREATE TRIGGER on_lead_assigned
+AFTER INSERT OR UPDATE ON public.leads
+FOR EACH ROW
+EXECUTE FUNCTION notify_lead_assignment();
