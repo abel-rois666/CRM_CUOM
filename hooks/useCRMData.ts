@@ -68,10 +68,13 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     }
   }, [session, toastError]);
 
-  // 2. Cargar Leads (Batching)
+  // 2. Cargar Leads (Batching Optimizado)
+  // NOTA: Esto descarga TODOS los leads al cliente. 
+  // Para >10,000 registros, se recomienda migrar a paginación de servidor.
   const fetchLeads = useCallback(async (force = false) => {
     if (!session?.access_token) return;
 
+    // Evitar recargas si el token no ha cambiado y ya tenemos datos, a menos que sea forzado
     if (!force && session.access_token === lastFetchedToken.current && leads.length > 0) {
         setLoadingData(false);
         return;
@@ -86,6 +89,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       let hasMore = true;
       let page = 0;
       const PAGE_SIZE = 1000;
+      const MAX_LIMIT = 20000; // Límite de seguridad para no congelar el navegador
 
       while (hasMore) {
           const from = page * PAGE_SIZE;
@@ -102,6 +106,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
             .order('registration_date', { ascending: false })
             .range(from, to);
 
+          // Si es asesor, Supabase RLS ya filtra, pero agregar el filtro aquí reduce carga de red
           if (userRole === 'advisor' && userId) {
               query = query.eq('advisor_id', userId);
           }
@@ -113,13 +118,23 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
           if (data && data.length > 0) {
               // @ts-ignore
               allLeads = [...allLeads, ...data];
-              if (data.length < PAGE_SIZE) hasMore = false;
+              
+              // Detener si recibimos menos registros de los solicitados (fin de tabla)
+              if (data.length < PAGE_SIZE) {
+                  hasMore = false;
+              }
           } else {
               hasMore = false;
           }
           
           page++;
-          if (allLeads.length > 30000) hasMore = false; 
+          
+          // Protección contra desbordamiento de memoria
+          if (allLeads.length >= MAX_LIMIT) {
+              hasMore = false;
+              console.warn(`Límite de seguridad alcanzado: ${MAX_LIMIT} leads cargados.`);
+              toastInfo(`Se cargaron los ${MAX_LIMIT} leads más recientes.`);
+          }
       }
 
       setLeads(allLeads);
@@ -131,7 +146,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       setLoadingData(false);
       setLoadingLeads(false);
     }
-  }, [session, userRole, userId, toastError]); 
+  }, [session, userRole, userId, toastError, leads.length, toastInfo]);
 
   // 3. Suscripción a Realtime (OPTIMIZADA)
   useEffect(() => {
@@ -146,7 +161,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: '*', 
           schema: 'public',
           table: 'leads',
         },
@@ -189,6 +204,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
           else if (payload.eventType === 'UPDATE') {
             const updatedLead = payload.new as Lead;
             
+            // Caso: Asesor pierde acceso al lead (reasignación)
             if (userRole === 'advisor' && userId && updatedLead.advisor_id !== userId) {
                 setLeads(prev => prev.filter(l => l.id !== updatedLead.id));
                 toastInfo('🔄 Un lead ha sido reasignado a otro asesor.');
@@ -197,7 +213,15 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
 
             setLeads(prev => prev.map(l => {
                 if (l.id === updatedLead.id) {
-                    return { ...l, ...updatedLead };
+                    // Merge profundo cuidadoso: mantenemos relaciones existentes
+                    // ya que el evento UPDATE de realtime no trae joins
+                    return { 
+                        ...l, 
+                        ...updatedLead,
+                        appointments: l.appointments,
+                        follow_ups: l.follow_ups,
+                        status_history: l.status_history
+                    }; 
                 }
                 return l;
             }));
@@ -218,11 +242,11 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
 
   // --- Helpers Locales ---
 
-  const updateLocalLead = (updatedLead: Lead) => {
+  const updateLocalLead = useCallback((updatedLead: Lead) => {
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-  };
+  }, []);
 
-  const addLocalLead = (newLead: Lead) => {
+  const addLocalLead = useCallback((newLead: Lead) => {
     // IMPORTANTE: Al agregar localmente, marcamos el ID como procesado.
     // Así, cuando llegue el evento de Realtime segundos después, será ignorado
     // y no verás ni duplicados ni doble notificación.
@@ -235,16 +259,16 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
         if (prev.some(l => l.id === newLead.id)) return prev;
         return [newLead, ...prev];
     });
-  };
+  }, []);
 
-  const removeLocalLead = (leadId: string) => {
+  const removeLocalLead = useCallback((leadId: string) => {
     setLeads(prev => prev.filter(l => l.id !== leadId));
-  };
+  }, []);
 
-  const removeManyLocalLeads = (leadIds: string[]) => {
+  const removeManyLocalLeads = useCallback((leadIds: string[]) => {
       const idsSet = new Set(leadIds);
       setLeads(prev => prev.filter(l => !idsSet.has(l.id)));
-  };
+  }, []);
 
   return {
     loadingData: loadingData || loadingLeads,

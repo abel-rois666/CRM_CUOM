@@ -1,12 +1,15 @@
 -- ==============================================================================
--- 🎓 CRM UNIVERSITARIO - ESQUEMA DE BASE DE DATOS MAESTRO
+-- 🎓 CRM UNIVERSITARIO - ESQUEMA MAESTRO OPTIMIZADO (V2.0)
 -- ==============================================================================
 
--- 1. CONFIGURACIÓN INICIAL Y TABLAS
+-- 1. EXTENSIONES NECESARIAS
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- 2. TABLAS PRINCIPALES
 -- ==============================================================================
 
--- Tabla de Perfiles (Extensión de auth.users)
-CREATE TABLE public.profiles (
+-- Perfiles (Extiende auth.users)
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT,
   full_name TEXT,
@@ -15,32 +18,32 @@ CREATE TABLE public.profiles (
 );
 
 -- Catálogos
-CREATE TABLE public.statuses (
+CREATE TABLE IF NOT EXISTS public.statuses (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   color TEXT NOT NULL,
   category TEXT CHECK (category IN ('active', 'won', 'lost')) DEFAULT 'active'
 );
 
-CREATE TABLE public.sources (
+CREATE TABLE IF NOT EXISTS public.sources (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL
 );
 
-CREATE TABLE public.licenciaturas (
+CREATE TABLE IF NOT EXISTS public.licenciaturas (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL
 );
 
 -- Plantillas
-CREATE TABLE public.whatsapp_templates (
+CREATE TABLE IF NOT EXISTS public.whatsapp_templates (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE public.email_templates (
+CREATE TABLE IF NOT EXISTS public.email_templates (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   subject TEXT NOT NULL,
@@ -48,8 +51,8 @@ CREATE TABLE public.email_templates (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Tabla Principal: Leads
-CREATE TABLE public.leads (
+-- Leads (Tabla Central)
+CREATE TABLE IF NOT EXISTS public.leads (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   first_name TEXT NOT NULL,
   paternal_last_name TEXT NOT NULL,
@@ -60,15 +63,16 @@ CREATE TABLE public.leads (
   status_id UUID REFERENCES public.statuses(id),
   advisor_id UUID REFERENCES public.profiles(id),
   source_id UUID REFERENCES public.sources(id),
-  registration_date TIMESTAMPTZ DEFAULT now()
+  registration_date TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Actividades y Seguimiento (Con Auditoría)
-CREATE TABLE public.appointments (
+-- Actividades
+CREATE TABLE IF NOT EXISTS public.appointments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
-  date TIMESTAMPTZ NOT NULL, -- Fecha del evento
+  date TIMESTAMPTZ NOT NULL,
   duration INTEGER DEFAULT 60,
   details TEXT,
   status TEXT CHECK (status IN ('scheduled', 'completed', 'canceled')) DEFAULT 'scheduled',
@@ -77,16 +81,16 @@ CREATE TABLE public.appointments (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE public.follow_ups (
+CREATE TABLE IF NOT EXISTS public.follow_ups (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE,
-  date TIMESTAMPTZ NOT NULL, -- Fecha reportada del contacto
+  date TIMESTAMPTZ NOT NULL,
   notes TEXT NOT NULL,
   created_by UUID REFERENCES public.profiles(id),
-  created_at TIMESTAMPTZ DEFAULT now() -- Fecha real de registro
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE public.status_history (
+CREATE TABLE IF NOT EXISTS public.status_history (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE,
   old_status_id UUID REFERENCES public.statuses(id),
@@ -95,17 +99,94 @@ CREATE TABLE public.status_history (
   created_by UUID REFERENCES public.profiles(id)
 );
 
-CREATE TABLE public.login_history (
+-- Historial de Login (Corregido para evitar errores de FK)
+CREATE TABLE IF NOT EXISTS public.login_history (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL, -- Referencia explícita abajo
   login_at TIMESTAMPTZ DEFAULT now(),
   user_agent TEXT
 );
 
--- 2. FUNCIONES Y TRIGGERS
+-- Corregir FK de login_history si no existe
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'login_history_user_id_fkey') THEN 
+    ALTER TABLE public.login_history 
+    ADD CONSTRAINT login_history_user_id_fkey 
+    FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE; 
+  END IF; 
+END $$;
+
+-- 3. SEGURIDAD (RLS)
 -- ==============================================================================
 
--- Función para actualizar updated_at automáticamente
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.follow_ups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.whatsapp_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.statuses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.licenciaturas ENABLE ROW LEVEL SECURITY;
+
+-- Políticas Generales (Limpieza previa para evitar duplicados al correr el script varias veces)
+DROP POLICY IF EXISTS "Public profiles read" ON public.profiles;
+CREATE POLICY "Public profiles read" ON public.profiles FOR SELECT TO authenticated USING (true);
+
+-- LEADS
+DROP POLICY IF EXISTS "Admin/Mod: Ver todo" ON public.leads;
+CREATE POLICY "Admin/Mod: Ver todo" ON public.leads FOR SELECT TO authenticated USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
+);
+
+DROP POLICY IF EXISTS "Asesor: Ver asignados" ON public.leads;
+CREATE POLICY "Asesor: Ver asignados" ON public.leads FOR SELECT TO authenticated USING (
+  advisor_id = auth.uid()
+);
+
+DROP POLICY IF EXISTS "Admin/Mod: Gestionar" ON public.leads;
+CREATE POLICY "Admin/Mod: Gestionar" ON public.leads FOR ALL TO authenticated USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
+);
+
+DROP POLICY IF EXISTS "Asesor: Gestionar Propios" ON public.leads;
+CREATE POLICY "Asesor: Gestionar Propios" ON public.leads FOR ALL TO authenticated USING (
+  advisor_id = auth.uid()
+);
+
+-- LOGIN HISTORY
+DROP POLICY IF EXISTS "Insertar propio historial" ON public.login_history;
+CREATE POLICY "Insertar propio historial" ON public.login_history FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins ven historial" ON public.login_history;
+CREATE POLICY "Admins ven historial" ON public.login_history FOR SELECT TO authenticated USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- OTRAS TABLAS (Políticas abiertas para lectura, restringidas escritura)
+CREATE POLICY "Lectura General" ON public.statuses FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Escritura Admin" ON public.statuses FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Lectura General Sources" ON public.sources FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Escritura Admin Sources" ON public.sources FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Lectura General Licenciaturas" ON public.licenciaturas FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Escritura Admin Licenciaturas" ON public.licenciaturas FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Accesso Plantillas" ON public.whatsapp_templates FOR ALL TO authenticated USING (true);
+CREATE POLICY "Accesso Plantillas Email" ON public.email_templates FOR ALL TO authenticated USING (true);
+
+CREATE POLICY "Accesso Appointments" ON public.appointments FOR ALL TO authenticated USING (true);
+CREATE POLICY "Accesso FollowUps" ON public.follow_ups FOR ALL TO authenticated USING (true);
+CREATE POLICY "Accesso History" ON public.status_history FOR ALL TO authenticated USING (true);
+
+
+-- 4. FUNCIONES Y TRIGGERS
+-- ==============================================================================
+
+-- Actualizar updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -114,12 +195,13 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_appointments_updated_at
-    BEFORE UPDATE ON public.appointments
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_leads_updated_at ON public.leads;
+CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON public.leads FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Función RPC para crear usuarios desde el panel administrativo
+DROP TRIGGER IF EXISTS update_appointments_updated_at ON public.appointments;
+CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Crear Usuario (RPC)
 CREATE OR REPLACE FUNCTION create_user_profile(
   user_id UUID,
   full_name TEXT,
@@ -129,24 +211,12 @@ CREATE OR REPLACE FUNCTION create_user_profile(
 RETURNS VOID AS $$
 BEGIN
   INSERT INTO public.profiles (id, full_name, email, role)
-  VALUES (user_id, full_name, user_email, user_role);
+  VALUES (user_id, full_name, user_email, user_role)
+  ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, role = EXCLUDED.role;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Función RPC para transferir leads
-CREATE OR REPLACE FUNCTION transfer_lead(
-  lead_id UUID, 
-  new_advisor_id UUID
-)
-RETURNS VOID AS $$
-BEGIN
-  UPDATE public.leads
-  SET advisor_id = new_advisor_id
-  WHERE id = lead_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Función RPC para actualizar detalles de usuario
+-- Actualizar Usuario (RPC)
 CREATE OR REPLACE FUNCTION update_user_details(
   user_id_to_update UUID,
   new_full_name TEXT,
@@ -159,7 +229,7 @@ BEGIN
   SET full_name = new_full_name, role = new_role
   WHERE id = user_id_to_update;
 
-  IF new_password IS NOT NULL THEN
+  IF new_password IS NOT NULL AND new_password <> '' THEN
     UPDATE auth.users
     SET encrypted_password = crypt(new_password, gen_salt('bf'))
     WHERE id = user_id_to_update;
@@ -167,7 +237,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Función RPC para eliminar usuario
+-- Eliminar Usuario (RPC)
 CREATE OR REPLACE FUNCTION delete_user_by_id(user_id_to_delete UUID)
 RETURNS VOID AS $$
 BEGIN
@@ -176,304 +246,35 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 3. SEGURIDAD RLS (Row Level Security)
--- ==============================================================================
-
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.follow_ups ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.whatsapp_templates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.email_templates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY;
-
--- >>> POLÍTICAS DE PERFILES
-CREATE POLICY "Public profiles read" ON public.profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Admin manage profiles" ON public.profiles FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-
--- >>> POLÍTICAS DE LEADS
--- Admin y Moderador: Ver todo
-CREATE POLICY "Admin/Mod: Ver todo" ON public.leads FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
-);
--- Admin y Moderador: Editar todo
-CREATE POLICY "Admin/Mod: Editar todo" ON public.leads FOR UPDATE TO authenticated USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
-);
--- Admin y Moderador: Insertar
-CREATE POLICY "Admin/Mod: Crear" ON public.leads FOR INSERT TO authenticated WITH CHECK (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
-);
--- Admin: Eliminar (Exclusivo)
-CREATE POLICY "Admin: Eliminar" ON public.leads FOR DELETE TO authenticated USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-
--- Asesor: Ver lo suyo
-CREATE POLICY "Asesor: Ver asignados" ON public.leads FOR SELECT TO authenticated USING (
-  advisor_id = auth.uid()
-);
--- Asesor: Crear
-CREATE POLICY "Asesor: Crear" ON public.leads FOR INSERT TO authenticated WITH CHECK (
-  advisor_id = auth.uid()
-);
--- Asesor: Editar lo suyo
-CREATE POLICY "Asesor: Editar asignados" ON public.leads FOR UPDATE TO authenticated USING (
-  advisor_id = auth.uid()
-);
-
--- >>> POLÍTICAS DE CITAS
-CREATE POLICY "Citas: Acceso jerárquico" ON public.appointments FOR ALL TO authenticated USING (
-  EXISTS (
-    SELECT 1 FROM public.leads
-    WHERE leads.id = appointments.lead_id
-    AND (
-        leads.advisor_id = auth.uid() 
-        OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
-    )
-  )
-);
-
--- >>> POLÍTICAS DE BITÁCORA (FOLLOW UPS)
-CREATE POLICY "Bitácora: Lectura jerárquica" ON public.follow_ups FOR SELECT TO authenticated USING (
-  EXISTS (
-    SELECT 1 FROM public.leads
-    WHERE leads.id = follow_ups.lead_id
-    AND (
-        leads.advisor_id = auth.uid() 
-        OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'moderator'))
-    )
-  )
-);
-
-CREATE POLICY "Bitácora: Insertar todos" ON public.follow_ups FOR INSERT TO authenticated WITH CHECK (true);
-
-CREATE POLICY "Bitácora: Eliminar solo Admin" ON public.follow_ups FOR DELETE TO authenticated USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-
--- >>> POLÍTICAS DE PLANTILLAS Y CATÁLOGOS
--- Lectura para todos, Modificación solo Admin/Mod (y Asesor para plantillas)
-CREATE POLICY "Plantillas: Ver todos" ON public.whatsapp_templates FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Plantillas: Gestión" ON public.whatsapp_templates FOR ALL TO authenticated USING (true);
-
-CREATE POLICY "Plantillas Email: Ver todos" ON public.email_templates FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Plantillas Email: Gestión" ON public.email_templates FOR ALL TO authenticated USING (true);
-
--- Catálogos (Solo lectura general, escritura admin)
-CREATE POLICY "Catalogos: Lectura" ON public.statuses FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Catalogos: Admin" ON public.statuses FOR ALL TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-
-ALTER TABLE public.sources ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Sources read" ON public.sources FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Sources write" ON public.sources FOR ALL TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-
-ALTER TABLE public.licenciaturas ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Licenciaturas read" ON public.licenciaturas FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Licenciaturas write" ON public.licenciaturas FOR ALL TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-
--- 4. INSERTAR DATOS INICIALES (SEEDING)
--- ==============================================================================
--- Crear primer usuario admin manualmente en Supabase Auth y luego:
--- INSERT INTO public.profiles (id, full_name, email, role) VALUES ('ID_DEL_USUARIO_AUTH', 'Super Admin', 'admin@cuom.edu.mx', 'admin');
-
--- 5. ÍNDICES DE RENDIMIENTO (OPTIMIZACIÓN)
--- ==============================================================================
-
--- Índices para búsquedas frecuentes y claves foráneas
-CREATE INDEX IF NOT EXISTS idx_leads_advisor ON public.leads(advisor_id);
-CREATE INDEX IF NOT EXISTS idx_leads_status ON public.leads(status_id);
-CREATE INDEX IF NOT EXISTS idx_leads_program ON public.leads(program_id);
-CREATE INDEX IF NOT EXISTS idx_leads_email ON public.leads(email);
-CREATE INDEX IF NOT EXISTS idx_leads_phone ON public.leads(phone);
-
--- Índice compuesto para reportes (filtro por fechas)
-CREATE INDEX IF NOT EXISTS idx_leads_registration_date ON public.leads(registration_date);
-
--- Índices para actividades
-CREATE INDEX IF NOT EXISTS idx_appointments_lead ON public.appointments(lead_id);
-CREATE INDEX IF NOT EXISTS idx_appointments_date ON public.appointments(date);
-CREATE INDEX IF NOT EXISTS idx_followups_lead ON public.follow_ups(lead_id);
-
--- 6. DATOS PRECARGADOS (OPCIONAL - SEEDING)
--- ==============================================================================
-
--- Insertar estados predefinidos con sus categorías correctas
-INSERT INTO public.statuses (name, color, category) VALUES
-    ('Sin Contactar', 'bg-gray-500', 'active'),
-    ('Primer Contacto (Respuesta Pendiente)', 'bg-yellow-500', 'active'),
-    ('En Seguimiento', 'bg-sky-500', 'active'),
-    ('Cita en Negociación', 'bg-cyan-500', 'active'),
-    ('Con Cita', 'bg-blue-500', 'active'),
-    ('Siguiente ciclo', 'bg-violet-500', 'active'),
-    ('Fase de Cierre/Solo Solicitud', 'bg-lime-500', 'active'),
-    ('Fase de Cierre/Solo Pago Parcial', 'bg-lime-500', 'active'),
-    ('Fase de Cierre/Solicitud y Documentos', 'bg-lime-500', 'active'),
-    ('Fase de Cierre/Solicitud y Pago Parcial', 'bg-emerald-500', 'active'),
-    ('Fase de Cierre/Solicitud, Pago Parcial y Documentos', 'bg-emerald-500', 'active'),
-    ('Contactar después', 'bg-purple-500', 'active'),
-    ('Inscrito (a)', 'bg-green-500', 'won'),
-    ('Sin Respuesta (No hay interacción)', 'bg-orange-500', 'lost'),
-    ('Sin Interés', 'bg-red-500', 'lost'),
-    ('Número Equivocado/Inexistente', 'bg-stone-500', 'lost')
-ON CONFLICT DO NOTHING; -- Evita errores si ya existen
-
-
--- ==============================================================================
--- 7. OPTIMIZACIONES Y VALIDACIONES (Agregado para validación de duplicados)
--- ==============================================================================
-
--- Trigger para mantener actualizada la fecha de modificación
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+-- Transferir Lead (RPC)
+CREATE OR REPLACE FUNCTION transfer_lead(lead_id UUID, new_advisor_id UUID)
+RETURNS VOID AS $$
 BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
+  UPDATE public.leads SET advisor_id = new_advisor_id WHERE id = lead_id;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS update_leads_updated_at ON public.leads;
-CREATE TRIGGER update_leads_updated_at
-    BEFORE UPDATE ON public.leads
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Índices para acelerar el Dashboard y búsquedas
-CREATE INDEX IF NOT EXISTS idx_leads_status_date ON public.leads(status_id, registration_date);
-CREATE INDEX IF NOT EXISTS idx_leads_advisor_status ON public.leads(advisor_id, status_id);
-CREATE INDEX IF NOT EXISTS idx_leads_email_lower ON public.leads (lower(email));
-CREATE INDEX IF NOT EXISTS idx_leads_phone_clean ON public.leads (phone);
-CREATE INDEX IF NOT EXISTS idx_status_history_lead_date ON public.status_history(lead_id, date);
-CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_date ON public.follow_ups(lead_id, date);
-
--- Función RPC segura para detectar duplicados desde el frontend
-CREATE OR REPLACE FUNCTION check_duplicate_lead(
-  check_email TEXT,
-  check_phone TEXT
-)
+-- Detectar Duplicados (RPC)
+CREATE OR REPLACE FUNCTION check_duplicate_lead(check_email TEXT, check_phone TEXT)
 RETURNS TABLE (id UUID, advisor_name TEXT) AS $$
 BEGIN
   RETURN QUERY
-  SELECT 
-    l.id, 
-    p.full_name as advisor_name
+  SELECT l.id, p.full_name as advisor_name
   FROM public.leads l
   LEFT JOIN public.profiles p ON l.advisor_id = p.id
-  WHERE 
-    (check_email IS NOT NULL AND check_email <> '' AND lower(l.email) = lower(check_email)) 
-    OR 
-    (check_phone IS NOT NULL AND check_phone <> '' AND l.phone = check_phone)
+  WHERE (check_email IS NOT NULL AND check_email <> '' AND lower(l.email) = lower(check_email)) 
+     OR (check_phone IS NOT NULL AND check_phone <> '' AND l.phone = check_phone)
   LIMIT 1;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-
--- ==============================================================================
--- 8. ÍNDICES DE ALTO RENDIMIENTO (OPTIMIZACIÓN PARA VOLUMEN +10K)
--- Agregado para garantizar velocidad en paginación y filtros complejos
+-- 5. ÍNDICES DE RENDIMIENTO (CRUCIAL PARA TU PAGINACIÓN ACTUAL)
 -- ==============================================================================
 
--- Índice compuesto vital para el hook useCRMData (Paginación estable)
--- Permite saltar miles de registros instantáneamente sin 'scan' secuencial
-CREATE INDEX IF NOT EXISTS idx_leads_pagination 
-ON public.leads(registration_date DESC, id);
-
--- Índice para la vista principal del Asesor ('Mis Leads')
-CREATE INDEX IF NOT EXISTS idx_leads_advisor_pagination 
-ON public.leads(advisor_id, registration_date DESC);
-
--- Búsquedas de texto insensibles a mayúsculas (Email)
-CREATE INDEX IF NOT EXISTS idx_leads_email_search 
-ON public.leads (lower(email));
-
--- Filtrado rápido para el Tablero Kanban (Estado + Fecha)
-CREATE INDEX IF NOT EXISTS idx_leads_status_board 
-ON public.leads(status_id, registration_date DESC);
-
--- Optimización de la vista de detalle (Historial cronológico inverso)
-CREATE INDEX IF NOT EXISTS idx_followups_lead_date 
-ON public.follow_ups(lead_id, date DESC);
-
-CREATE INDEX IF NOT EXISTS idx_appointments_lead_date 
-ON public.appointments(lead_id, date DESC);
-
--- ==============================================================================
--- 🔔9.- SISTEMA DE NOTIFICACIONES - SCRIPT COMPLETO
--- ==============================================================================
-
--- 1. Crear la Tabla de Notificaciones
-CREATE TABLE IF NOT EXISTS public.notifications (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  title TEXT NOT NULL,
-  message TEXT,
-  type TEXT CHECK (type IN ('info', 'warning', 'success', 'error')) DEFAULT 'info',
-  is_read BOOLEAN DEFAULT FALSE,
-  link TEXT, -- Opcional: Para redirigir al hacer clic
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 2. Habilitar Seguridad (RLS)
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-
--- Política: Los usuarios solo pueden ver sus propias notificaciones
-DROP POLICY IF EXISTS "Users can see their own notifications" ON public.notifications;
-CREATE POLICY "Users can see their own notifications" 
-ON public.notifications FOR SELECT 
-TO authenticated 
-USING (user_id = auth.uid());
-
--- Política: Los usuarios pueden actualizar (marcar como leída) sus notificaciones
-DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
-CREATE POLICY "Users can update their own notifications" 
-ON public.notifications FOR UPDATE 
-TO authenticated 
-USING (user_id = auth.uid());
-
--- 3. Crear Índices para Rendimiento
-CREATE INDEX IF NOT EXISTS idx_notifications_user_unread 
-ON public.notifications(user_id) 
-WHERE is_read = FALSE;
-
--- 4. Función de Automatización (CON VALIDACIÓN DE AUTO-ASIGNACIÓN)
-CREATE OR REPLACE FUNCTION notify_lead_assignment()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Lógica:
-  -- 1. Detectar si es un nuevo lead o si cambió el asesor (UPDATE)
-  -- 2. Verificar que haya un asesor asignado (no nulo)
-  -- 3. CRÍTICO: Verificar que el asesor asignado NO SEA el mismo usuario que ejecuta la acción (auth.uid())
-  
-  IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.advisor_id IS DISTINCT FROM NEW.advisor_id)) THEN
-    
-    IF NEW.advisor_id IS NOT NULL AND NEW.advisor_id != auth.uid() THEN
-      
-      INSERT INTO public.notifications (user_id, title, message, type)
-      VALUES (
-        NEW.advisor_id,
-        'Nuevo Lead Asignado',
-        'Se te ha asignado el lead: ' || NEW.first_name || ' ' || NEW.paternal_last_name,
-        'info'
-      );
-      
-    END IF;
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 5. Crear el Trigger en la tabla de Leads
-DROP TRIGGER IF EXISTS on_lead_assigned ON public.leads;
-CREATE TRIGGER on_lead_assigned
-AFTER INSERT OR UPDATE ON public.leads
-FOR EACH ROW
-EXECUTE FUNCTION notify_lead_assignment();
+CREATE INDEX IF NOT EXISTS idx_leads_pagination ON public.leads(registration_date DESC, id);
+CREATE INDEX IF NOT EXISTS idx_leads_advisor_pagination ON public.leads(advisor_id, registration_date DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_status_board ON public.leads(status_id, registration_date DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_search_email ON public.leads (lower(email));
+CREATE INDEX IF NOT EXISTS idx_leads_search_phone ON public.leads (phone);
+CREATE INDEX IF NOT EXISTS idx_appointments_date ON public.appointments(date);
+CREATE INDEX IF NOT EXISTS idx_followups_lead ON public.follow_ups(lead_id);
