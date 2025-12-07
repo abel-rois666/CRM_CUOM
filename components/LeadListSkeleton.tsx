@@ -2,13 +2,13 @@ import React from 'react';
 
 // Simula una tarjeta del Dashboard
 const StatCardSkeleton = () => (
-  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-32 flex flex-col justify-between animate-pulse">
+  <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm h-32 flex flex-col justify-between animate-pulse">
      <div className="flex justify-between items-start">
          <div className="space-y-2 w-full">
-             <div className="h-3 bg-gray-200 rounded-full w-1/3"></div>
-             <div className="h-8 bg-gray-200 rounded-lg w-1/2"></div>
+             <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full w-1/3"></div>
+             <div className="h-8 bg-gray-200 dark:bg-slate-700 rounded-lg w-1/2"></div>
          </div>
-         <div className="h-10 w-10 bg-gray-200 rounded-xl"></div>
+         <div className="h-10 w-10 bg-gray-200 dark:bg-slate-700 rounded-xl"></div>
      </div>
   </div>
 );
@@ -17,32 +17,32 @@ const SkeletonRow = () => (
   <tr className="animate-pulse border-b border-gray-50 last:border-0">
     <td className="px-6 py-4">
       <div className="flex items-center">
-         <div className="h-10 w-10 rounded-full bg-gray-200 mr-3 flex-shrink-0"></div>
+         <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-slate-700 mr-3 flex-shrink-0"></div>
          <div className="space-y-2 w-full">
-             <div className="h-3.5 bg-gray-200 rounded-full w-32"></div>
-             <div className="h-2.5 bg-gray-200 rounded-full w-24"></div>
+             <div className="h-3.5 bg-gray-200 dark:bg-slate-700 rounded-full w-32"></div>
+             <div className="h-2.5 bg-gray-200 dark:bg-slate-700 rounded-full w-24"></div>
          </div>
       </div>
     </td>
     <td className="px-6 py-4 hidden md:table-cell">
-      <div className="h-3 bg-gray-200 rounded-full w-24"></div>
+      <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full w-24"></div>
     </td>
     <td className="px-6 py-4">
-      <div className="h-6 bg-gray-200 rounded-lg w-20"></div>
+      <div className="h-6 bg-gray-200 dark:bg-slate-700 rounded-lg w-20"></div>
     </td>
     <td className="px-6 py-4 hidden sm:table-cell">
-        <div className="h-3 bg-gray-200 rounded-full w-full max-w-[100px]"></div>
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full w-full max-w-[100px]"></div>
     </td>
     <td className="px-6 py-4 hidden lg:table-cell">
-        <div className="h-3 bg-gray-200 rounded-full w-20"></div>
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded-full w-20"></div>
     </td>
     <td className="px-6 py-4 text-center hidden sm:table-cell">
-        <div className="h-8 w-8 bg-gray-200 rounded-lg mx-auto"></div>
+        <div className="h-8 w-8 bg-gray-200 dark:bg-slate-700 rounded-lg mx-auto"></div>
     </td>
     <td className="px-6 py-4 text-right">
       <div className="flex justify-end space-x-2">
-        <div className="h-8 w-8 bg-gray-200 rounded-lg"></div>
-        <div className="h-8 w-8 bg-gray-200 rounded-lg"></div>
+        <div className="h-8 w-8 bg-gray-200 dark:bg-slate-700 rounded-lg"></div>
+        <div className="h-8 w-8 bg-gray-200 dark:bg-slate-700 rounded-lg"></div>
       </div>
     </td>
   </tr>

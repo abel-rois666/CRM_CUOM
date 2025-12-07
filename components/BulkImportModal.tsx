@@ -345,8 +345,8 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
               <div className="p-4 bg-gray-100 rounded-full mb-4 group-hover:scale-110 transition-transform duration-300">
                 <ArrowUpTrayIcon className="w-8 h-8 text-gray-500 group-hover:text-brand-secondary" />
               </div>
-              <p className="text-gray-900 font-semibold text-lg mb-1">Sube tu archivo CSV</p>
-              <p className="text-sm text-gray-500 mb-6 text-center max-w-xs">Arrastra y suelta tu archivo aquí, o haz clic para buscar en tu ordenador.</p>
+              <p className="text-gray-800 dark:text-gray-200 font-semibold text-lg mb-1">Sube tu archivo CSV</p>
+              <p className="text-sm text-gray-900 dark:text-gray-400 mb-6 text-center max-w-xs">Arrastra y suelta tu archivo aquí, o haz clic para buscar en tu ordenador.</p>
               
               <input 
                 type="file" 

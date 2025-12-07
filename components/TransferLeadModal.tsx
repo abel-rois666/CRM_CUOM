@@ -34,16 +34,16 @@ const TransferLeadModal: React.FC<TransferLeadModalProps> = ({ isOpen, onClose, 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Transferir Lead" size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-blue-50 p-3 rounded-md border border-blue-200 flex items-start gap-3">
-            <TransferIcon className="w-6 h-6 text-blue-600 mt-1" />
-            <div className="text-sm text-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800 flex items-start gap-3">
+        <TransferIcon className="w-6 h-6 text-blue-600 dark:text-blue-400 mt-1" />
+            <div className="text-sm text-blue-800 dark:text-blue-200">
                 <p className="font-bold">Cambio de Responsabilidad</p>
                 <p>El lead se moverá a la lista del nuevo asesor y se generará un registro en el historial.</p>
             </div>
         </div>
 
         <div>
-          <label htmlFor="newAdvisor" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="newAdvisor" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Nuevo Asesor <span className="text-red-500">*</span>
           </label>
           <select
@@ -63,7 +63,7 @@ const TransferLeadModal: React.FC<TransferLeadModalProps> = ({ isOpen, onClose, 
         </div>
 
         <div>
-          <label htmlFor="transferReason" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="transferReason" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Motivo de la Transferencia <span className="text-red-500">*</span>
           </label>
           <textarea

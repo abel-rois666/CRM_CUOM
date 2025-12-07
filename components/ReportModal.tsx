@@ -76,9 +76,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-white p-2 border border-gray-200 shadow-lg rounded-lg text-xs z-50">
-          <p className="font-bold text-gray-800">{data.name}</p>
-          <p className="text-gray-600">
+            <div className="bg-white dark:bg-slate-800 p-2 border border-gray-200 dark:border-slate-700 shadow-lg rounded-lg text-xs z-50">
+            <p className="font-bold text-gray-800 dark:text-white">{data.name}</p>
+            <p className="text-gray-600 dark:text-gray-300">
             <span className="font-semibold text-brand-secondary">{data.value || data.count || data.rate?.toFixed(1)}</span>
             {data.rate !== undefined ? '%' : ''}
           </p>
@@ -526,7 +526,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
         {report && (
           <>
             {/* Contenedor del reporte - Referenciado para captura */}
-            <div className="animate-fade-in bg-white" ref={reportContentRef}>
+            <div className={`animate-fade-in ${isExporting ? 'bg-white' : 'bg-transparent'}`} ref={reportContentRef}>
                 <div className="text-center mb-8 pt-4">
                     <h2 className={`text-3xl font-black tracking-tight ${isExporting ? 'text-black' : 'text-gray-900 dark:text-white'}`}>Reporte Ejecutivo</h2>
                     <p className={`font-medium mt-1 text-lg ${isExporting ? 'text-black' : 'text-gray-600'}`}>

@@ -469,14 +469,14 @@ const LeadList: React.FC<LeadListProps> = ({
         : <ChevronUpDownIcon className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />;
 
     return (
-        <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer group ${className}`} onClick={() => handleSort(column)}>
-            <div className="flex items-center gap-1">
-                <span className="group-hover:text-gray-800 transition-colors">{label}</span>
-                {icon}
-            </div>
-        </th>
-    )
-  }
+            <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer group ${className}`} onClick={() => handleSort(column)}>
+                <div className="flex items-center gap-1">
+                    <span className="group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">{label}</span>
+                    {icon}
+                </div>
+            </th>
+        )
+    }
 
   const handleLeadMove = (leadId: string, newStatusId: string) => {
       onUpdateLead(leadId, { status_id: newStatusId });
@@ -504,19 +504,19 @@ const LeadList: React.FC<LeadListProps> = ({
 
       {/* Header Section */}
       <div className="mb-8 flex flex-col gap-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div>
-                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Clientes Potenciales</h2>
-                 <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
-                    Total en Base: <span className="font-bold text-brand-primary">{totalLeads}</span> | Cargados: <span className="font-bold text-gray-700">{leads.length}</span>
-                </p>
-            </div>
-             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                {userRole === 'admin' && (
-                    <Button onClick={() => setIsBulkTransferOpen(true)} variant="secondary" size="sm" className="px-3 sm:px-4 border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-300" title="Reasignar Leads">
-                        <TransferIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reasignar</span>
-                    </Button>
-                )}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Clientes Potenciales</h2>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                        Total en Base: <span className="font-bold text-brand-primary dark:text-blue-400">{totalLeads}</span> | Cargados: <span className="font-bold text-gray-700 dark:text-gray-300">{leads.length}</span>
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    {userRole === 'admin' && (
+                        <Button onClick={() => setIsBulkTransferOpen(true)} variant="secondary" size="sm" className="px-3 sm:px-4 border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800 dark:hover:bg-amber-900/40" title="Reasignar Leads">
+                            <TransferIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reasignar</span>
+                        </Button>
+                    )}
                 <Button onClick={onOpenImport} variant="secondary" size="sm" className="px-3 sm:px-4">
                     <ArrowUpTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Importar</span>
                 </Button>
@@ -536,18 +536,20 @@ const LeadList: React.FC<LeadListProps> = ({
 
           {/* Filters & Tabs */}
           <div className="flex flex-col gap-4">
-            <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-3 items-center">
+            <div className="bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-3 items-center">
                 <div className="relative flex-grow w-full sm:w-auto group">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        {isSearching || loading ? (
-                            <ArrowPathIcon className="h-5 w-5 text-brand-secondary animate-spin" />
-                        ) : (
-                            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 group-focus-within:text-brand-secondary transition-colors" />
-                        )}
-                    </div>
+
+                {isSearching ? (
+                // Icono de carga (Spinner) - Se muestra si hay texto
+                <ArrowPathIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-brand-secondary animate-spin" />
+                ) : (
+                // Icono de lupa - Se muestra si el campo está vacío
+                <MagnifyingGlassIcon className="absolute top-1/2 left-1/45 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                )}
+
                     <input
                         type="text"
-                        className="block w-full pl-11 pr-4 py-3 border border-gray-200 bg-white rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary transition-all text-sm"
+                        className="block w-full pl-11 pr-4 py-3 border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary transition-all text-sm"
                         placeholder="Buscar en el servidor (Nombre, Email, Tel)..."
                         value={localSearchTerm}
                         onChange={handleSearchInput}
@@ -559,8 +561,8 @@ const LeadList: React.FC<LeadListProps> = ({
                         onClick={() => setIsFilterDrawerOpen(true)}
                         className={`relative inline-flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all ${
                             activeFilterCount > 0 
-                            ? 'bg-brand-secondary/10 text-brand-secondary ring-1 ring-brand-secondary/20' 
-                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                            ? 'bg-brand-secondary/10 text-brand-secondary ring-1 ring-brand-secondary/20 dark:bg-blue-900/30 dark:text-blue-400' 
+                            : 'bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600'
                         }`}
                     >
                         <FunnelIcon className="w-4 h-4 mr-2" />
@@ -568,9 +570,9 @@ const LeadList: React.FC<LeadListProps> = ({
                         {activeFilterCount > 0 && <span className="ml-2 bg-brand-secondary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilterCount}</span>}
                     </button>
 
-                    <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
+                    <div className="h-8 w-px bg-gray-200 dark:bg-slate-700 hidden sm:block"></div>
 
-                    <div className="bg-gray-100 p-1 rounded-lg flex items-center gap-1">
+                    <div className="bg-gray-100 dark:bg-slate-700 p-1 rounded-lg flex items-center gap-1">
                         <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                             <ListBulletIcon className="w-5 h-5" />
                         </button>
@@ -585,17 +587,17 @@ const LeadList: React.FC<LeadListProps> = ({
             </div>
             
             {/* Tabs de Estado */}
-            <div className="border-b border-gray-200 overflow-x-auto scrollbar-hide">
+            <div className="border-b border-gray-200 dark:border-slate-700 overflow-x-auto scrollbar-hide">
                 <nav className="-mb-px flex space-x-8 px-2 min-w-max" aria-label="Tabs">
                 {[
-                    { id: 'active', label: 'En Proceso (Activos)', color: 'border-brand-secondary text-brand-secondary' },
-                    { id: 'won', label: 'Inscritos (Ganados)', color: 'border-green-500 text-green-600' },
-                    { id: 'lost', label: 'Bajas / Archivo', color: 'border-red-500 text-red-600' }
+                    { id: 'active', label: 'En Proceso (Activos)', color: 'border-brand-secondary text-brand-secondary dark:text-blue-400' },
+                    { id: 'won', label: 'Inscritos (Ganados)', color: 'border-green-500 text-green-600 dark:text-green-400' },
+                    { id: 'lost', label: 'Bajas / Archivo', color: 'border-red-500 text-red-600 dark:text-red-400' }
                 ].map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => { setActiveCategoryTab(tab.id as StatusCategory); setQuickFilter(null); }}
-                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-slate-600'}`}
                     >
                         {tab.label}
                     </button>
@@ -630,10 +632,10 @@ const LeadList: React.FC<LeadListProps> = ({
       
       <div key={`${viewMode}-${activeCategoryTab}`} className="animate-fade-in">
         {viewMode === 'list' ? (
-          <div className="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-200 flex flex-col">
-              <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50/50">
+        <div className="bg-white dark:bg-slate-800 shadow-sm rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-700 flex flex-col">
+            <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                <thead className="bg-gray-50/50 dark:bg-slate-700/50">
                   <tr>
                       {/* CHECKBOX HEADER (Solo Admin) */}
                       {userRole === 'admin' && (
@@ -658,26 +660,26 @@ const LeadList: React.FC<LeadListProps> = ({
                       <th scope="col" className="relative px-6 py-3"><span className="sr-only">Editar</span></th>
                   </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
-                  {sortedLeads.map((lead) => {
+                  <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-100 dark:divide-slate-700">
+                    {sortedLeads.map((lead) => {
                       const urgencyLevel = getLeadUrgency(lead);
                       const status = statusMap.get(lead.status_id);
                       
-                      let rowClasses = "group hover:bg-gray-50 transition-colors duration-200";
+                      let rowClasses = "group hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200";
                       let urgencyIndicator = null;
 
                       if (urgencyLevel === 3) {
-                          rowClasses = "group bg-red-50/40 hover:bg-red-50 border-l-4 border-red-500";
+                          rowClasses = "group bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 border-l-4 border-red-500";
                           urgencyIndicator = <BellAlertIcon className="w-5 h-5 text-red-600 animate-pulse" title="Cita inminente (<48h)"/>;
                       } else if (urgencyLevel === 2) {
-                          rowClasses = "group bg-amber-50/30 hover:bg-amber-50 border-l-4 border-amber-400";
+                          rowClasses = "group bg-amber-50/30 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20 border-l-4 border-amber-400";
                           urgencyIndicator = <ExclamationCircleIcon className="w-5 h-5 text-amber-500" title="Requiere Atención (Sin seguimiento)"/>;
                       } else {
                           rowClasses += " border-l-4 border-transparent";
                       }
                       
                       if (selectedIds.has(lead.id)) {
-                          rowClasses += " bg-blue-50";
+                          rowClasses += " bg-blue-50 dark:bg-blue-900/20";
                       }
 
                       return (
@@ -699,71 +701,71 @@ const LeadList: React.FC<LeadListProps> = ({
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center cursor-pointer" onClick={() => onViewDetails(lead)}>
-                                <div className="h-9 w-9 rounded-full bg-brand-secondary/10 flex items-center justify-center text-brand-secondary font-bold text-sm mr-3">
+                                <div className="h-9 w-9 rounded-full bg-brand-secondary/10 dark:bg-blue-900/30 flex items-center justify-center text-brand-secondary dark:text-blue-400 font-bold text-sm mr-3">
                                     {lead.first_name.charAt(0)}
                                 </div>
                                 <div>
-                                    <div className="text-sm font-bold text-gray-900">{lead.first_name} {lead.paternal_last_name}</div>
-                                    <div className="text-xs text-gray-500">{lead.email || lead.phone}</div>
+                                    <div className="text-sm font-bold text-gray-900 dark:text-white">{lead.first_name} {lead.paternal_last_name}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">{lead.email || lead.phone}</div>
                                 </div>
                             </div>
-                          </td>
-                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                              {advisorMap.get(lead.advisor_id) || <span className="text-gray-400 italic">Sin asignar</span>}
+                            </td>
+                          <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                             {advisorMap.get(lead.advisor_id) || <span className="text-gray-400 dark:text-gray-500 italic">Sin asignar</span>}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                              <Badge color={status?.color} size="sm">
                                 {status?.name || 'Desconocido'}
                              </Badge>
                           </td>
-                          <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">
-                             {licenciaturaMap.get(lead.program_id) || '-'}
-                          </td>
-                          <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              <div className="flex items-center gap-1">
+                            <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate">
+                            {licenciaturaMap.get(lead.program_id) || '-'}
+                            </td>
+                            <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                <div className="flex items-center gap-1">
                                 <ClockIcon className="w-3 h-3"/>
                                 {new Date(lead.registration_date).toLocaleDateString()}
-                              </div>
-                          </td>
-                          <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-center">
-                          {lead.appointments?.some(a => a.status === 'scheduled') ? (
-                              <button onClick={() => onViewDetails(lead, 'appointments')} className="text-emerald-500 hover:scale-110 transition-transform" title="Cita Programada">
-                                <CalendarIcon className="w-5 h-5 inline-block" />
-                              </button>
-                          ) : (
-                              <span className="text-gray-300 text-xs">•</span>
-                          )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                              <div className="flex items-center justify-center space-x-3 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
-                                  <button onClick={() => onOpenWhatsApp(lead)} className="text-gray-400 hover:text-green-600 transition-colors hover:bg-green-50 p-1 rounded-md">
-                                      <ChatBubbleLeftRightIcon className="w-5 h-5" />
-                                  </button>
-                                  {lead.email && (
-                                      <button onClick={() => onOpenEmail(lead)} className="text-gray-400 hover:text-blue-600 transition-colors hover:bg-blue-50 p-1 rounded-md">
-                                          <EnvelopeIcon className="w-5 h-5" />
-                                      </button>
-                                  )}
-                              </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex justify-end space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => onEdit(lead)} className="text-gray-400 hover:text-brand-secondary p-1 rounded hover:bg-gray-100"><EditIcon className="w-4 h-4"/></button>
-                                <button onClick={() => setLeadToDelete(lead.id)} className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><TrashIcon className="w-4 h-4"/></button>
-                            </div>
-                          </td>
-                      </tr>
-                      )
-                  })}
-                  {sortedLeads.length === 0 && (
+                                </div>
+                            </td>
+                            <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-center">
+                                {lead.appointments?.some(a => a.status === 'scheduled') ? (
+                                    <button onClick={() => onViewDetails(lead, 'appointments')} className="text-emerald-500 hover:scale-110 transition-transform" title="Cita Programada">
+                                    <CalendarIcon className="w-5 h-5 inline-block" />
+                                    </button>
+                                ) : (
+                                    <span className="text-gray-300 dark:text-gray-600 text-xs">•</span>
+                                )}
+                                </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <div className="flex items-center justify-center space-x-3 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => onOpenWhatsApp(lead)} className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors hover:bg-green-50 dark:hover:bg-green-900/30 p-1 rounded-md">
+                                                <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                                            </button>
+                                            {lead.email && (
+                                                <button onClick={() => onOpenEmail(lead)} className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1 rounded-md">
+                                                    <EnvelopeIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div className="flex justify-end space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => onEdit(lead)} className="text-gray-400 dark:text-gray-500 hover:text-brand-secondary dark:hover:text-blue-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700"><EditIcon className="w-4 h-4"/></button>
+                                        <button onClick={() => setLeadToDelete(lead.id)} className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"><TrashIcon className="w-4 h-4"/></button>
+                                    </div>
+                                    </td>
+                                </tr>
+                                )
+                            })}
+                    {sortedLeads.length === 0 && (
                         <tr>
                             <td colSpan={10} className="text-center py-20">
                                 <div className="flex flex-col items-center justify-center animate-fade-in">
-                                    <div className="bg-gray-50 rounded-full w-20 h-20 flex items-center justify-center mb-4 shadow-inner">
-                                        <MagnifyingGlassIcon className="w-10 h-10 text-gray-300" />
+                                    <div className="bg-gray-50 dark:bg-slate-800 rounded-full w-20 h-20 flex items-center justify-center mb-4 shadow-inner">
+                                        <MagnifyingGlassIcon className="w-10 h-10 text-gray-300 dark:text-gray-600" />
                                     </div>
-                                    <h3 className="text-lg font-bold text-gray-900">No se encontraron leads</h3>
-                                    <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">No se encontraron leads</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
                                         No hay resultados que coincidan con los filtros aplicados o la búsqueda "{localSearchTerm}".
                                     </p>
                                     {(activeFilterCount > 0 || localSearchTerm) && (
@@ -788,44 +790,44 @@ const LeadList: React.FC<LeadListProps> = ({
               </div>
               
               {/* PAGINACIÓN SERVER-SIDE - Footer */}
-              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div className="text-sm text-gray-500 order-2 sm:order-1">
-                        Mostrando <span className="font-medium text-gray-900">{Math.min((page - 1) * pageSize + 1, totalLeads)}</span> a <span className="font-medium text-gray-900">{Math.min(page * pageSize, totalLeads)}</span> de <span className="font-medium text-gray-900">{totalLeads}</span> resultados
-                    </div>
+<div className="bg-gray-50 dark:bg-slate-800 px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div className="text-sm text-gray-500 dark:text-gray-400 order-2 sm:order-1">
+        Mostrando <span className="font-medium text-gray-900 dark:text-white">{Math.min((page - 1) * pageSize + 1, totalLeads)}</span> a <span className="font-medium text-gray-900 dark:text-white">{Math.min(page * pageSize, totalLeads)}</span> de <span className="font-medium text-gray-900 dark:text-white">{totalLeads}</span> resultados
+    </div>
 
-                    <div className="flex items-center gap-4 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-end">
-                        <select 
-                            value={pageSize} 
-                            onChange={e => onPageSizeChange(Number(e.target.value))} 
-                            className="pl-3 pr-8 py-1.5 text-xs sm:text-sm border border-gray-300 bg-white rounded-lg focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary cursor-pointer shadow-sm focus:outline-none"
-                            >
-                            <option value={10}>10 por pág</option>
-                            <option value={25}>25 por pág</option>
-                            <option value={50}>50 por pág</option>
-                            <option value={100}>100 por pág</option>
-                        </select>
+    <div className="flex items-center gap-4 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-end">
+        <select 
+            value={pageSize} 
+            onChange={e => onPageSizeChange(Number(e.target.value))} 
+            className="pl-3 pr-8 py-1.5 text-xs sm:text-sm border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-200 rounded-lg focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary cursor-pointer shadow-sm focus:outline-none"
+            >
+            <option value={10}>10 por pág</option>
+            <option value={25}>25 por pág</option>
+            <option value={50}>50 por pág</option>
+            <option value={100}>100 por pág</option>
+        </select>
 
-                        <div className="flex items-center bg-white rounded-lg border border-gray-200 shadow-sm p-0.5">
-                            <button
-                                onClick={() => onPageChange(Math.max(page - 1, 1))}
-                                disabled={page === 1}
-                                className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white transition-colors text-gray-600"
-                            >
-                                <ChevronLeftIcon className="w-4 h-4"/>
-                            </button>
-                            <span className="px-4 text-sm font-medium text-gray-700 border-x border-gray-100 h-full flex items-center">
-                                {page}
-                            </span>
-                            <button
-                                onClick={() => onPageChange(Math.min(page + 1, totalPages))}
-                                disabled={page >= totalPages}
-                                className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white transition-colors text-gray-600"
-                            >
-                                <ChevronRightIcon className="w-4 h-4"/>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+        <div className="flex items-center bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-600 shadow-sm p-0.5">
+            <button
+                onClick={() => onPageChange(Math.max(page - 1, 1))}
+                disabled={page === 1}
+                className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-white dark:disabled:hover:bg-slate-900 transition-colors text-gray-600 dark:text-gray-400"
+            >
+                <ChevronLeftIcon className="w-4 h-4"/>
+            </button>
+            <span className="px-4 text-sm font-medium text-gray-700 dark:text-gray-200 border-x border-gray-100 dark:border-slate-700 h-full flex items-center">
+                {page}
+            </span>
+            <button
+                onClick={() => onPageChange(Math.min(page + 1, totalPages))}
+                disabled={page >= totalPages}
+                className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-white dark:disabled:hover:bg-slate-900 transition-colors text-gray-600 dark:text-gray-400"
+            >
+                <ChevronRightIcon className="w-4 h-4"/>
+            </button>
+        </div>
+    </div>
+</div>
           </div>
         ) : viewMode === 'kanban' ? (  // <--- AGREGAMOS ESTA CONDICIÓN
           <KanbanBoard 
@@ -852,20 +854,20 @@ const LeadList: React.FC<LeadListProps> = ({
 
       {/* BARRA FLOTANTE DE ACCIONES MASIVAS */}
       {userRole === 'admin' && selectedIds.size > 0 && (
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-white shadow-2xl rounded-full px-6 py-3 border border-gray-200 flex items-center gap-4 animate-slide-up">
-              <span className="text-sm font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
-                  {selectedIds.size} seleccionados
-              </span>
-              
-              <div className="h-6 w-px bg-gray-200"></div>
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-white dark:bg-slate-800 shadow-2xl rounded-full px-6 py-3 border border-gray-200 dark:border-slate-600 flex items-center gap-4 animate-slide-up">
+            <span className="text-sm font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-slate-700 px-3 py-1 rounded-full">
+                {selectedIds.size} seleccionados
+            </span>
+            
+            <div className="h-6 w-px bg-gray-200 dark:bg-slate-600"></div>
 
-              <button 
-                  onClick={() => setIsBulkStatusOpen(true)}
-                  className="flex items-center gap-2 text-sm font-bold text-gray-600 hover:text-brand-secondary transition-colors"
-              >
-                  <TagIcon className="w-5 h-5"/>
-                  Cambiar Estado
-              </button>
+            <button 
+                onClick={() => setIsBulkStatusOpen(true)}
+                className="flex items-center gap-2 text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-brand-secondary dark:hover:text-blue-400 transition-colors"
+            >
+                <TagIcon className="w-5 h-5"/>
+                Cambiar Estado
+            </button>
 
               <button 
                   onClick={() => setIsBulkDeleteOpen(true)}

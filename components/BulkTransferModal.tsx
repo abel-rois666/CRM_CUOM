@@ -242,7 +242,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                         value={sourceAdvisorId}
                         onChange={e => setSourceAdvisorId(e.target.value)}
                         options={[{value: '', label: '-- Seleccionar Asesor --'}, ...advisors.map(a => ({ value: a.id, label: a.full_name }))]}
-                        className="bg-white mb-2"
+                        className="bg-white dark:bg-slate-800 dark:text-white dark:border-slate-600 mb-2"
                     />
                     {sourceAdvisorId && (
                         <div className="flex items-center justify-between text-xs text-red-700">
@@ -264,7 +264,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                         value={targetAdvisorId}
                         onChange={e => setTargetAdvisorId(e.target.value)}
                         options={[{value: '', label: '-- Seleccionar Asesor --'}, ...advisors.filter(a => a.id !== sourceAdvisorId).map(a => ({ value: a.id, label: a.full_name }))]}
-                        className="bg-white"
+                        className="bg-white dark:bg-slate-800 dark:text-white dark:border-slate-600"
                     />
                 </div>
             </div>
@@ -326,8 +326,8 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
 
                 {/* CONTENIDO ESPECÍFICO DEL MODO */}
                 {transferMode === 'quantity' && (
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 animate-fade-in">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 animate-fade-in">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Cantidad de leads a transferir (más recientes primero):
                         </label>
                         <div className="flex items-center gap-3">
@@ -350,8 +350,8 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                 )}
 
                 {transferMode === 'selection' && (
-                    <div className="animate-fade-in border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                        <div className="p-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <div className="animate-fade-in border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
+                      <div className="p-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
                             <div className="relative w-full max-w-xs">
                                 <MagnifyingGlassIcon className="absolute left-2 top-2 w-4 h-4 text-gray-400" />
                                 <input 
@@ -359,7 +359,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                                     placeholder="Buscar lead..." 
                                     value={listSearchTerm}
                                     onChange={e => setListSearchTerm(e.target.value)}
-                                    className="pl-8 pr-3 py-1.5 text-xs w-full border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-secondary"
+                                    className="pl-8 pr-3 py-1.5 text-xs w-full border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-1 focus:ring-brand-secondary"
                                 />
                             </div>
                             <div className="flex items-center gap-2">
@@ -380,7 +380,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                             ) : (
                                 <ul className="divide-y divide-gray-100">
                                     {filteredList.map(lead => (
-                                        <li key={lead.id} className="hover:bg-blue-50/50 transition-colors">
+                                        <li key={lead.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-700 transition-colors border-b border-gray-100 dark:border-slate-700 last:border-0">
                                             <label className="flex items-center px-4 py-3 cursor-pointer">
                                                 <input 
                                                     type="checkbox" 
@@ -389,7 +389,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                                                     className="w-4 h-4 text-brand-secondary border-gray-300 rounded focus:ring-brand-secondary"
                                                 />
                                                 <div className="ml-3 flex-1">
-                                                    <p className="text-sm font-medium text-gray-900">{lead.name}</p>
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-200">{lead.name}</p>
                                                     <p className="text-xs text-gray-500">
                                                         {new Date(lead.date).toLocaleDateString()} • <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px]">{lead.status}</span>
                                                     </p>

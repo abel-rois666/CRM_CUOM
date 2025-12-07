@@ -172,10 +172,10 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                         return (
                             <tr key={lead.id} className={`transition-colors ${isSent ? 'bg-green-50 dark:bg-green-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'} border-b dark:border-slate-700`}>
                                 <td className="px-4 py-3">
-                                    <p className="text-sm font-bold text-gray-800">{lead.first_name} {lead.paternal_last_name}</p>
+                                    <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{lead.first_name} {lead.paternal_last_name}</p>
                                 </td>
                                 <td className="px-4 py-3">
-                                    <p className={`text-sm font-mono ${!isValid ? 'text-red-400 italic' : 'text-gray-600'}`}>
+                                    <p className={`text-sm font-mono ${!isValid ? 'text-red-400 italic' : 'text-gray-600 dark:text-gray-400'}`}>
                                         {contactInfo || '(No disponible)'}
                                     </p>
                                 </td>
