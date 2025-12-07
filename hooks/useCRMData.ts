@@ -5,13 +5,36 @@ import { supabase } from '../lib/supabase';
 import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate } from '../types';
 import { useToast } from '../context/ToastContext';
 
+// Interfaz para los filtros que se enviarán a la BD
+export interface DataFilters {
+  advisorId: string;
+  statusId: string;
+  programId: string;
+  startDate: string;
+  endDate: string;
+  searchTerm: string;
+}
+
 export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
   const { error: toastError, info: toastInfo } = useToast();
   
-  // Datos principales
+  // --- DATOS PRINCIPALES ---
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [totalLeads, setTotalLeads] = useState(0); // Total real en base de datos para paginación
   
-  // Catálogos
+  // --- ESTADOS DE PAGINACIÓN Y FILTROS (SERVER-SIDE) ---
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [filters, setFilters] = useState<DataFilters>({
+    advisorId: 'all',
+    statusId: 'all',
+    programId: 'all',
+    startDate: '',
+    endDate: '',
+    searchTerm: ''
+  });
+
+  // --- CATÁLOGOS ---
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
@@ -19,23 +42,25 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   
-  const [loadingData, setLoadingData] = useState(true);
-  const [loadingLeads, setLoadingLeads] = useState(false);
+  // --- ESTADOS DE CARGA ---
+  const [loadingData, setLoadingData] = useState(true); // Carga inicial de catálogos
+  const [loadingLeads, setLoadingLeads] = useState(false); // Carga de tabla/paginación
   const [catalogsLoaded, setCatalogsLoaded] = useState(false);
   
   const lastFetchedToken = useRef<string | undefined>(undefined);
-
-  // --- SOLUCIÓN: Cache de IDs procesados ---
-  // Almacena IDs de leads que acabamos de crear o recibir para evitar duplicados inmediatos.
   const processedIds = useRef<Set<string>>(new Set());
-
-  // Referencia para mantener el estado actualizado sin recargas
   const leadsRef = useRef<Lead[]>([]);
+
   useEffect(() => {
     leadsRef.current = leads;
   }, [leads]);
 
-  // 1. Cargar Catálogos (Estáticos)
+  // Función de utilidad para limpiar texto (cliente)
+  const normalizeSearchTerm = (text: string) => {
+    return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  };
+
+  // 1. CARGAR CATÁLOGOS (Estáticos - Se cargan una sola vez)
   const fetchCatalogs = useCallback(async () => {
     if (!session?.access_token) return;
     
@@ -65,166 +90,130 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     } catch (error) {
       console.error('Error fetching catalogs:', error);
       toastError('Error al cargar catálogos.');
+    } finally {
+        setLoadingData(false);
     }
   }, [session, toastError]);
 
-  // 2. Cargar Leads (Batching Optimizado)
-  // NOTA: Esto descarga TODOS los leads al cliente. 
-  // Para >10,000 registros, se recomienda migrar a paginación de servidor.
+  // 2. CARGAR LEADS (PAGINACIÓN EN SERVIDOR)
   const fetchLeads = useCallback(async (force = false) => {
     if (!session?.access_token) return;
 
-    // Evitar recargas si el token no ha cambiado y ya tenemos datos, a menos que sea forzado
-    if (!force && session.access_token === lastFetchedToken.current && leads.length > 0) {
-        setLoadingData(false);
-        return;
-    }
-
     setLoadingLeads(true);
-    if (leads.length === 0) setLoadingData(true);
 
     try {
       lastFetchedToken.current = session.access_token;
-      let allLeads: Lead[] = [];
-      let hasMore = true;
-      let page = 0;
-      const PAGE_SIZE = 1000;
-      const MAX_LIMIT = 20000; // Límite de seguridad para no congelar el navegador
 
-      while (hasMore) {
-          const from = page * PAGE_SIZE;
-          const to = from + PAGE_SIZE - 1;
+      // Construcción de Query Dinámica
+      let query = supabase
+        .from('leads')
+        .select(`
+            *, 
+            appointments(*, created_by(full_name)), 
+            follow_ups(*, created_by(full_name)), 
+            status_history(*, created_by(full_name))
+        `, { count: 'exact' }); // Pedimos el conteo total
 
-          let query = supabase
-            .from('leads')
-            .select(`
-                *, 
-                appointments(*, created_by(full_name)), 
-                follow_ups(*, created_by(full_name)), 
-                status_history(*, created_by(full_name))
-            `)
-            .order('registration_date', { ascending: false })
-            .range(from, to);
-
-          // Si es asesor, Supabase RLS ya filtra, pero agregar el filtro aquí reduce carga de red
-          if (userRole === 'advisor' && userId) {
-              query = query.eq('advisor_id', userId);
-          }
-          
-          const { data, error } = await query;
-
-          if (error) throw error;
-
-          if (data && data.length > 0) {
-              // @ts-ignore
-              allLeads = [...allLeads, ...data];
-              
-              // Detener si recibimos menos registros de los solicitados (fin de tabla)
-              if (data.length < PAGE_SIZE) {
-                  hasMore = false;
-              }
-          } else {
-              hasMore = false;
-          }
-          
-          page++;
-          
-          // Protección contra desbordamiento de memoria
-          if (allLeads.length >= MAX_LIMIT) {
-              hasMore = false;
-              console.warn(`Límite de seguridad alcanzado: ${MAX_LIMIT} leads cargados.`);
-              toastInfo(`Se cargaron los ${MAX_LIMIT} leads más recientes.`);
-          }
+      // --- FILTROS DE SEGURIDAD (ROL) ---
+      if (userRole === 'advisor' && userId) {
+          query = query.eq('advisor_id', userId);
       }
 
-      setLeads(allLeads);
+      // --- FILTROS DE UI (Aplicados en BD) ---
+      if (filters.advisorId !== 'all') query = query.eq('advisor_id', filters.advisorId);
+      if (filters.statusId !== 'all') query = query.eq('status_id', filters.statusId);
+      if (filters.programId !== 'all') query = query.eq('program_id', filters.programId);
+      
+      // Filtro de Fechas
+      if (filters.startDate && filters.endDate) {
+          query = query.gte('registration_date', `${filters.startDate}T00:00:00.000Z`)
+                       .lte('registration_date', `${filters.endDate}T23:59:59.999Z`);
+      }
 
-    } catch (error) {
+      // Búsqueda de Texto (Usando la nueva columna search_text)
+      if (filters.searchTerm) {
+          const cleanTerm = normalizeSearchTerm(filters.searchTerm);
+          // Usamos ilike sobre la columna search_text optimizada
+          query = query.ilike('search_text', `%${cleanTerm}%`);
+      }
+
+      // --- PAGINACIÓN ---
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      
+      const { data, error, count } = await query
+          .order('registration_date', { ascending: false })
+          .range(from, to);
+
+      if (error) throw error;
+
+      // @ts-ignore
+      setLeads(data || []);
+      setTotalLeads(count || 0);
+
+    } catch (error: any) {
       console.error('Error fetching leads:', error);
-      toastError('Error al cargar leads.');
+      toastError(`Error al cargar leads: ${error.message}`);
     } finally {
-      setLoadingData(false);
       setLoadingLeads(false);
     }
-  }, [session, userRole, userId, toastError, leads.length, toastInfo]);
+  }, [session, userRole, userId, page, pageSize, filters, toastError]);
 
-  // 3. Suscripción a Realtime (OPTIMIZADA)
+  // Efectos de carga inicial
+  useEffect(() => {
+      if (!catalogsLoaded) fetchCatalogs();
+  }, [catalogsLoaded, fetchCatalogs]);
+
+  useEffect(() => {
+      fetchLeads();
+  }, [fetchLeads]);
+
+  // 3. SUSCRIPCIÓN A REALTIME (Adaptada para Paginación)
   useEffect(() => {
     if (!session?.access_token) return;
-
-    // Carga inicial
-    if (!catalogsLoaded) fetchCatalogs();
-    fetchLeads();
 
     const channel = supabase
       .channel('crm_leads_changes')
       .on(
         'postgres_changes',
-        {
-          event: '*', 
-          schema: 'public',
-          table: 'leads',
-        },
+        { event: '*', schema: 'public', table: 'leads' },
         async (payload) => {
           // --- EVENTO INSERT ---
           if (payload.eventType === 'INSERT') {
             const newLead = payload.new as Lead;
             
-            // 1. BLOQUEO DE DUPLICADOS (La corrección clave)
-            // Si el ID ya fue procesado recientemente (por duplicación de evento o insert manual), paramos aquí.
-            if (processedIds.current.has(newLead.id)) {
-                return;
-            }
-
-            // 2. Filtro de Rol
+            // Filtros de Rol y Duplicados
             if (userRole === 'advisor' && userId && newLead.advisor_id !== userId) return;
+            if (processedIds.current.has(newLead.id)) return;
 
-            // 3. Registrar ID como procesado y programar limpieza
-            processedIds.current.add(newLead.id);
-            setTimeout(() => processedIds.current.delete(newLead.id), 5000);
-
-            const leadWithRelations = { 
-                ...newLead, 
-                appointments: [], 
-                follow_ups: [], 
-                status_history: [] 
-            };
-            
-            // 4. Actualizar Estado
-            setLeads(prev => {
-                // Doble seguridad: verificamos si existe en la lista actual
-                if (prev.some(l => l.id === newLead.id)) return prev;
-                return [leadWithRelations, ...prev];
-            });
-
-            // Solo mostramos notificación si pasó los filtros anteriores
-            toastInfo('🔔 Nuevo lead recibido en tiempo real');
+            // Notificación inteligente
+            if (page === 1 && !filters.searchTerm) {
+                 toastInfo('🔔 Nuevo lead recibido. Actualizando lista...');
+                 // Recarga suave para mostrarlo
+                 setTimeout(() => fetchLeads(true), 1000); 
+            } else {
+                 toastInfo('🔔 Nuevo lead recibido en el sistema.');
+            }
           } 
           // --- EVENTO UPDATE ---
           else if (payload.eventType === 'UPDATE') {
-            const updatedLead = payload.new as Lead;
+            const updated = payload.new as Lead;
             
-            // Caso: Asesor pierde acceso al lead (reasignación)
-            if (userRole === 'advisor' && userId && updatedLead.advisor_id !== userId) {
-                setLeads(prev => prev.filter(l => l.id !== updatedLead.id));
-                toastInfo('🔄 Un lead ha sido reasignado a otro asesor.');
-                return;
-            }
-
-            setLeads(prev => prev.map(l => {
-                if (l.id === updatedLead.id) {
-                    // Merge profundo cuidadoso: mantenemos relaciones existentes
-                    // ya que el evento UPDATE de realtime no trae joins
-                    return { 
+            // Actualización optimista solo si el lead está visible
+            setLeads(prev => {
+                const exists = prev.find(l => l.id === updated.id);
+                if (exists) {
+                    return prev.map(l => l.id === updated.id ? { 
                         ...l, 
-                        ...updatedLead,
+                        ...updated,
+                        // Mantenemos relaciones (no vienen en el payload de realtime)
                         appointments: l.appointments,
                         follow_ups: l.follow_ups,
                         status_history: l.status_history
-                    }; 
+                    } : l);
                 }
-                return l;
-            }));
+                return prev;
+            });
           } 
           // --- EVENTO DELETE ---
           else if (payload.eventType === 'DELETE') {
@@ -237,42 +226,52 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     return () => {
       supabase.removeChannel(channel);
     };
-    // Quitamos fetchCatalogs y fetchLeads de dependencias para evitar reinicios de suscripción
-  }, [session, userRole, userId]); 
+  }, [session, userRole, userId, page, filters, fetchLeads, toastInfo]);
 
-  // --- Helpers Locales ---
+  // --- HELPERS LOCALES ---
 
   const updateLocalLead = useCallback((updatedLead: Lead) => {
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
   }, []);
 
   const addLocalLead = useCallback((newLead: Lead) => {
-    // IMPORTANTE: Al agregar localmente, marcamos el ID como procesado.
-    // Así, cuando llegue el evento de Realtime segundos después, será ignorado
-    // y no verás ni duplicados ni doble notificación.
     if (newLead.id) {
         processedIds.current.add(newLead.id);
         setTimeout(() => processedIds.current.delete(newLead.id), 5000);
     }
-    
-    setLeads(prev => {
-        if (prev.some(l => l.id === newLead.id)) return prev;
-        return [newLead, ...prev];
-    });
-  }, []);
+    // Forzamos recarga para ver el nuevo lead ordenado correctamente
+    fetchLeads(true);
+  }, [fetchLeads]);
 
   const removeLocalLead = useCallback((leadId: string) => {
     setLeads(prev => prev.filter(l => l.id !== leadId));
+    setTotalLeads(prev => Math.max(0, prev - 1));
   }, []);
 
   const removeManyLocalLeads = useCallback((leadIds: string[]) => {
       const idsSet = new Set(leadIds);
       setLeads(prev => prev.filter(l => !idsSet.has(l.id)));
+      setTotalLeads(prev => Math.max(0, prev - idsSet.size));
   }, []);
 
+  // Helper para aplicar filtros y resetear a pág 1
+  const handleSetFilters = (newFilters: Partial<DataFilters>) => {
+      setFilters(prev => ({ ...prev, ...newFilters }));
+      setPage(1); 
+  };
+
   return {
-    loadingData: loadingData || loadingLeads,
+    loadingData, // Carga inicial
+    loadingLeads, // Carga de tabla
     leads,
+    totalLeads, // Total para paginación UI
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilters: handleSetFilters,
+    
     profiles,
     statuses,
     sources,
@@ -285,6 +284,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     setLicenciaturas,
     setWhatsappTemplates,
     setEmailTemplates,
+    
     updateLocalLead,
     addLocalLead,
     removeLocalLead,

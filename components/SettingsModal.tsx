@@ -1,5 +1,6 @@
 // components/SettingsModal.tsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { Input, Select, TextArea } from './common/FormElements';
 import { createClient } from '@supabase/supabase-js'; 
 import { Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, StatusCategory } from '../types';
 import Modal from './common/Modal';
@@ -64,7 +65,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 
     const { success, error: toastError } = useToast();
 
-    const inputClasses = "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm";
     const labelClasses = "block text-sm font-medium text-gray-700";
 
     const handleCreateUser = async (e: React.FormEvent) => {
@@ -188,34 +188,31 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Usuarios</h3>
             
-             <form onSubmit={handleCreateUser} className="p-4 border rounded-lg bg-gray-50/70 space-y-4">
-                <h4 className="font-semibold text-gray-700">Crear Nuevo Usuario</h4>
-                <div>
-                    <label htmlFor="fullName" className={labelClasses}>Nombre Completo</label>
-                    <input id="fullName" type="text" value={fullName} onChange={e => setFullName(e.target.value)} required className={inputClasses} />
-                </div>
-                <div>
-                    <label htmlFor="email" className={labelClasses}>Correo Electrónico</label>
-                    <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className={inputClasses} />
-                </div>
-                <div>
-                    <label htmlFor="password" className={labelClasses}>Contraseña Inicial</label>
-                    <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className={inputClasses} placeholder="Mínimo 6 caracteres" />
-                </div>
-                <div>
-                    <label htmlFor="role" className={labelClasses}>Rol</label>
-                    <select id="role" value={role} onChange={e => setRole(e.target.value as any)} className={inputClasses}>
-                        <option value="advisor">Asesor (Acceso limitado)</option>
-                        <option value="moderator">Coordinador (Supervisión)</option>
-                        <option value="admin">Administrador (Total)</option>
-                    </select>
-                </div>
-                <div className="flex justify-end">
-                    <Button type="submit" disabled={loading || !fullName || !email || password.length < 6}>
-                        {loading ? 'Creando...' : 'Crear Usuario'}
-                    </Button>
-                </div>
-            </form>
+        <form onSubmit={handleCreateUser} className="p-5 border border-gray-200 rounded-2xl bg-gray-50/70 space-y-4 shadow-sm">
+            <h4 className="font-semibold text-gray-700">Crear Nuevo Usuario</h4>
+            
+            {/* Usamos el componente Input que ya trae el diseño rounded-xl */}
+            <Input label="Nombre Completo" value={fullName} onChange={e => setFullName(e.target.value)} required />
+            <Input label="Correo Electrónico" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+            <Input label="Contraseña Inicial" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres" />
+            
+            <Select 
+                label="Rol" 
+                value={role} 
+                onChange={e => setRole(e.target.value as any)}
+                options={[
+                    { value: 'advisor', label: 'Asesor (Acceso limitado)' },
+                    { value: 'moderator', label: 'Coordinador (Supervisión)' },
+                    { value: 'admin', label: 'Administrador (Total)' },
+                ]}
+            />
+
+            <div className="flex justify-end pt-2">
+                <Button type="submit" disabled={loading || !fullName || !email || password.length < 6}>
+                    {loading ? 'Creando...' : 'Crear Usuario'}
+                </Button>
+            </div>
+        </form>
 
             <hr className="my-4"/>
 
@@ -457,30 +454,37 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
                     {statusToEdit ? `Editando: ${statusToEdit.name}` : 'Añadir Nuevo Estado'}
                 </h4>
                 
-                <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-4">
+                <Input label="Nombre del Estado" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Interesado" />
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Nombre del Estado</label>
-                        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Interesado" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary transition-all" />
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5 ml-1">Color</label>
+                        {/* Select manual estilizado para coincidir con Input */}
+                        <select 
+                            value={color} 
+                            onChange={e => setColor(e.target.value)} 
+                            className="block w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary cursor-pointer"
+                        >
+                            {colors.map(c => <option key={c} value={c}>{c.replace('bg-', '').replace('-500', '')}</option>)}
+                        </select>
+                        <div className={`mt-2 h-2 w-full rounded-full ${color}`}></div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Color (Etiqueta)</label>
-                            <select value={color} onChange={e => setColor(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                                {colors.map(c => <option key={c} value={c}>{c.replace('bg-', '').replace('-500', '')}</option>)}
-                            </select>
-                            <div className={`mt-2 h-2 w-full rounded-full ${color}`}></div>
-                        </div>
-                        <div>
-                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Categoría (Pestaña)</label>
-                             <select value={category} onChange={e => setCategory(e.target.value as StatusCategory)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-                                <option value="active">En Proceso (Activos)</option>
-                                <option value="won">Inscritos (Ganados)</option>
-                                <option value="lost">Bajas (Perdidos)</option>
-                            </select>
-                            <p className="text-[10px] text-gray-400 mt-1">Define en qué pestaña del tablero aparecerá.</p>
-                        </div>
+                    <div>
+                        <Select 
+                            label="Categoría"
+                            value={category}
+                            onChange={e => setCategory(e.target.value as StatusCategory)}
+                            options={[
+                                { value: 'active', label: 'En Proceso (Activos)' },
+                                { value: 'won', label: 'Inscritos (Ganados)' },
+                                { value: 'lost', label: 'Bajas (Perdidos)' }
+                            ]}
+                        />
                     </div>
-                    <div className="flex justify-end gap-2 pt-2">
+                </div>                    
+    
+            <div className="flex justify-end gap-2 pt-2">
                         {statusToEdit && (
                             <Button variant="ghost" onClick={() => { setStatusToEdit(null); setName(''); setCategory('active'); }}>Cancelar</Button>
                         )}
@@ -574,9 +578,9 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
             <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Orígenes</h3>
             <div className="space-y-4">
                 <h4 className="font-semibold text-gray-700">Añadir Nuevo Origen</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nombre del Origen" className="w-full px-3 py-2 border border-gray-300 rounded-md" />
-                    <Button onClick={handleAdd} size="sm" leftIcon={<PlusIcon className="w-4 h-4"/>}>Añadir Origen</Button>
+                <div className="flex gap-2 items-end">
+                    <Input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre del Origen" />
+                    <Button onClick={handleAdd} leftIcon={<PlusIcon className="w-4 h-4"/>}>Añadir</Button>
                 </div>
                 <hr className="my-4"/>
                 <h4 className="font-semibold text-gray-700">Orígenes Actuales</h4>
@@ -699,78 +703,80 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
     };
 
     return (
-        <div className="space-y-4">
-            {/* TÍTULO ACTUALIZADO */}
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Oferta Académica</h3>
-            
-            <div className={`space-y-4 border p-4 rounded-lg ${licenciaturaToEdit ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
-                {/* SUBTÍTULO DINÁMICO */}
-                <h4 className={`font-semibold ${licenciaturaToEdit ? 'text-blue-800' : 'text-gray-700'}`}>
-                    {licenciaturaToEdit ? `Editando: ${licenciaturaToEdit.name}` : 'Añadir Nueva Oferta Académica'}
-                </h4>
+            <div className="space-y-4">
+                {/* TÍTULO ACTUALIZADO */}
+                <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Oferta Académica</h3>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
-                    <input 
-                        type="text" 
-                        value={name} 
-                        onChange={e => setName(e.target.value)} 
-                        placeholder="Nombre de la Licenciatura / Programa" 
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md" 
-                    />
-                    <div className="flex gap-2">
-                         {licenciaturaToEdit && (
-                            <Button variant="ghost" onClick={handleCancelEdit}>Cancelar</Button>
-                        )}
-                        <Button 
-                            onClick={handleSave} 
-                            size="sm" 
-                            leftIcon={!licenciaturaToEdit ? <PlusIcon className="w-4 h-4"/> : undefined}
-                            className={licenciaturaToEdit ? "shadow-blue-200" : ""}
-                        >
-                            {licenciaturaToEdit ? 'Actualizar' : 'Añadir Oferta'}
-                        </Button>
-                    </div>
-                </div>
-            </div>
-
-            <hr className="my-4"/>
-            
-            {/* TÍTULO LISTA ACTUALIZADO */}
-            <h4 className="font-semibold text-gray-700">Oferta Académica Actual</h4>
-            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                {licenciaturas.map(lic => (
-                    <li key={lic.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md hover:bg-gray-100 transition-colors">
-                        <span>{lic.name}</span>
-                        <div className="flex gap-1">
-                            {/* BOTÓN DE EDICIÓN AÑADIDO */}
-                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(lic)} title="Editar Nombre">
-                                <EditIcon className="w-4 h-4 text-blue-500"/>
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(lic)} title="Eliminar">
-                                <TrashIcon className="w-4 h-4 text-red-500"/>
+                <div className={`space-y-4 border p-5 rounded-2xl shadow-sm transition-colors ${licenciaturaToEdit ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-200'}`}>
+                    {/* SUBTÍTULO DINÁMICO */}
+                    <h4 className={`font-semibold ${licenciaturaToEdit ? 'text-blue-800' : 'text-gray-700'}`}>
+                        {licenciaturaToEdit ? `Editando: ${licenciaturaToEdit.name}` : 'Añadir Nueva Oferta Académica'}
+                    </h4>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 items-end">
+                        {/* Input Estilizado (sin clases manuales toscas) */}
+                        <div className="flex-grow w-full">
+                            <Input 
+                                value={name} 
+                                onChange={e => setName(e.target.value)} 
+                                placeholder="Nombre de la Licenciatura / Programa" 
+                            />
+                        </div>
+                        
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            {licenciaturaToEdit && (
+                                <Button variant="ghost" onClick={handleCancelEdit}>Cancelar</Button>
+                            )}
+                            <Button 
+                                onClick={handleSave} 
+                                size="sm" 
+                                leftIcon={!licenciaturaToEdit ? <PlusIcon className="w-4 h-4"/> : undefined}
+                                className={licenciaturaToEdit ? "shadow-blue-200" : ""}
+                            >
+                                {licenciaturaToEdit ? 'Actualizar' : 'Añadir Oferta'}
                             </Button>
                         </div>
-                    </li>
-                ))}
-            </ul>
+                    </div>
+                </div>
 
-            <ConfirmationModal
-                isOpen={!!licenciaturaToDelete}
-                onClose={() => setLicenciaturaToDelete(null)}
-                onConfirm={handleConfirmDelete}
-                title="¿Eliminar Oferta Académica?"
-                message={
-                    <>
-                        Se eliminará <strong>{licenciaturaToDelete?.name}</strong> del catálogo.
-                        <br /><br />
-                        <span className="text-red-600 font-bold">Esta acción es permanente.</span>
-                    </>
-                }
-                confirmButtonText="Eliminar"
-                confirmButtonVariant="danger"
-            />
-        </div>
-    );
+                <hr className="my-6 border-gray-100"/>
+                
+                {/* TÍTULO LISTA ACTUALIZADO */}
+                <h4 className="font-semibold text-gray-700">Oferta Académica Actual</h4>
+                <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                    {licenciaturas.map(lic => (
+                        <li key={lic.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm hover:border-brand-secondary/30 transition-colors">
+                            <span className="font-medium text-gray-700">{lic.name}</span>
+                            <div className="flex gap-1">
+                                {/* BOTÓN DE EDICIÓN AÑADIDO */}
+                                <Button variant="ghost" size="sm" onClick={() => handleEditClick(lic)} title="Editar Nombre">
+                                    <EditIcon className="w-4 h-4 text-blue-500"/>
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(lic)} title="Eliminar">
+                                    <TrashIcon className="w-4 h-4 text-red-500"/>
+                                </Button>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+
+                <ConfirmationModal
+                    isOpen={!!licenciaturaToDelete}
+                    onClose={() => setLicenciaturaToDelete(null)}
+                    onConfirm={handleConfirmDelete}
+                    title="¿Eliminar Oferta Académica?"
+                    message={
+                        <>
+                            Se eliminará <strong>{licenciaturaToDelete?.name}</strong> del catálogo.
+                            <br /><br />
+                            <span className="text-red-600 font-bold">Esta acción es permanente.</span>
+                        </>
+                    }
+                    confirmButtonText="Eliminar"
+                    confirmButtonVariant="danger"
+                />
+            </div>
+        );
 }
 
 const WhatsappTemplateSettings: React.FC<{ 
@@ -901,43 +907,29 @@ const WhatsappTemplateSettings: React.FC<{
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de WhatsApp</h3>
             
-            {!editingId && templates.length === 0 && (
-                <div className="p-4 border rounded-lg bg-green-50/50 border-green-200 mb-4 flex justify-between items-center">
-                    <div>
-                        <p className="text-sm text-green-800 font-medium">¿Empezando?</p>
-                        <p className="text-xs text-green-600">Carga plantillas predefinidas para comenzar rápido.</p>
-                    </div>
-                    <Button onClick={handleSeedTemplates} disabled={saving} size="sm" variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
-                        Cargar Recomendadas
-                    </Button>
-                </div>
-            )}
-
-            <div className="p-4 border rounded-lg bg-gray-50/70 border-gray-200">
-                <h4 className="font-semibold text-gray-700 mb-2">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
-                <div className="space-y-3">
-                    <div>
-                         <label className="block text-xs font-medium text-gray-500 mb-1">Nombre de la Plantilla</label>
-                        <input 
-                            type="text" 
-                            value={name} 
-                            onChange={e => setName(e.target.value)} 
-                            placeholder="Ej: Saludo Inicial" 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Contenido del Mensaje</label>
-                        <textarea 
-                            value={content} 
-                            onChange={e => setContent(e.target.value)} 
-                            placeholder="Hola, te contacto para..." 
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
-                        />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                        {editingId && <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>Cancelar</Button>}
+            {/* Formulario de Edición/Creación */}
+            <div className="p-5 border border-gray-200 rounded-2xl bg-gray-50/70 shadow-sm">
+                <h4 className="font-semibold text-gray-700 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
+                <div className="space-y-4">
+                    <Input 
+                        label="Nombre de la Plantilla" 
+                        value={name} 
+                        onChange={e => setName(e.target.value)} 
+                        placeholder="Ej: Saludo Inicial" 
+                    />
+                    <TextArea 
+                        label="Contenido del Mensaje" 
+                        value={content} 
+                        onChange={e => setContent(e.target.value)} 
+                        placeholder="Hola, te contacto para..." 
+                        rows={3} 
+                    />
+                    <div className="flex justify-end gap-2 pt-2">
+                        {editingId && (
+                            <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>
+                                Cancelar
+                            </Button>
+                        )}
                         <Button onClick={handleSave} size="sm" disabled={!name || !content || saving}>
                             {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
                         </Button>
@@ -945,39 +937,40 @@ const WhatsappTemplateSettings: React.FC<{
                 </div>
             </div>
 
-            <hr className="my-4"/>
+            <hr className="my-6 border-gray-100"/>
             
+            {/* Lista de Plantillas */}
             <h4 className="font-semibold text-gray-700">Plantillas Guardadas ({templates.length}/5)</h4>
             <div className="space-y-3">
                 {templates.map(t => (
-                    <div key={t.id} className="border border-gray-200 rounded-md p-3 bg-white shadow-sm relative group">
-                        <div className="flex justify-between items-start mb-1">
+                    <div key={t.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all relative group">
+                        <div className="flex justify-between items-start mb-2">
                             <h5 className="font-bold text-gray-800 text-sm">{t.name}</h5>
                             <div className="flex gap-1">
-                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1">
+                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded-lg transition-colors">
                                     <EditIcon className="w-4 h-4"/>
                                 </button>
                                 {(userProfile?.role === 'admin' || userProfile?.role === 'moderator' || userProfile?.role === 'advisor') && (
-                                    <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1">
+                                    <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
                                         <TrashIcon className="w-4 h-4"/>
                                     </button>
                                 )}
                             </div>
                         </div>
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-2">{t.content}</p>
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap">{t.content}</p>
                     </div>
                 ))}
                 {templates.length === 0 && <p className="text-sm text-gray-500 italic">No hay plantillas configuradas.</p>}
             </div>
 
-            <ConfirmationModal
-                isOpen={!!templateToDelete}
-                onClose={() => setTemplateToDelete(null)}
-                onConfirm={handleConfirmDelete}
-                title="Eliminar Plantilla"
-                message={`¿Estás seguro de que quieres eliminar la plantilla "${templateToDelete?.name}"? Esta acción no se puede deshacer.`}
-                confirmButtonText="Sí, Eliminar"
-                confirmButtonVariant="danger"
+            <ConfirmationModal 
+                isOpen={!!templateToDelete} 
+                onClose={() => setTemplateToDelete(null)} 
+                onConfirm={handleConfirmDelete} 
+                title="Eliminar Plantilla" 
+                message={`¿Estás seguro de que quieres eliminar la plantilla "${templateToDelete?.name}"? Esta acción no se puede deshacer.`} 
+                confirmButtonText="Sí, Eliminar" 
+                confirmButtonVariant="danger" 
             />
         </div>
     );
@@ -1112,101 +1105,82 @@ const EmailTemplateSettings: React.FC<{
         }
     };
 
-    return (
-        <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de Correo</h3>
+        return (
+            <div className="space-y-4">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de Correo</h3>
 
-            {!editingId && templates.length === 0 && (
-                <div className="p-4 border rounded-lg bg-blue-50/50 border-blue-200 mb-4 flex justify-between items-center">
-                    <div>
-                        <p className="text-sm text-blue-800 font-medium">¿Primera vez aquí?</p>
-                        <p className="text-xs text-blue-600">Carga plantillas básicas de bienvenida y seguimiento.</p>
-                    </div>
-                    <Button onClick={handleSeedTemplates} disabled={saving} size="sm" variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
-                        Cargar Recomendadas
-                    </Button>
-                </div>
-            )}
-
-            <div className="p-4 border rounded-lg bg-gray-50/70 border-gray-200">
-                <h4 className="font-semibold text-gray-700 mb-2">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
-                <div className="space-y-3">
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Nombre de la Plantilla</label>
-                        <input 
-                            type="text" 
+                {/* Formulario de Edición/Creación */}
+                <div className="p-5 border border-gray-200 rounded-2xl bg-gray-50/70 shadow-sm">
+                    <h4 className="font-semibold text-gray-700 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
+                    <div className="space-y-4">
+                        <Input 
+                            label="Nombre de la Plantilla" 
                             value={name} 
                             onChange={e => setName(e.target.value)} 
                             placeholder="Ej: Bienvenida" 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
                         />
-                    </div>
-                     <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Asunto del Correo</label>
-                        <input 
-                            type="text" 
+                        <Input 
+                            label="Asunto del Correo" 
                             value={subject} 
                             onChange={e => setSubject(e.target.value)} 
                             placeholder="Bienvenido a la universidad..." 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
                         />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Cuerpo del Correo (HTML Soportado)</label>
-                        <textarea 
+                        <TextArea 
+                            label="Cuerpo del Correo (HTML Soportado)" 
                             value={body} 
                             onChange={e => setBody(e.target.value)} 
                             placeholder="<p>Hola...</p>" 
-                            rows={5}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono text-xs" 
+                            rows={5} 
                         />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                        {editingId && <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>Cancelar</Button>}
-                        <Button onClick={handleSave} size="sm" disabled={!name || !subject || !body || saving}>
-                            {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
-                        </Button>
+                        <div className="flex justify-end gap-2 pt-2">
+                            {editingId && (
+                                <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>
+                                    Cancelar
+                                </Button>
+                            )}
+                            <Button onClick={handleSave} size="sm" disabled={!name || !subject || !body || saving}>
+                                {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
+                            </Button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <hr className="my-4"/>
-            
-            <h4 className="font-semibold text-gray-700">Plantillas Guardadas</h4>
-            <div className="space-y-3">
-                {templates.map(t => (
-                    <div key={t.id} className="border border-gray-200 rounded-md p-3 bg-white shadow-sm relative group">
-                        <div className="flex justify-between items-start mb-1">
-                            <h5 className="font-bold text-gray-800 text-sm">{t.name}</h5>
-                            <div className="flex gap-1">
-                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1">
-                                    <EditIcon className="w-4 h-4"/>
-                                </button>
-                                {(userProfile?.role === 'admin' || userProfile?.role === 'moderator' || userProfile?.role === 'advisor') && (
-                                    <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1">
+                <hr className="my-6 border-gray-100"/>
+                
+                {/* Lista de Plantillas */}
+                <h4 className="font-semibold text-gray-700">Plantillas Guardadas</h4>
+                <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+                    {templates.map(t => (
+                        <div key={t.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all relative group">
+                            <div className="flex justify-between items-start mb-2">
+                                <h5 className="font-bold text-gray-800 text-sm">{t.name}</h5>
+                                <div className="flex gap-1">
+                                    <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded-lg transition-colors">
+                                        <EditIcon className="w-4 h-4"/>
+                                    </button>
+                                    <button onClick={() => setTemplateToDelete(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
                                         <TrashIcon className="w-4 h-4"/>
                                     </button>
-                                )}
+                                </div>
                             </div>
+                            <p className="text-xs text-gray-500 font-medium mb-1">Asunto: {t.subject}</p>
+                            <p className="text-xs text-gray-400 line-clamp-2">{t.body}</p>
                         </div>
-                        <p className="text-xs text-gray-500 mb-1 font-semibold">Asunto: {t.subject}</p>
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-2">{t.body.replace(/<[^>]*>/g, '')}</p>
-                    </div>
-                ))}
-                {templates.length === 0 && <p className="text-sm text-gray-500 italic">No hay plantillas de correo configuradas.</p>}
-            </div>
+                    ))}
+                    {templates.length === 0 && <p className="text-sm text-gray-500 italic">No hay plantillas de correo configuradas.</p>}
+                </div>
 
-            <ConfirmationModal
-                isOpen={!!templateToDelete}
-                onClose={() => setTemplateToDelete(null)}
-                onConfirm={handleConfirmDelete}
-                title="Eliminar Plantilla"
-                message={`¿Estás seguro de que quieres eliminar la plantilla "${templateToDelete?.name}"? Esta acción no se puede deshacer.`}
-                confirmButtonText="Sí, Eliminar"
-                confirmButtonVariant="danger"
-            />
-        </div>
-    );
+                <ConfirmationModal 
+                    isOpen={!!templateToDelete} 
+                    onClose={() => setTemplateToDelete(null)} 
+                    onConfirm={handleConfirmDelete} 
+                    title="Eliminar Plantilla" 
+                    message="Esta acción no se puede deshacer." 
+                    confirmButtonText="Sí, Eliminar" 
+                    confirmButtonVariant="danger" 
+                />
+            </div>
+        );
 };
 
 const LoginHistorySettings: React.FC = () => {

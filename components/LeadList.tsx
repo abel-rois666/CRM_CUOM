@@ -1,6 +1,7 @@
 // components/LeadList.tsx
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate } from '../types';
+import { DataFilters } from '../hooks/useCRMData';
 import Button from './common/Button';
 import Badge from './common/Badge';
 import ConfirmationModal from './common/ConfirmationModal';
@@ -36,11 +37,20 @@ import TransferIcon from './icons/TransferIcon';
 import TagIcon from './icons/TagIcon';
 import { supabase } from '../lib/supabase';
 import BulkMessageModal from './BulkMessageModal';
-import ArrowPathIcon from './icons/ArrowPathIcon'; // Importamos icono de carga
+import ArrowPathIcon from './icons/ArrowPathIcon';
 
 interface LeadListProps {
   loading: boolean;
   leads: Lead[];
+  // Props de Paginación Server-Side (NUEVOS)
+  totalLeads: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+  onFilterChange: (filters: Partial<DataFilters>) => void;
+  currentFilters: DataFilters;
+  
   advisors: Profile[];
   statuses: Status[];
   licenciaturas: Licenciatura[];
@@ -58,32 +68,29 @@ interface LeadListProps {
   userRole?: 'admin' | 'advisor' | 'moderator';
   onRefresh?: () => void;
   onLocalDeleteMany?: (ids: string[]) => void;
+  currentUser?: Profile | null;
 }
 
 type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date' | 'urgency';
 type SortDirection = 'asc' | 'desc';
 type ViewMode = 'list' | 'kanban';
 
-const normalizeText = (text: string) => {
-  return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-};
-
 const LeadList: React.FC<LeadListProps> = ({ 
-  loading, leads, advisors, statuses, licenciaturas, 
+  loading, leads, totalLeads, page, pageSize, onPageChange, onPageSizeChange, onFilterChange, currentFilters,
+  advisors, statuses, licenciaturas, 
   whatsappTemplates, emailTemplates,
   onAddNew, onEdit, onDelete, onViewDetails, 
   onOpenReports, onOpenImport, onOpenWhatsApp, 
-  onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany 
+  onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany, currentUser
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isBulkTransferOpen, setIsBulkTransferOpen] = useState(false);
   
-  // --- DEBOUNCE MEJORADO ---
-  const [localSearchTerm, setLocalSearchTerm] = useState<string>(''); 
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>(''); 
-  const [isSearching, setIsSearching] = useState(false); // Estado visual de "Buscando..."
+  // Debounce Local para Búsqueda (Para no saturar el servidor con cada tecla)
+  const [localSearchTerm, setLocalSearchTerm] = useState<string>(currentFilters.searchTerm); 
+  const [isSearching, setIsSearching] = useState(false); 
   
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>(null);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
@@ -98,58 +105,43 @@ const LeadList: React.FC<LeadListProps> = ({
   const [isBulkMessageOpen, setIsBulkMessageOpen] = useState(false);
   const [bulkMessageMode, setBulkMessageMode] = useState<'whatsapp' | 'email'>('whatsapp');
 
-  const [filters, setFilters] = useState<FilterState>({
-    advisorId: 'all',
-    statusId: 'all',
-    programId: 'all',
-    startDate: '',
-    endDate: ''
-  });
-
   const [sortColumn, setSortColumn] = useState<SortableColumn>('registration_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Efecto de Debounce con Feedback Visual
+  // Helpers de Mapas para renderizado rápido
+  const advisorMap = React.useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
+  const statusMap = React.useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color, category: s.category || 'active' }])), [statuses]);
+  const licenciaturaMap = React.useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
+
+  // Efecto de Debounce para búsqueda Server-Side
   useEffect(() => {
-    if (localSearchTerm !== debouncedSearchTerm) {
-        setIsSearching(true);
-        const timer = setTimeout(() => {
-            setDebouncedSearchTerm(localSearchTerm);
-            setIsSearching(false);
-        }, 300); // 300ms: Equilibrio entre fluidez y rendimiento
-        return () => clearTimeout(timer);
-    }
-  }, [localSearchTerm, debouncedSearchTerm]);
+    const timer = setTimeout(() => {
+        if (localSearchTerm !== currentFilters.searchTerm) {
+            onFilterChange({ searchTerm: localSearchTerm });
+        }
+        setIsSearching(false);
+    }, 600); // Espera 600ms después de dejar de escribir para pedir al servidor
 
-  const advisorMap = useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
-  const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color, category: s.category || 'active' }])), [statuses]);
-  const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
+    return () => clearTimeout(timer);
+  }, [localSearchTerm, onFilterChange, currentFilters.searchTerm]);
 
-  // --- OPTIMIZACIÓN CLAVE: Pre-cálculo de cadenas de búsqueda ---
-  // Esto se ejecuta SOLO cuando cambian los leads, no cuando buscas.
-  // Convierte los 10,000 registros en texto plano listo para buscar rapidísimo.
-  const preparedLeads = useMemo(() => {
-      return leads.map(lead => ({
-          ...lead,
-          // Creamos un string "índice" con todo lo buscable normalizado
-          searchIndex: normalizeText(
-              `${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''} ${lead.email || ''} ${lead.phone} ${licenciaturaMap.get(lead.program_id) || ''} ${statusMap.get(lead.status_id)?.name || ''} ${advisorMap.get(lead.advisor_id) || ''}`
-          )
-      }));
-  }, [leads, advisorMap, statusMap, licenciaturaMap]);
+  const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setLocalSearchTerm(e.target.value);
+      setIsSearching(true);
+  };
 
-  const activeFilterCount = useMemo(() => {
+  // Contar filtros activos visualmente
+  const activeFilterCount = React.useMemo(() => {
       let count = 0;
-      if (filters.advisorId !== 'all') count++;
-      if (filters.statusId !== 'all') count++;
-      if (filters.programId !== 'all') count++;
-      if (filters.startDate) count++;
-      if (filters.endDate) count++;
+      if (currentFilters.advisorId !== 'all') count++;
+      if (currentFilters.statusId !== 'all') count++;
+      if (currentFilters.programId !== 'all') count++;
+      if (currentFilters.startDate) count++;
+      if (currentFilters.endDate) count++;
       return count;
-  }, [filters]);
+  }, [currentFilters]);
 
+  // Función de urgencia (Cálculo visual)
   const getLeadUrgency = (lead: Lead) => {
       const status = statusMap.get(lead.status_id);
       if (status?.category !== 'active') return 0;
@@ -180,46 +172,35 @@ const LeadList: React.FC<LeadListProps> = ({
       return 0; 
   };
 
-  useEffect(() => {
-    setCurrentPage(1);
-    setSelectedIds(new Set()); 
-  }, [filters, debouncedSearchTerm, itemsPerPage, quickFilter, activeCategoryTab]);
-
   const handleDashboardCardClick = (filter: QuickFilterType) => {
     setQuickFilter(filter);
+    // Al filtrar desde el dashboard, reseteamos a la pestaña activa principal y página 1
     if (filter !== null) {
         setActiveCategoryTab('active');
-        setCurrentPage(1);
+        onPageChange(1);
     }
   };
 
-  const filteredAndSortedLeads = useMemo(() => {
-      const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00.000Z`) : null;
-      const end = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999Z`) : null;
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const normalizedSearchTerms = normalizeText(debouncedSearchTerm).split(/\s+/).filter(t => t.length > 0);
-
-      // Usamos preparedLeads en lugar de leads para filtrar (mucho más rápido)
-      return preparedLeads.filter(lead => {
+  // Filtrado CLIENT-SIDE adicional (solo para la vista actual, ej: tabs de categoría)
+  // El filtrado "pesado" ya se hizo en el servidor (useCRMData)
+  const filteredLeads = useMemo(() => {
+      return leads.filter(lead => {
           const status = statusMap.get(lead.status_id);
           const category = status ? status.category : 'active';
+          
+          // Filtro por pestaña (Activos / Ganados / Perdidos)
           if (category !== activeCategoryTab) return false;
 
-          if (filters.advisorId !== 'all' && lead.advisor_id !== filters.advisorId) return false;
-          if (filters.statusId !== 'all' && lead.status_id !== filters.statusId) return false;
-          if (filters.programId !== 'all' && lead.program_id !== filters.programId) return false;
-
-          const regDate = new Date(lead.registration_date);
-          if (start && regDate < start) return false;
-          if (end && regDate > end) return false;
-
+          // Filtro Rápido (Dashboard) sobre la página actual
           if (quickFilter) {
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              const threeDaysAgo = new Date();
+              threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+              const sevenDaysAgo = new Date();
+              sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+              const regDate = new Date(lead.registration_date);
+
               if (quickFilter === 'appointments_today') {
                   const hasAppt = lead.appointments?.some(appt => {
                       const apptDate = new Date(appt.date);
@@ -239,15 +220,15 @@ const LeadList: React.FC<LeadListProps> = ({
                   if (!(lastDate < sevenDaysAgo)) return false;
               }
           }
-
-          // BÚSQUEDA OPTIMIZADA: Solo revisamos el índice pre-calculado
-          if (normalizedSearchTerms.length > 0) {
-              if (!normalizedSearchTerms.every(term => lead.searchIndex.includes(term))) return false;
-          }
           return true;
-      }).sort((a, b) => {
-        let valA: string | number;
-        let valB: string | number;
+      });
+  }, [leads, activeCategoryTab, quickFilter, statusMap]);
+
+  // Ordenamiento local de la página actual (Visual)
+  const sortedLeads = useMemo(() => {
+      return [...filteredLeads].sort((a, b) => {
+        let valA: any = '';
+        let valB: any = '';
         if (sortColumn === 'urgency') {
             valA = getLeadUrgency(a);
             valB = getLeadUrgency(b);
@@ -274,32 +255,23 @@ const LeadList: React.FC<LeadListProps> = ({
             valA = new Date(a.registration_date).getTime();
             valB = new Date(b.registration_date).getTime();
             break;
-          default:
-            return 0;
         }
         if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
         if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
         return 0;
       });
+  }, [filteredLeads, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap]);
 
-  }, [preparedLeads, filters, debouncedSearchTerm, sortColumn, sortDirection, advisorMap, statusMap, licenciaturaMap, quickFilter, activeCategoryTab]);
-  
-  const totalItems = filteredAndSortedLeads.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  
-  const paginatedLeads = useMemo(() => {
-    if (viewMode === 'kanban') return filteredAndSortedLeads;
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredAndSortedLeads.slice(startIndex, startIndex + itemsPerPage);
-  }, [currentPage, itemsPerPage, filteredAndSortedLeads, viewMode]);
+  const totalPages = Math.ceil(totalLeads / pageSize);
 
+  // Manejo de selección múltiple
   const handleSelectAll = () => {
-      const allPageSelected = paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedIds.has(lead.id));
+      const allPageSelected = sortedLeads.length > 0 && sortedLeads.every(lead => selectedIds.has(lead.id));
       const newSelected = new Set(selectedIds);
       if (allPageSelected) {
-          paginatedLeads.forEach(lead => newSelected.delete(lead.id));
+          sortedLeads.forEach(lead => newSelected.delete(lead.id));
       } else {
-          paginatedLeads.forEach(lead => newSelected.add(lead.id));
+          sortedLeads.forEach(lead => newSelected.add(lead.id));
       }
       setSelectedIds(newSelected);
   };
@@ -311,8 +283,7 @@ const LeadList: React.FC<LeadListProps> = ({
       setSelectedIds(newSet);
   };
 
-  // --- ACCIONES MASIVAS ---
-
+  // --- LOGICA DE ACCIONES MASIVAS (Usando Supabase Directo para grandes volúmenes) ---
   const executeBulkDelete = async () => {
       setProcessingBulk(true);
       setBulkProgress(0);
@@ -322,13 +293,9 @@ const LeadList: React.FC<LeadListProps> = ({
 
       for (let i = 0; i < ids.length; i += BATCH_SIZE) {
           const chunk = ids.slice(i, i + BATCH_SIZE);
-          const { error } = await supabase
-              .from('leads')
-              .delete()
-              .in('id', chunk);
-          
+          const { error } = await supabase.from('leads').delete().in('id', chunk);
           if (error) {
-              alert(`Error al eliminar lote ${i}-${i + chunk.length}: ${error.message}`);
+              alert(`Error: ${error.message}`);
               errorOccurred = true;
               break; 
           }
@@ -337,7 +304,7 @@ const LeadList: React.FC<LeadListProps> = ({
       
       if (!errorOccurred) {
           if (onLocalDeleteMany) onLocalDeleteMany(ids);
-          if (onRefresh) onRefresh();
+          if (onRefresh) onRefresh(); // Refrescar la paginación del servidor
           setSelectedIds(new Set());
           setIsBulkDeleteOpen(false);
       }
@@ -366,6 +333,7 @@ const LeadList: React.FC<LeadListProps> = ({
               break;
           }
 
+          // Insertar historial para cada lead actualizado
           const historyEntries = chunk.map(id => ({
               lead_id: id,
               new_status_id: bulkTargetStatus,
@@ -379,7 +347,6 @@ const LeadList: React.FC<LeadListProps> = ({
 
       if(!errorOccurred) {
           if (onRefresh) onRefresh();
-          else window.location.reload();
           setSelectedIds(new Set());
           setIsBulkStatusOpen(false);
           setBulkTargetStatus('');
@@ -390,10 +357,10 @@ const LeadList: React.FC<LeadListProps> = ({
 
   const confirmIndividualDelete = async (id: string) => {
       const { error } = await supabase.from('leads').delete().eq('id', id);
-      if (error) {
-          alert("Error al eliminar: " + error.message);
-      } else {
+      if (error) { alert("Error al eliminar: " + error.message); } 
+      else { 
           onDelete(id); 
+          if(onRefresh) onRefresh(); 
       }
       setLeadToDelete(null);
   };
@@ -417,10 +384,13 @@ const LeadList: React.FC<LeadListProps> = ({
     return stringField;
   };
 
-  // --- EXPORTACIÓN AVANZADA ---
+  // --- EXPORTACIÓN ---
   const handleExportCSV = () => {
-    const maxNotes = filteredAndSortedLeads.reduce((max, lead) => Math.max(max, lead.follow_ups?.length || 0), 0);
-    const maxAppts = filteredAndSortedLeads.reduce((max, lead) => Math.max(max, lead.appointments?.length || 0), 0);
+    // NOTA: Exportamos los datos de la PÁGINA ACTUAL + Filtros locales.
+    // Para exportar TODO (100k leads) se necesitaría un proceso de backend dedicado.
+    const dataToExport = sortedLeads; 
+    const maxNotes = dataToExport.reduce((max, lead) => Math.max(max, lead.follow_ups?.length || 0), 0);
+    const maxAppts = dataToExport.reduce((max, lead) => Math.max(max, lead.appointments?.length || 0), 0);
 
     let headers = ['Nombre Completo', 'Email', 'Teléfono', 'Asesor', 'Estado', 'Licenciatura', 'Fecha Registro'];
     
@@ -431,7 +401,7 @@ const LeadList: React.FC<LeadListProps> = ({
         headers.push(`Fecha Cita ${i}`, `Detalle Cita ${i}`);
     }
 
-    const rows = filteredAndSortedLeads.map(lead => {
+    const rows = dataToExport.map(lead => {
         const baseData = [
             escapeCsvField(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim()),
             escapeCsvField(lead.email),
@@ -485,7 +455,7 @@ const LeadList: React.FC<LeadListProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `leads_completo_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     setTimeout(() => { document.body.removeChild(link); window.URL.revokeObjectURL(url); }, 100);
@@ -515,13 +485,14 @@ const LeadList: React.FC<LeadListProps> = ({
     return statuses.filter(s => (s.category || 'active') === activeCategoryTab);
   }, [statuses, activeCategoryTab]);
 
-  if (loading) return <LeadListSkeleton viewMode={viewMode} />;
+  if (loading && leads.length === 0) return <LeadListSkeleton viewMode={viewMode} />;
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-8xl relative min-h-screen">
       
+      {/* Dashboard Stats */}
       <DashboardStats 
-        leads={leads.filter(lead => filters.advisorId === 'all' || lead.advisor_id === filters.advisorId)} 
+        leads={leads} 
         statuses={statuses}
         advisors={advisors}
         activeFilter={quickFilter} 
@@ -534,16 +505,7 @@ const LeadList: React.FC<LeadListProps> = ({
             <div>
                 <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Clientes Potenciales</h2>
                  <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
-                    {quickFilter ? (
-                        <span className="text-brand-secondary font-semibold flex items-center gap-1 bg-brand-secondary/5 px-3 py-1 rounded-full animate-fade-in">
-                            Filtrado por resumen
-                            <button onClick={() => handleDashboardCardClick(null)} className="ml-1 text-gray-400 hover:text-gray-600" title="Quitar filtro">
-                                <XIcon className="w-3 h-3" />
-                            </button>
-                        </span>
-                    ) : (
-                        "Gestiona, filtra y contacta a tus leads de manera eficiente."
-                    )}
+                    Total en Base: <span className="font-bold text-brand-primary">{totalLeads}</span> | Cargados: <span className="font-bold text-gray-700">{leads.length}</span>
                 </p>
             </div>
              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -560,7 +522,7 @@ const LeadList: React.FC<LeadListProps> = ({
                 </Button>
                 {userRole === 'admin' && (
                     <Button onClick={handleExportCSV} variant="secondary" size="sm" className="px-3 sm:px-4">
-                        <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Exportar</span>
+                        <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Exportar (Pagina)</span>
                     </Button>
                 )}
                 <Button onClick={onAddNew} leftIcon={<PlusIcon className="w-5 h-5"/>} className="shadow-lg shadow-brand-secondary/20 hidden md:flex">
@@ -571,28 +533,10 @@ const LeadList: React.FC<LeadListProps> = ({
 
           {/* Filters & Tabs */}
           <div className="flex flex-col gap-4">
-            <div className="border-b border-gray-200 overflow-x-auto scrollbar-hide">
-                <nav className="-mb-px flex space-x-8 px-2 min-w-max" aria-label="Tabs">
-                {[
-                    { id: 'active', label: 'En Proceso (Activos)', color: 'border-brand-secondary text-brand-secondary' },
-                    { id: 'won', label: 'Inscritos (Ganados)', color: 'border-green-500 text-green-600' },
-                    { id: 'lost', label: 'Bajas / Archivo', color: 'border-red-500 text-red-600' }
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => { setActiveCategoryTab(tab.id as StatusCategory); setQuickFilter(null); }}
-                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-                </nav>
-            </div>
-
             <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-3 items-center">
                 <div className="relative flex-grow w-full sm:w-auto group">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        {isSearching ? (
+                        {isSearching || loading ? (
                             <ArrowPathIcon className="h-5 w-5 text-brand-secondary animate-spin" />
                         ) : (
                             <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 group-focus-within:text-brand-secondary transition-colors" />
@@ -600,10 +544,10 @@ const LeadList: React.FC<LeadListProps> = ({
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2.5 border-0 bg-gray-50 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-brand-secondary/50 focus:bg-white transition-all sm:text-sm"
-                        placeholder="Buscar por nombre, email, programa..."
+                        className="block w-full pl-11 pr-4 py-3 border border-gray-200 bg-white rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary transition-all text-sm"
+                        placeholder="Buscar en el servidor (Nombre, Email, Tel)..."
                         value={localSearchTerm}
-                        onChange={(e) => setLocalSearchTerm(e.target.value)}
+                        onChange={handleSearchInput}
                     />
                 </div>
 
@@ -633,13 +577,33 @@ const LeadList: React.FC<LeadListProps> = ({
                     </div>
                 </div>
             </div>
+            
+            {/* Tabs de Estado */}
+            <div className="border-b border-gray-200 overflow-x-auto scrollbar-hide">
+                <nav className="-mb-px flex space-x-8 px-2 min-w-max" aria-label="Tabs">
+                {[
+                    { id: 'active', label: 'En Proceso (Activos)', color: 'border-brand-secondary text-brand-secondary' },
+                    { id: 'won', label: 'Inscritos (Ganados)', color: 'border-green-500 text-green-600' },
+                    { id: 'lost', label: 'Bajas / Archivo', color: 'border-red-500 text-red-600' }
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => { setActiveCategoryTab(tab.id as StatusCategory); setQuickFilter(null); }}
+                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+                </nav>
+            </div>
           </div>
       </div>
       
+      {/* Visualización de Filtros Activos */}
       {activeFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
-              {Object.entries(filters).map(([key, value]) => {
-                  if (value === 'all' || !value) return null;
+              {Object.entries(currentFilters).map(([key, value]) => {
+                  if (value === 'all' || !value || key === 'searchTerm') return null;
                   let label = '';
                   if (key === 'advisorId') label = `Asesor: ${advisorMap.get(value)}`;
                   if (key === 'statusId') label = `Estado: ${statusMap.get(value)?.name}`;
@@ -652,7 +616,7 @@ const LeadList: React.FC<LeadListProps> = ({
                       </span>
                   )
               })}
-               <button onClick={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })} className="text-xs text-gray-500 hover:text-red-600 hover:underline ml-2 transition-colors">
+               <button onClick={() => onFilterChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })} className="text-xs text-gray-500 hover:text-red-600 hover:underline ml-2 transition-colors">
                    Limpiar todo
                </button>
           </div>
@@ -670,7 +634,7 @@ const LeadList: React.FC<LeadListProps> = ({
                           <th scope="col" className="px-4 py-4 text-left w-10">
                               <input 
                                   type="checkbox" 
-                                  checked={paginatedLeads.length > 0 && paginatedLeads.every(l => selectedIds.has(l.id))}
+                                  checked={sortedLeads.length > 0 && sortedLeads.every(l => selectedIds.has(l.id))}
                                   onChange={handleSelectAll}
                                   className="w-4 h-4 rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary cursor-pointer"
                               />
@@ -689,7 +653,7 @@ const LeadList: React.FC<LeadListProps> = ({
                   </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                  {paginatedLeads.map((lead) => {
+                  {sortedLeads.map((lead) => {
                       const urgencyLevel = getLeadUrgency(lead);
                       const status = statusMap.get(lead.status_id);
                       
@@ -728,14 +692,12 @@ const LeadList: React.FC<LeadListProps> = ({
                               <div className="flex justify-center">{urgencyIndicator}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
+                            <div className="flex items-center cursor-pointer" onClick={() => onViewDetails(lead)}>
                                 <div className="h-9 w-9 rounded-full bg-brand-secondary/10 flex items-center justify-center text-brand-secondary font-bold text-sm mr-3">
                                     {lead.first_name.charAt(0)}
                                 </div>
                                 <div>
-                                    <div className="text-sm font-bold text-gray-900 cursor-pointer hover:text-brand-secondary transition-colors" onClick={() => onViewDetails(lead)}>
-                                        {`${lead.first_name} ${lead.paternal_last_name}`}
-                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">{lead.first_name} {lead.paternal_last_name}</div>
                                     <div className="text-xs text-gray-500">{lead.email || lead.phone}</div>
                                 </div>
                             </div>
@@ -787,52 +749,50 @@ const LeadList: React.FC<LeadListProps> = ({
                       </tr>
                       )
                   })}
-{paginatedLeads.length === 0 && (
-    <tr>
-        <td colSpan={10} className="text-center py-20">
-            <div className="flex flex-col items-center justify-center animate-fade-in">
-                <div className="bg-gray-50 rounded-full w-20 h-20 flex items-center justify-center mb-4 shadow-inner">
-                    <MagnifyingGlassIcon className="w-10 h-10 text-gray-300" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">No se encontraron leads</h3>
-                <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
-                    No hay resultados que coincidan con los filtros aplicados o la búsqueda "{localSearchTerm}".
-                </p>
-                {(activeFilterCount > 0 || localSearchTerm) && (
-                    <Button 
-                        variant="secondary" 
-                        className="mt-6 border-brand-secondary text-brand-secondary hover:bg-brand-secondary/5" 
-                        onClick={() => { 
-                            setLocalSearchTerm('');
-                            setDebouncedSearchTerm('');
-                            setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' }); 
-                            setQuickFilter(null);
-                        }}
-                    >
-                        Limpiar búsqueda y filtros
-                    </Button>
-                )}
-            </div>
-        </td>
-    </tr>
-)}
+                  {sortedLeads.length === 0 && (
+                        <tr>
+                            <td colSpan={10} className="text-center py-20">
+                                <div className="flex flex-col items-center justify-center animate-fade-in">
+                                    <div className="bg-gray-50 rounded-full w-20 h-20 flex items-center justify-center mb-4 shadow-inner">
+                                        <MagnifyingGlassIcon className="w-10 h-10 text-gray-300" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900">No se encontraron leads</h3>
+                                    <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
+                                        No hay resultados que coincidan con los filtros aplicados o la búsqueda "{localSearchTerm}".
+                                    </p>
+                                    {(activeFilterCount > 0 || localSearchTerm) && (
+                                        <Button 
+                                            variant="secondary" 
+                                            className="mt-6 border-brand-secondary text-brand-secondary hover:bg-brand-secondary/5" 
+                                            onClick={() => { 
+                                                setLocalSearchTerm('');
+                                                onFilterChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' }); 
+                                                setQuickFilter(null);
+                                            }}
+                                        >
+                                            Limpiar búsqueda y filtros
+                                        </Button>
+                                    )}
+                                </div>
+                            </td>
+                        </tr>
+                    )}
                   </tbody>
               </table>
               </div>
               
-              {/* PAGINACIÓN FOOTER MEJORADO */}
-              {totalItems > 0 && (
-                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+              {/* PAGINACIÓN SERVER-SIDE - Footer */}
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div className="text-sm text-gray-500 order-2 sm:order-1">
-                        Mostrando <span className="font-medium text-gray-900">{Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}</span> a <span className="font-medium text-gray-900">{Math.min(currentPage * itemsPerPage, totalItems)}</span> de <span className="font-medium text-gray-900">{totalItems}</span> resultados
+                        Mostrando <span className="font-medium text-gray-900">{Math.min((page - 1) * pageSize + 1, totalLeads)}</span> a <span className="font-medium text-gray-900">{Math.min(page * pageSize, totalLeads)}</span> de <span className="font-medium text-gray-900">{totalLeads}</span> resultados
                     </div>
 
                     <div className="flex items-center gap-4 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-end">
                         <select 
-                            value={itemsPerPage} 
-                            onChange={e => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} 
-                            className="pl-3 pr-8 py-1.5 text-xs sm:text-sm border-gray-300 bg-white rounded-lg focus:ring-brand-secondary focus:border-brand-secondary cursor-pointer shadow-sm"
-                        >
+                            value={pageSize} 
+                            onChange={e => onPageSizeChange(Number(e.target.value))} 
+                            className="pl-3 pr-8 py-1.5 text-xs sm:text-sm border border-gray-300 bg-white rounded-lg focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary cursor-pointer shadow-sm focus:outline-none"
+                            >
                             <option value={10}>10 por pág</option>
                             <option value={25}>25 por pág</option>
                             <option value={50}>50 por pág</option>
@@ -841,18 +801,18 @@ const LeadList: React.FC<LeadListProps> = ({
 
                         <div className="flex items-center bg-white rounded-lg border border-gray-200 shadow-sm p-0.5">
                             <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
+                                onClick={() => onPageChange(Math.max(page - 1, 1))}
+                                disabled={page === 1}
                                 className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white transition-colors text-gray-600"
                             >
                                 <ChevronLeftIcon className="w-4 h-4"/>
                             </button>
                             <span className="px-4 text-sm font-medium text-gray-700 border-x border-gray-100 h-full flex items-center">
-                                {currentPage}
+                                {page}
                             </span>
                             <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
+                                onClick={() => onPageChange(Math.min(page + 1, totalPages))}
+                                disabled={page >= totalPages}
                                 className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white transition-colors text-gray-600"
                             >
                                 <ChevronRightIcon className="w-4 h-4"/>
@@ -860,11 +820,10 @@ const LeadList: React.FC<LeadListProps> = ({
                         </div>
                     </div>
                 </div>
-              )}
           </div>
         ) : (
           <KanbanBoard 
-              leads={paginatedLeads} 
+              leads={sortedLeads} 
               statuses={relevantStatuses} 
               advisors={advisors}
               licenciaturas={licenciaturas}
@@ -878,7 +837,7 @@ const LeadList: React.FC<LeadListProps> = ({
         )}
       </div>
 
-      {/* BARRA FLOTANTE DE ACCIONES MASIVAS (Admin Only) */}
+      {/* BARRA FLOTANTE DE ACCIONES MASIVAS */}
       {userRole === 'admin' && selectedIds.size > 0 && (
           <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-white shadow-2xl rounded-full px-6 py-3 border border-gray-200 flex items-center gap-4 animate-slide-up">
               <span className="text-sm font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
@@ -934,7 +893,7 @@ const LeadList: React.FC<LeadListProps> = ({
           </div>
       )}
 
-      {/* MODALES DE ACCIÓN MASIVA */}
+      {/* --- MODALES --- */}
       
       <ConfirmationModal
         isOpen={isBulkDeleteOpen}
@@ -999,7 +958,7 @@ const LeadList: React.FC<LeadListProps> = ({
         onComplete={() => {
              // Opcional
         }}
-        currentUser={null} // Pasamos null ya que no lo usamos aquí directamente
+        currentUser={currentUser || null} 
       />
 
       <FilterDrawer 
@@ -1008,9 +967,9 @@ const LeadList: React.FC<LeadListProps> = ({
         advisors={advisors}
         statuses={statuses}
         licenciaturas={licenciaturas}
-        currentFilters={filters}
-        onApplyFilters={setFilters}
-        onClearFilters={() => setFilters({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
+        currentFilters={currentFilters}
+        onApplyFilters={(f) => onFilterChange(f)}
+        onClearFilters={() => onFilterChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' })}
       />
 
       <ConfirmationModal

@@ -8,7 +8,7 @@ import LeadFormModal from './components/LeadFormModal';
 import WhatsAppModal from './components/WhatsAppModal';
 import EmailModal from './components/EmailModal';
 import AutomationChoiceModal from './components/AutomationChoiceModal';
-import { Lead, Appointment, FollowUp, StatusChange } from './types';
+import { Lead } from './types';
 import LoginPage from './components/auth/LoginPage';
 import LeadListSkeleton from './components/LeadListSkeleton';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -22,11 +22,20 @@ const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'))
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
-  const { success, error: toastError, info } = useToast();
+  const { success, error: toastError } = useToast();
 
   const {
     loadingData,
+    loadingLeads,
     leads,
+    totalLeads,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilters,
+    
     profiles,
     statuses,
     sources,
@@ -67,7 +76,6 @@ const AppContent: React.FC = () => {
   const [initialEmailTemplateId, setInitialEmailTemplateId] = useState<string | undefined>(undefined);
   const [initialWhatsAppTemplateId, setInitialWhatsAppTemplateId] = useState<string | undefined>(undefined);
 
-  // Filtro de Personal (Asesores + Moderadores + Admin)
   const assignableStaff = profiles.filter(p => 
       p.role === 'advisor' || p.role === 'moderator' || p.role === 'admin'
   );
@@ -143,7 +151,6 @@ const AppContent: React.FC = () => {
   // --- CRUD HANDLERS ---
 
   const handleDelete = async (leadId: string) => {
-       // HARD DELETE (Según configuración actual de BD)
        const { error } = await supabase.from('leads').delete().eq('id', leadId);
 
        if (error) {
@@ -154,7 +161,7 @@ const AppContent: React.FC = () => {
        }
   };
   
-  const handleSaveLead = async (leadData: Omit<Lead, 'id' | 'registration_date' | 'status_history'>, leadIdToEdit?: string) => {
+  const handleSaveLead = async (leadData: any, leadIdToEdit?: string) => {
     if (leadIdToEdit) {
       const oldLead = leads.find(l => l.id === leadIdToEdit);
       const { data, error } = await supabase
@@ -210,6 +217,8 @@ const AppContent: React.FC = () => {
         };
 
         addLocalLead(fullNewLead);
+        // IMPORTANTE: Refetch para que la paginación del servidor se entere del nuevo registro y lo ordene bien
+        refetch();
         success("Lead creado.");
         checkAndTriggerAutomation(leadData.status_id, fullNewLead);
       }
@@ -217,7 +226,7 @@ const AppContent: React.FC = () => {
     setLeadFormOpen(false);
   };
 
-  const handleUpdateLeadDetails = async (leadId: string, updates: Partial<Pick<Lead, 'advisor_id' | 'status_id'>>) => {
+  const handleUpdateLeadDetails = async (leadId: string, updates: any) => {
     const oldLead = leads.find(l => l.id === leadId);
     
     const { data: leadData, error } = await supabase
@@ -229,7 +238,7 @@ const AppContent: React.FC = () => {
 
     if (error) { toastError(`Error: ${error.message}`); return; }
 
-    let newHistoryItem: StatusChange | null = null;
+    let newHistoryItem: any = null;
     if (oldLead && updates.status_id && updates.status_id !== oldLead.status_id) {
         const { data: historyData } = await supabase.from('status_history').insert({
             old_status_id: oldLead.status_id,
@@ -300,7 +309,7 @@ const AppContent: React.FC = () => {
   };
 
   // Función central para añadir notas (usada por modales y manual)
-  const handleAddFollowUp = async (leadId: string, followUp: Omit<FollowUp, 'id' | 'lead_id'>) => {
+  const handleAddFollowUp = async (leadId: string, followUp: any) => {
     const { data, error } = await supabase.from('follow_ups').insert({ 
         ...followUp, 
         lead_id: leadId,
@@ -309,18 +318,23 @@ const AppContent: React.FC = () => {
 
     if(error) { toastError("Error al guardar."); return; }
 
+    // Actualizar si está en memoria
     const l = leads.find(l => l.id === leadId);
     if(l && data) { 
-        const newFollowUp = { ...data, created_by: profile }; // Asignar perfil actual para que aparezca el nombre
+        const newFollowUp = { ...data, created_by: profile };
         const up = { ...l, follow_ups: [...(l.follow_ups || []), newFollowUp] }; 
-        
         updateLocalLead(up); 
-        if(selectedLead?.id === leadId) setSelectedLead(up); 
-        success("Nota guardada."); 
     }
+    
+    // Actualizar el modal de detalles si está abierto
+    if(selectedLead?.id === leadId && data) {
+         const newFollowUp = { ...data, created_by: profile };
+         setSelectedLead(prev => prev ? ({ ...prev, follow_ups: [...(prev.follow_ups || []), newFollowUp] }) : null);
+    }
+    success("Nota guardada.");
   };
 
-  // Función callback para modales de mensaje (evita duplicar lógica)
+  // Función callback para modales de mensaje
   const handleMessageSent = (leadId: string, note: string) => {
       handleAddFollowUp(leadId, {
           date: new Date().toISOString(),
@@ -336,12 +350,14 @@ const AppContent: React.FC = () => {
     if(l) { 
         const up = { ...l, follow_ups: (l.follow_ups || []).filter(f => f.id !== followUpId) }; 
         updateLocalLead(up); 
-        if(selectedLead?.id === leadId) setSelectedLead(up); 
-        success("Nota eliminada."); 
     }
+    if (selectedLead?.id === leadId) {
+        setSelectedLead(prev => prev ? ({...prev, follow_ups: (prev.follow_ups || []).filter(f => f.id !== followUpId)}) : null);
+    }
+    success("Nota eliminada."); 
   };
   
-   const handleSaveAppointment = async (leadId: string, appointmentData: Omit<Appointment, 'id' | 'status' | 'lead_id'>, appointmentIdToEdit?: string) => {
+   const handleSaveAppointment = async (leadId: string, appointmentData: any, appointmentIdToEdit?: string) => {
     const citadoStatusId = statuses.find(s => s.name === 'Con Cita')?.id;
     let savedAppointment;
 
@@ -373,7 +389,17 @@ const AppContent: React.FC = () => {
         
         const up = { ...l, appointments: newApps }; 
         updateLocalLead(up); 
-        if (selectedLead?.id === leadId) setSelectedLead(up);
+    }
+    
+    if (selectedLead?.id === leadId && savedAppointment) {
+        const apptWithProfile = { ...savedAppointment, created_by: profile };
+        setSelectedLead(prev => {
+            if(!prev) return null;
+            let newApps = prev.appointments || [];
+            if (appointmentIdToEdit) newApps = newApps.map(a => a.id === appointmentIdToEdit ? apptWithProfile : a);
+            else newApps = [...newApps, apptWithProfile];
+            return { ...prev, appointments: newApps };
+        });
     }
   };
 
@@ -387,9 +413,17 @@ const AppContent: React.FC = () => {
           const newApps = (l.appointments || []).map(a => a.id === appointmentId ? { ...a, ...apptWithProfile } : a); 
           const up = { ...l, appointments: newApps }; 
           updateLocalLead(up); 
-          if (selectedLead?.id === leadId) setSelectedLead(up); 
-          status === 'completed' ? success("Completada.") : info("Cancelada."); 
       }
+      
+      if (selectedLead?.id === leadId && data) {
+          const apptWithProfile = { ...data, created_by: profile };
+          setSelectedLead(prev => {
+              if(!prev) return null;
+              return { ...prev, appointments: (prev.appointments || []).map(a => a.id === appointmentId ? { ...a, ...apptWithProfile } : a) };
+          });
+      }
+      
+      status === 'completed' ? success("Completada.") : info("Cancelada."); 
   };
 
   const handleDeleteAppointment = async (leadId: string, appointmentId: string) => {
@@ -401,9 +435,13 @@ const AppContent: React.FC = () => {
           const newApps = (l.appointments || []).filter(a => a.id !== appointmentId); 
           const up = { ...l, appointments: newApps }; 
           updateLocalLead(up); 
-          if (selectedLead?.id === leadId) setSelectedLead(up); 
-          success("Eliminada."); 
       }
+      
+      if (selectedLead?.id === leadId) {
+          setSelectedLead(prev => prev ? ({...prev, appointments: (prev.appointments || []).filter(a => a.id !== appointmentId)}) : null);
+      }
+      
+      success("Eliminada."); 
   };
   
   return (
@@ -411,11 +449,22 @@ const AppContent: React.FC = () => {
       <Header onOpenSettings={() => setSettingsOpen(true)} userProfile={profile} onLogout={signOut} />
       <main>
         <LeadList
-          loading={loadingData}
+          loading={loadingData || loadingLeads}
           leads={leads}
+          totalLeads={totalLeads}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          onFilterChange={setFilters}
+          currentFilters={filters}
+          
           advisors={assignableStaff} 
           statuses={statuses}
           licenciaturas={licenciaturas}
+          whatsappTemplates={whatsappTemplates}
+          emailTemplates={emailTemplates}
+          
           onAddNew={handleAddNew}
           onEdit={handleEdit}
           onDelete={handleDelete}
@@ -437,8 +486,6 @@ const AppContent: React.FC = () => {
           currentUser={profile}
           onRefresh={refetch}
           onLocalDeleteMany={removeManyLocalLeads}
-          whatsappTemplates={whatsappTemplates}
-          emailTemplates={emailTemplates}
         />
       </main>
 

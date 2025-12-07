@@ -22,10 +22,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           title={props.value as string}
           className={`
             block w-full px-4 py-2.5 
-            bg-gray-50 border border-gray-200 rounded-xl 
+            bg-white border border-gray-200 rounded-xl 
             text-gray-900 text-sm placeholder-gray-400 
-            focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary focus:bg-white
-            transition-all duration-200 disabled:bg-gray-100 disabled:text-gray-500
+            focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary
+            transition-all duration-200 disabled:bg-gray-50 disabled:text-gray-500
             ${error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}
             ${className}
           `}
@@ -65,11 +65,11 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             title={selectedLabel as string}
             className={`
                 block w-full pl-4 pr-10 py-2.5 
-                bg-gray-50 border border-gray-200 rounded-xl 
+                bg-white border border-gray-200 rounded-xl 
                 text-gray-900 text-sm text-ellipsis overflow-hidden whitespace-nowrap
-                focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary focus:bg-white
+                focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary
                 appearance-none transition-all duration-200 cursor-pointer
-                disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed
+                disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed
                 ${error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}
                 ${className}
             `}
@@ -117,9 +117,9 @@ export const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
             ref={ref}
             className={`
               block w-full px-4 py-3 
-              bg-gray-50 border border-gray-200 rounded-xl 
+              bg-white border border-gray-200 rounded-xl 
               text-gray-900 text-sm placeholder-gray-400 
-              focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary focus:bg-white
+              focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary
               transition-all duration-200
               ${error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}
               ${className}
