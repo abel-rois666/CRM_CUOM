@@ -221,25 +221,23 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
       <div className="space-y-6">
         
         {/* Header Informativo */}
-        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex gap-4 items-start">
-            <div className="bg-amber-100 p-2 rounded-full text-amber-600 mt-1">
-                <TransferIcon className="w-6 h-6" />
-            </div>
-            <div>
-                <h4 className="font-bold text-amber-900 text-sm uppercase">Herramienta Administrativa</h4>
-                <p className="text-sm text-amber-800 mt-1">
-                    Mueve leads de un asesor a otro. Se registrará el cambio y el motivo en el historial de cada alumno.
-                </p>
-            </div>
+    <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800 flex gap-4 items-start">
+        <div className="bg-amber-100 dark:bg-amber-800/50 p-2 rounded-full text-amber-600 dark:text-amber-200 mt-1">
+            <TransferIcon className="w-6 h-6" />
+        </div>
+        <div>
+            <h4 className="font-bold text-amber-900 dark:text-amber-100 text-sm uppercase">Herramienta Administrativa</h4>
+            <p className="text-sm text-amber-800 dark:text-amber-200 mt-1"><p>Esta función permite reasignar múltiples leads de un asesor a otro de manera rápida y eficiente. Utilízala para balancear cargas de trabajo o en casos de renuncias.</p></p>
+                </div>
         </div>
 
         {/* Selección de Asesores */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-                <label className="block text-xs font-bold text-red-800 uppercase tracking-wide">
-                    Desde (Origen)
-                </label>
-                <div className="bg-red-50 p-3 rounded-xl border border-red-100">
+            <label className="block text-xs font-bold text-red-800 dark:text-red-300 uppercase tracking-wide">
+                Desde (Origen)
+            </label>
+                <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-100 dark:border-red-900/50">
                     <Select 
                         value={sourceAdvisorId}
                         onChange={e => setSourceAdvisorId(e.target.value)}
@@ -258,10 +256,10 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
             </div>
 
             <div className="space-y-2">
-                <label className="block text-xs font-bold text-green-800 uppercase tracking-wide">
+                <label className="block text-xs font-bold text-green-800 dark:text-green-300 uppercase tracking-wide">
                     Hacia (Destino)
                 </label>
-                <div className="bg-green-50 p-3 rounded-xl border border-green-100">
+                <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-100 dark:border-green-900/50">
                     <Select 
                         value={targetAdvisorId}
                         onChange={e => setTargetAdvisorId(e.target.value)}
@@ -298,30 +296,30 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                     <button
                         onClick={() => setTransferMode('all')}
                         className={`flex-1 p-3 rounded-lg border text-left transition-all ${
-                            transferMode === 'all' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 hover:bg-gray-50'
+                            transferMode === 'all' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
                         }`}
                     >
-                        <span className="block text-sm font-bold text-gray-900">Transferir TODOS</span>
+                        <span className="block text-sm font-bold text-gray-900 dark:text-white">Transferir TODOS</span>
                         <span className="text-xs text-gray-500">Mueve los {totalLeads} leads disponibles.</span>
                     </button>
 
                     <button
                         onClick={() => setTransferMode('quantity')}
                         className={`flex-1 p-3 rounded-lg border text-left transition-all ${
-                            transferMode === 'quantity' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 hover:bg-gray-50'
+                            transferMode === 'quantity' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
                         }`}
                     >
-                        <span className="block text-sm font-bold text-gray-900">Por Cantidad</span>
+                        <span className="block text-sm font-bold text-gray-900 dark:text-white">Por Cantidad</span>
                         <span className="text-xs text-gray-500">Mueve los X más recientes.</span>
                     </button>
 
                     <button
                         onClick={() => setTransferMode('selection')}
                         className={`flex-1 p-3 rounded-lg border text-left transition-all ${
-                            transferMode === 'selection' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 hover:bg-gray-50'
+                            transferMode === 'selection' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
                         }`}
                     >
-                        <span className="block text-sm font-bold text-gray-900">Selección Manual</span>
+                        <span className="block text-sm font-bold text-gray-900 dark:text-white">Selección Manual</span>
                         <span className="text-xs text-gray-500">Elige uno por uno de la lista.</span>
                     </button>
                 </div>

@@ -8,7 +8,6 @@ import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
 import ListBulletIcon from './icons/ListBulletIcon';
 import CheckCircleIcon from './icons/CheckCircleIcon';
-// 1. IMPORTAR EL ÍCONO DE INFORMACIÓN
 import InformationCircleIcon from './icons/InformationCircleIcon';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
@@ -39,9 +38,9 @@ const tailwindColorMap: { [key: string]: string } = {
 const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl text-xs">
-          <p className="font-bold text-gray-800 mb-1">{payload[0].name || label}</p>
-          <p className="text-gray-600">
+        <div className="bg-white dark:bg-slate-800 p-3 border border-gray-100 dark:border-slate-600 shadow-xl rounded-xl text-xs">
+          <p className="font-bold text-gray-800 dark:text-white mb-1">{payload[0].name || label}</p>
+          <p className="text-gray-600 dark:text-gray-300">
             <span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads
           </p>
         </div>
@@ -55,6 +54,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
     const [activeTab, setActiveTab] = useState<'agenda' | 'analytics'>('agenda');
 
     const stats = useMemo(() => {
+        // ... (TU LÓGICA ORIGINAL DE STATS SE MANTIENE IGUAL, NO CAMBIA) ...
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const threeDaysAgo = new Date();
@@ -129,37 +129,44 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
         onFilterChange(activeFilter === filter ? null : filter);
     };
 
+    // Estilos dinámicos para Dark Mode
     const getNoFollowUpStyles = () => {
         const isActive = activeFilter === 'no_followup';
         if (stats.noFollowUp > 0) {
             return isActive 
-                ? 'bg-red-50 ring-2 ring-red-500 shadow-lg shadow-red-100' 
-                : 'bg-white border border-red-200 shadow-md shadow-red-50 hover:border-red-400';
+                ? 'bg-red-50 ring-2 ring-red-500 shadow-lg shadow-red-100 dark:bg-red-900/30 dark:shadow-none' 
+                : 'bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/50 shadow-md shadow-red-50 dark:shadow-none hover:border-red-400';
         }
         return isActive 
-            ? 'bg-white ring-2 ring-green-500 shadow-lg' 
-            : 'bg-white border border-gray-100 hover:shadow-lg';
+            ? 'bg-white dark:bg-slate-700 ring-2 ring-green-500 shadow-lg' 
+            : 'bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 hover:shadow-lg';
     };
 
     const getStaleStyles = () => {
         const isActive = activeFilter === 'stale_followup';
         if (stats.staleFollowUp > 0) {
             return isActive 
-                ? 'bg-amber-50 ring-2 ring-amber-500 shadow-lg shadow-amber-100'
-                : 'bg-white border border-amber-200 shadow-md shadow-amber-50 hover:border-amber-400';
+                ? 'bg-amber-50 ring-2 ring-amber-500 shadow-lg shadow-amber-100 dark:bg-amber-900/30 dark:shadow-none'
+                : 'bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900/50 shadow-md shadow-amber-50 dark:shadow-none hover:border-amber-400';
         }
         return isActive 
-            ? 'bg-white ring-2 ring-gray-400 shadow-lg' 
-            : 'bg-white border border-gray-100 hover:shadow-lg';
+            ? 'bg-white dark:bg-slate-700 ring-2 ring-gray-400 shadow-lg' 
+            : 'bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 hover:shadow-lg';
+    };
+
+    const getApptStyles = () => {
+        return activeFilter === 'appointments_today' 
+            ? 'bg-blue-50 ring-2 ring-blue-500 shadow-lg shadow-blue-100 dark:bg-blue-900/30 dark:shadow-none' 
+            : 'bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 hover:shadow-lg hover:-translate-y-1';
     };
 
     return (
-        <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md">
-            <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                <div className="flex space-x-1 bg-gray-100/50 p-1 rounded-xl">
+        <div className="mb-8 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-md">
+            <div className="bg-white dark:bg-slate-800 px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center transition-colors">
+                <div className="flex space-x-1 bg-gray-100/50 dark:bg-slate-700/50 p-1 rounded-xl">
                      <button 
                         onClick={() => setActiveTab('agenda')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'agenda' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'agenda' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
                         <div className="flex items-center gap-2">
                             <ListBulletIcon className="w-4 h-4"/>
@@ -168,7 +175,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                     </button>
                     <button 
                         onClick={() => setActiveTab('analytics')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'analytics' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'analytics' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
                         <div className="flex items-center gap-2">
                             <ChartBarIcon className="w-4 h-4"/>
@@ -176,107 +183,99 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                         </div>
                     </button>
                 </div>
-                <button className="text-gray-400 hover:bg-gray-100 p-2 rounded-full transition-colors" onClick={() => setIsExpanded(!isExpanded)}>
+                <button className="text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 p-2 rounded-full transition-colors" onClick={() => setIsExpanded(!isExpanded)}>
                     <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
             </div>
             
             {isExpanded && (
-                <div className="p-6 animate-fade-in bg-gray-50/30">
+                <div className="p-6 animate-fade-in bg-gray-50/30 dark:bg-slate-900/30">
                     {activeTab === 'agenda' ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             
                             {/* Card 1: Agenda */}
                             <div 
                                 onClick={() => handleCardClick('appointments_today')}
-                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group
-                                    ${activeFilter === 'appointments_today' 
-                                        ? 'bg-blue-50 ring-2 ring-blue-500 shadow-lg shadow-blue-100' 
-                                        : 'bg-white border border-gray-100 hover:shadow-lg hover:-translate-y-1'
-                                    }`}
+                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group ${getApptStyles()}`}
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-1 mb-2">
-                                            <p className="text-sm font-bold text-gray-600 uppercase tracking-wide">Citas para Hoy</p>
+                                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Citas para Hoy</p>
                                         </div>
-                                        <p className={`text-4xl font-black tracking-tight ${activeFilter === 'appointments_today' ? 'text-blue-700' : 'text-gray-800'}`}>
+                                        <p className={`text-4xl font-black tracking-tight ${activeFilter === 'appointments_today' ? 'text-blue-700 dark:text-blue-400' : 'text-gray-800 dark:text-white'}`}>
                                             {stats.appointmentsToday}
                                         </p>
-                                        <p className="text-xs text-gray-400 font-medium mt-2">Eventos programados</p>
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mt-2">Eventos programados</p>
                                     </div>
-                                    <div className={`p-3 rounded-xl transition-colors ${stats.appointmentsToday > 0 ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+                                    <div className={`p-3 rounded-xl transition-colors ${stats.appointmentsToday > 0 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-slate-500'}`}>
                                         <CalendarIcon className="w-6 h-6" />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Card 2: Nuevos sin Atender (CON INFO) */}
+                            {/* Card 2: Nuevos sin Atender */}
                             <div 
                                 onClick={() => handleCardClick('no_followup')}
-                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1
-                                    ${getNoFollowUpStyles()}`}
+                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1 ${getNoFollowUpStyles()}`}
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-1 mb-2">
-                                            <p className={`text-sm font-bold uppercase tracking-wide ${stats.noFollowUp > 0 ? 'text-red-700' : 'text-gray-600'}`}>
+                                            <p className={`text-sm font-bold uppercase tracking-wide ${stats.noFollowUp > 0 ? 'text-red-700 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                                 Nuevos sin Atender
                                             </p>
-                                            {/* ÍCONO DE INFORMACIÓN + TOOLTIP */}
                                             <div 
                                                 className={`transition-colors ${stats.noFollowUp > 0 ? 'text-red-400 hover:text-red-600' : 'text-gray-400 hover:text-gray-600'}`}
-                                                title="Criterio: Leads registrados hace más de 3 días que NO tienen ninguna nota de seguimiento en su historial."
-                                                onClick={(e) => e.stopPropagation()} // Evitar que el clic en el icono active el filtro
+                                                title="Criterio: Leads registrados hace más de 3 días que NO tienen ninguna nota."
+                                                onClick={(e) => e.stopPropagation()}
                                             >
                                                 <InformationCircleIcon className="w-4 h-4 cursor-help" />
                                             </div>
                                         </div>
                                         
-                                        <p className={`text-4xl font-black tracking-tight ${stats.noFollowUp > 0 ? 'text-red-600' : 'text-gray-800'}`}>
+                                        <p className={`text-4xl font-black tracking-tight ${stats.noFollowUp > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-white'}`}>
                                             {stats.noFollowUp}
                                         </p>
-                                        <p className={`text-xs font-medium mt-2 ${stats.noFollowUp > 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                        <p className={`text-xs font-medium mt-2 ${stats.noFollowUp > 0 ? 'text-red-500 dark:text-red-300' : 'text-gray-400 dark:text-gray-500'}`}>
                                             {stats.noFollowUp > 0 ? '¡Requiere contacto urgente!' : 'Bandeja de entrada al día'}
                                         </p>
                                     </div>
                                     <div className={`p-3 rounded-xl transition-colors 
-                                        ${stats.noFollowUp > 0 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-green-100 text-green-600'}`}>
+                                        ${stats.noFollowUp > 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300 animate-pulse' : 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-300'}`}>
                                         {stats.noFollowUp > 0 ? <BellAlertIcon className="w-6 h-6" /> : <CheckCircleIcon className="w-6 h-6" />}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Card 3: Seguimiento Vencido (CON INFO) */}
+                            {/* Card 3: Seguimiento Vencido */}
                             <div 
                                 onClick={() => handleCardClick('stale_followup')}
-                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1
-                                    ${getStaleStyles()}`}
+                                className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1 ${getStaleStyles()}`}
                             >
                                 <div className="relative z-10 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-1 mb-2">
-                                            <p className={`text-sm font-bold uppercase tracking-wide ${stats.staleFollowUp > 0 ? 'text-amber-700' : 'text-gray-600'}`}>
+                                            <p className={`text-sm font-bold uppercase tracking-wide ${stats.staleFollowUp > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                                 Seguimiento Vencido
                                             </p>
-                                            {/* ÍCONO DE INFORMACIÓN + TOOLTIP */}
                                             <div 
                                                 className={`transition-colors ${stats.staleFollowUp > 0 ? 'text-amber-500 hover:text-amber-700' : 'text-gray-400 hover:text-gray-600'}`}
-                                                title="Criterio: Leads con historial activo, pero cuya última nota de seguimiento fue registrada hace más de 7 días."
+                                                title="Criterio: Leads con historial activo, sin nota en >7 días."
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <InformationCircleIcon className="w-4 h-4 cursor-help" />
                                             </div>
                                         </div>
 
-                                        <p className={`text-4xl font-black tracking-tight ${stats.staleFollowUp > 0 ? 'text-amber-600' : 'text-gray-800'}`}>
+                                        <p className={`text-4xl font-black tracking-tight ${stats.staleFollowUp > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-white'}`}>
                                             {stats.staleFollowUp}
                                         </p>
-                                        <p className={`text-xs font-medium mt-2 ${stats.staleFollowUp > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                                        <p className={`text-xs font-medium mt-2 ${stats.staleFollowUp > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-gray-400 dark:text-gray-500'}`}>
                                             {stats.staleFollowUp > 0 ? '> 7 días sin actualización' : 'Cartera activa actualizada'}
                                         </p>
                                     </div>
-                                    <div className={`p-3 rounded-xl transition-colors ${stats.staleFollowUp > 0 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'}`}>
+                                    <div className={`p-3 rounded-xl transition-colors ${stats.staleFollowUp > 0 ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-300' : 'bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-slate-500'}`}>
                                         <ClockIcon className="w-6 h-6" />
                                     </div>
                                 </div>
@@ -284,21 +283,21 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                         </div>
                     ) : (
                         <div className="space-y-8 animate-fade-in">
-                            {/* Analytics View (Sin cambios) */}
+                            {/* Analytics View */}
                             <div className="grid grid-cols-2 gap-6">
-                                <div className="bg-gradient-to-br from-brand-primary/5 to-brand-primary/10 p-6 rounded-2xl border border-brand-primary/10 flex flex-col justify-center items-center text-center">
-                                    <p className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-2">Total Leads</p>
-                                    <p className="text-5xl font-black text-brand-primary tracking-tighter">{stats.totalLeads}</p>
+                                <div className="bg-gradient-to-br from-brand-primary/5 to-brand-primary/10 dark:from-slate-700 dark:to-slate-800 p-6 rounded-2xl border border-brand-primary/10 dark:border-slate-600 flex flex-col justify-center items-center text-center">
+                                    <p className="text-xs font-bold text-brand-primary dark:text-blue-300 uppercase tracking-widest mb-2">Total Leads</p>
+                                    <p className="text-5xl font-black text-brand-primary dark:text-white tracking-tighter">{stats.totalLeads}</p>
                                 </div>
-                                <div className="bg-gradient-to-br from-green-50 to-emerald-100/50 p-6 rounded-2xl border border-green-100 flex flex-col justify-center items-center text-center">
-                                    <p className="text-xs font-bold text-green-700 uppercase tracking-widest mb-2">Nuevos Hoy</p>
-                                    <p className="text-5xl font-black text-green-600 tracking-tighter">+{stats.newLeadsToday}</p>
+                                <div className="bg-gradient-to-br from-green-50 to-emerald-100/50 dark:from-green-900/20 dark:to-green-900/10 p-6 rounded-2xl border border-green-100 dark:border-green-800 flex flex-col justify-center items-center text-center">
+                                    <p className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-widest mb-2">Nuevos Hoy</p>
+                                    <p className="text-5xl font-black text-green-600 dark:text-green-400 tracking-tighter">+{stats.newLeadsToday}</p>
                                 </div>
                             </div>
                             
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                    <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">Distribución por Estado</h4>
+                                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm">
+                                    <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Distribución por Estado</h4>
                                     <div className="h-64 w-full flex items-center justify-center">
                                         {stats.statusData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%">
@@ -313,32 +312,32 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                     </div>
                                     <div className="mt-4 grid grid-cols-2 gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
                                         {stats.statusData.map(item => (
-                                            <div key={item.name} className="flex items-center justify-between text-xs p-1.5 hover:bg-gray-50 rounded-lg transition-colors">
+                                            <div key={item.name} className="flex items-center justify-between text-xs p-1.5 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
                                                 <div className="flex items-center gap-2 overflow-hidden">
                                                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
-                                                    <span className="text-gray-600 truncate" title={item.name}>{item.name}</span>
+                                                    <span className="text-gray-600 dark:text-gray-300 truncate" title={item.name}>{item.name}</span>
                                                 </div>
-                                                <span className="font-bold text-gray-800">{item.value}</span>
+                                                <span className="font-bold text-gray-800 dark:text-white">{item.value}</span>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
 
-                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                    <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">Leads por Asesor</h4>
+                                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm">
+                                    <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Leads por Asesor</h4>
                                     <div className="h-64 w-full">
                                         {stats.advisorData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={stats.advisorData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.2} />
                                                     <XAxis type="number" hide />
-                                                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#64748b' }} width={70} />
-                                                    <Tooltip cursor={{ fill: '#f8fafc' }} content={({ active, payload }) => {
+                                                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#94a3b8' }} width={70} />
+                                                    <Tooltip cursor={{ fill: 'transparent' }} content={({ active, payload }) => {
                                                             if (active && payload && payload.length) {
                                                                 return (
-                                                                    <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl text-xs">
-                                                                        <p className="font-bold text-gray-800 mb-1">{payload[0].payload.fullName}</p>
-                                                                        <p className="text-gray-600"><span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads asignados</p>
+                                                                    <div className="bg-white dark:bg-slate-800 p-3 border border-gray-100 dark:border-slate-600 shadow-xl rounded-xl text-xs">
+                                                                        <p className="font-bold text-gray-800 dark:text-white mb-1">{payload[0].payload.fullName}</p>
+                                                                        <p className="text-gray-600 dark:text-gray-300"><span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads asignados</p>
                                                                     </div>
                                                                 );
                                                             }

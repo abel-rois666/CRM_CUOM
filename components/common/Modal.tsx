@@ -36,20 +36,17 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
         onClick={onClose}
       ></div>
 
-      {/* Panel del Modal: 
-          Móvil: w-full h-full rounded-none (Pantalla completa)
-          Escritorio (sm): redondeado, altura auto, centrado
-      */}
+      {/* Panel del Modal (Modo Oscuro Agregado) */}
       <div className={`
-        relative bg-white shadow-2xl flex flex-col border border-gray-100 animate-scale-in
-        w-full h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:w-full ${sizeClasses[size]}
+        relative bg-white dark:bg-slate-800 shadow-2xl flex flex-col border border-gray-100 dark:border-slate-700 animate-scale-in
+        w-full h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:w-full ${sizeClasses[size]} transition-colors duration-300
       `}>
         {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-white sm:rounded-t-2xl flex-shrink-0">
-          <h3 className="text-lg font-bold text-gray-800" id="modal-title">{title}</h3>
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 sm:rounded-t-2xl flex-shrink-0 transition-colors duration-300">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white" id="modal-title">{title}</h3>
           <button 
             onClick={onClose} 
-            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors bg-gray-50 sm:bg-transparent"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 p-2 rounded-full transition-colors bg-gray-50 dark:bg-slate-700/50 sm:bg-transparent"
             aria-label="Cerrar"
           >
             <XIcon className="w-5 h-5" />
@@ -57,7 +54,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
         </div>
 
         {/* Content - Scrollable */}
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 overscroll-contain">
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 overscroll-contain text-gray-700 dark:text-gray-300">
           {children}
         </div>
       </div>

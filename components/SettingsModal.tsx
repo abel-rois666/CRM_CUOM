@@ -178,61 +178,60 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
 
     const getRoleColor = (r: string) => {
         switch(r) {
-            case 'admin': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-            case 'moderator': return 'bg-purple-100 text-purple-800 border-purple-200';
-            default: return 'bg-green-100 text-green-800 border-green-200';
+            case 'admin': return 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200 dark:border-indigo-800';
+            case 'moderator': return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-800';
+            default: return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800';
         }
     };
 
     return (
         <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Usuarios</h3>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Usuarios</h3>
             
-        <form onSubmit={handleCreateUser} className="p-5 border border-gray-200 rounded-2xl bg-gray-50/70 space-y-4 shadow-sm">
-            <h4 className="font-semibold text-gray-700">Crear Nuevo Usuario</h4>
-            
-            {/* Usamos el componente Input que ya trae el diseño rounded-xl */}
-            <Input label="Nombre Completo" value={fullName} onChange={e => setFullName(e.target.value)} required />
-            <Input label="Correo Electrónico" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-            <Input label="Contraseña Inicial" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres" />
-            
-            <Select 
-                label="Rol" 
-                value={role} 
-                onChange={e => setRole(e.target.value as any)}
-                options={[
-                    { value: 'advisor', label: 'Asesor (Acceso limitado)' },
-                    { value: 'moderator', label: 'Coordinador (Supervisión)' },
-                    { value: 'admin', label: 'Administrador (Total)' },
-                ]}
-            />
+            <form onSubmit={handleCreateUser} className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 space-y-4 shadow-sm">
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Crear Nuevo Usuario</h4>
+                
+                <Input label="Nombre Completo" value={fullName} onChange={e => setFullName(e.target.value)} required />
+                <Input label="Correo Electrónico" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                <Input label="Contraseña Inicial" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres" />
+                
+                <Select 
+                    label="Rol" 
+                    value={role} 
+                    onChange={e => setRole(e.target.value as any)}
+                    options={[
+                        { value: 'advisor', label: 'Asesor (Acceso limitado)' },
+                        { value: 'moderator', label: 'Coordinador (Supervisión)' },
+                        { value: 'admin', label: 'Administrador (Total)' },
+                    ]}
+                />
 
-            <div className="flex justify-end pt-2">
-                <Button type="submit" disabled={loading || !fullName || !email || password.length < 6}>
-                    {loading ? 'Creando...' : 'Crear Usuario'}
-                </Button>
-            </div>
-        </form>
+                <div className="flex justify-end pt-2">
+                    <Button type="submit" disabled={loading || !fullName || !email || password.length < 6}>
+                        {loading ? 'Creando...' : 'Crear Usuario'}
+                    </Button>
+                </div>
+            </form>
 
-            <hr className="my-4"/>
+            <hr className="my-4 border-gray-200 dark:border-slate-700"/>
 
-            <h4 className="font-semibold text-gray-700">Usuarios Actuales</h4>
-            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
+            <h4 className="font-semibold text-gray-700 dark:text-gray-300">Usuarios Actuales</h4>
+            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                 {profiles.map(profile => (
-                    <li key={profile.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <li key={profile.id} className="flex justify-between items-center bg-gray-50 dark:bg-slate-800 p-3 rounded-lg border border-gray-100 dark:border-slate-700">
                         <div>
-                            <span className="font-bold text-gray-800 block">{profile.full_name}</span>
-                            <span className="text-gray-500 text-xs">{profile.email}</span>
+                            <span className="font-bold text-gray-800 dark:text-white block">{profile.full_name}</span>
+                            <span className="text-gray-500 dark:text-gray-400 text-xs">{profile.email}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${getRoleColor(profile.role)}`}>
                                 {getRoleLabel(profile.role)}
                             </span>
                              <Button variant="ghost" size="sm" onClick={() => setUserToEdit(profile)} aria-label={`Editar ${profile.full_name}`}>
-                                <EditIcon className="w-4 h-4 text-gray-600 hover:text-brand-secondary"/>
+                                <EditIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-brand-secondary"/>
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => setUserToDelete(profile)} disabled={profile.id === currentUserProfile?.id} aria-label={`Eliminar ${profile.full_name}`}>
-                                <TrashIcon className="w-4 h-4 text-gray-600 hover:text-red-500 disabled:text-gray-300 disabled:hover:text-gray-300"/>
+                                <TrashIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-500 disabled:text-gray-300"/>
                             </Button>
                         </div>
                     </li>
@@ -575,19 +574,19 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
 
     return (
         <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Orígenes</h3>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Orígenes</h3>
             <div className="space-y-4">
-                <h4 className="font-semibold text-gray-700">Añadir Nuevo Origen</h4>
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Añadir Nuevo Origen</h4>
                 <div className="flex gap-2 items-end">
                     <Input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre del Origen" />
                     <Button onClick={handleAdd} leftIcon={<PlusIcon className="w-4 h-4"/>}>Añadir</Button>
                 </div>
-                <hr className="my-4"/>
-                <h4 className="font-semibold text-gray-700">Orígenes Actuales</h4>
+                <hr className="my-4 border-gray-200 dark:border-slate-700"/>
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Orígenes Actuales</h4>
                 <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
                     {sources.map(source => (
-                        <li key={source.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
-                            <span>{source.name}</span>
+                        <li key={source.id} className="flex justify-between items-center bg-gray-50 dark:bg-slate-800 p-2 rounded-md">
+                            <span className="text-gray-800 dark:text-gray-200">{source.name}</span>
                             <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(source)}>
                                 <TrashIcon className="w-4 h-4 text-red-500"/>
                             </Button>
@@ -704,17 +703,14 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
 
     return (
             <div className="space-y-4">
-                {/* TÍTULO ACTUALIZADO */}
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Oferta Académica</h3>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Oferta Académica</h3>
                 
-                <div className={`space-y-4 border p-5 rounded-2xl shadow-sm transition-colors ${licenciaturaToEdit ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-200'}`}>
-                    {/* SUBTÍTULO DINÁMICO */}
-                    <h4 className={`font-semibold ${licenciaturaToEdit ? 'text-blue-800' : 'text-gray-700'}`}>
+                <div className={`space-y-4 border p-5 rounded-2xl shadow-sm transition-colors ${licenciaturaToEdit ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700'}`}>
+                    <h4 className={`font-semibold ${licenciaturaToEdit ? 'text-blue-800 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
                         {licenciaturaToEdit ? `Editando: ${licenciaturaToEdit.name}` : 'Añadir Nueva Oferta Académica'}
                     </h4>
                     
                     <div className="flex flex-col sm:flex-row gap-3 items-end">
-                        {/* Input Estilizado (sin clases manuales toscas) */}
                         <div className="flex-grow w-full">
                             <Input 
                                 value={name} 
@@ -739,16 +735,14 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
                     </div>
                 </div>
 
-                <hr className="my-6 border-gray-100"/>
+                <hr className="my-6 border-gray-100 dark:border-slate-700"/>
                 
-                {/* TÍTULO LISTA ACTUALIZADO */}
-                <h4 className="font-semibold text-gray-700">Oferta Académica Actual</h4>
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Oferta Académica Actual</h4>
                 <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                     {licenciaturas.map(lic => (
-                        <li key={lic.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm hover:border-brand-secondary/30 transition-colors">
-                            <span className="font-medium text-gray-700">{lic.name}</span>
+                        <li key={lic.id} className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm hover:border-brand-secondary/30 transition-colors">
+                            <span className="font-medium text-gray-700 dark:text-gray-200">{lic.name}</span>
                             <div className="flex gap-1">
-                                {/* BOTÓN DE EDICIÓN AÑADIDO */}
                                 <Button variant="ghost" size="sm" onClick={() => handleEditClick(lic)} title="Editar Nombre">
                                     <EditIcon className="w-4 h-4 text-blue-500"/>
                                 </Button>
@@ -759,7 +753,6 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
                         </li>
                     ))}
                 </ul>
-
                 <ConfirmationModal
                     isOpen={!!licenciaturaToDelete}
                     onClose={() => setLicenciaturaToDelete(null)}
@@ -905,11 +898,10 @@ const WhatsappTemplateSettings: React.FC<{
 
     return (
         <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de WhatsApp</h3>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Plantillas de WhatsApp</h3>
             
-            {/* Formulario de Edición/Creación */}
-            <div className="p-5 border border-gray-200 rounded-2xl bg-gray-50/70 shadow-sm">
-                <h4 className="font-semibold text-gray-700 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
+            <div className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 shadow-sm">
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
                 <div className="space-y-4">
                     <Input 
                         label="Nombre de la Plantilla" 
@@ -937,30 +929,29 @@ const WhatsappTemplateSettings: React.FC<{
                 </div>
             </div>
 
-            <hr className="my-6 border-gray-100"/>
+            <hr className="my-6 border-gray-100 dark:border-slate-700"/>
             
-            {/* Lista de Plantillas */}
-            <h4 className="font-semibold text-gray-700">Plantillas Guardadas ({templates.length}/5)</h4>
+            <h4 className="font-semibold text-gray-700 dark:text-gray-300">Plantillas Guardadas ({templates.length}/5)</h4>
             <div className="space-y-3">
                 {templates.map(t => (
-                    <div key={t.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all relative group">
+                    <div key={t.id} className="border border-gray-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all relative group">
                         <div className="flex justify-between items-start mb-2">
-                            <h5 className="font-bold text-gray-800 text-sm">{t.name}</h5>
+                            <h5 className="font-bold text-gray-800 dark:text-white text-sm">{t.name}</h5>
                             <div className="flex gap-1">
-                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded-lg transition-colors">
+                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
                                     <EditIcon className="w-4 h-4"/>
                                 </button>
                                 {(userProfile?.role === 'admin' || userProfile?.role === 'moderator' || userProfile?.role === 'advisor') && (
-                                    <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
+                                    <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
                                         <TrashIcon className="w-4 h-4"/>
                                     </button>
                                 )}
                             </div>
                         </div>
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap">{t.content}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{t.content}</p>
                     </div>
                 ))}
-                {templates.length === 0 && <p className="text-sm text-gray-500 italic">No hay plantillas configuradas.</p>}
+                {templates.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400 italic">No hay plantillas configuradas.</p>}
             </div>
 
             <ConfirmationModal 
@@ -1105,13 +1096,12 @@ const EmailTemplateSettings: React.FC<{
         }
     };
 
-        return (
+    return (
             <div className="space-y-4">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Plantillas de Correo</h3>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Plantillas de Correo</h3>
 
-                {/* Formulario de Edición/Creación */}
-                <div className="p-5 border border-gray-200 rounded-2xl bg-gray-50/70 shadow-sm">
-                    <h4 className="font-semibold text-gray-700 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
+                <div className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 shadow-sm">
+                    <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
                     <div className="space-y-4">
                         <Input 
                             label="Nombre de la Plantilla" 
@@ -1145,31 +1135,31 @@ const EmailTemplateSettings: React.FC<{
                     </div>
                 </div>
 
-                <hr className="my-6 border-gray-100"/>
+                <hr className="my-6 border-gray-100 dark:border-slate-700"/>
                 
-                {/* Lista de Plantillas */}
-                <h4 className="font-semibold text-gray-700">Plantillas Guardadas</h4>
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Plantillas Guardadas</h4>
                 <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
                     {templates.map(t => (
-                        <div key={t.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all relative group">
+                        <div key={t.id} className="border border-gray-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all relative group">
                             <div className="flex justify-between items-start mb-2">
-                                <h5 className="font-bold text-gray-800 text-sm">{t.name}</h5>
+                                <h5 className="font-bold text-gray-800 dark:text-white text-sm">{t.name}</h5>
                                 <div className="flex gap-1">
-                                    <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded-lg transition-colors">
+                                    <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
                                         <EditIcon className="w-4 h-4"/>
                                     </button>
-                                    <button onClick={() => setTemplateToDelete(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded-lg transition-colors">
+                                    <button onClick={() => setTemplateToDelete(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
                                         <TrashIcon className="w-4 h-4"/>
                                     </button>
                                 </div>
                             </div>
-                            <p className="text-xs text-gray-500 font-medium mb-1">Asunto: {t.subject}</p>
-                            <p className="text-xs text-gray-400 line-clamp-2">{t.body}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Asunto: {t.subject}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 line-clamp-2">{t.body}</p>
                         </div>
                     ))}
-                    {templates.length === 0 && <p className="text-sm text-gray-500 italic">No hay plantillas de correo configuradas.</p>}
+                    {templates.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400 italic">No hay plantillas de correo configuradas.</p>}
                 </div>
 
+            
                 <ConfirmationModal 
                     isOpen={!!templateToDelete} 
                     onClose={() => setTemplateToDelete(null)} 
@@ -1229,35 +1219,33 @@ const LoginHistorySettings: React.FC = () => {
 
     return (
         <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Historial de Accesos</h3>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Historial de Accesos</h3>
             
-            {/* FIX CRÍTICO: 'overflow-x-auto' habilita el scroll horizontal en móviles */}
-            <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                    <thead className="bg-gray-50 dark:bg-slate-700/50">
                         <tr>
-                            {/* 'whitespace-nowrap' fuerza a que la tabla se anche en lugar de aplastarse */}
-                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Usuario</th>
-                            <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Fecha y Hora</th>
-                            <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Dispositivo</th>
+                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">Usuario</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">Fecha y Hora</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">Dispositivo</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
+                    <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                         {loading ? (
-                             <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500">Cargando...</td></tr>
+                             <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</td></tr>
                         ) : history.length === 0 ? (
-                            <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500">No hay registros.</td></tr>
+                            <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">No hay registros.</td></tr>
                         ) : (
                             history.map((record) => (
-                                <tr key={record.id} className="hover:bg-gray-50 transition-colors">
+                                <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
                                     <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm">
-                                        <div className="font-medium text-gray-900">{record.profiles?.full_name || 'Desconocido'}</div>
-                                        <div className="text-gray-500 text-xs">{record.profiles?.email}</div>
+                                        <div className="font-medium text-gray-900 dark:text-white">{record.profiles?.full_name || 'Desconocido'}</div>
+                                        <div className="text-gray-500 dark:text-gray-400 text-xs">{record.profiles?.email}</div>
                                     </td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-xs text-gray-500">
+                                    <td className="whitespace-nowrap px-3 py-4 text-xs text-gray-500 dark:text-gray-400">
                                         {new Date(record.login_at).toLocaleString()}
                                     </td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-xs text-gray-500 max-w-[200px] truncate" title={record.user_agent}>
+                                    <td className="whitespace-nowrap px-3 py-4 text-xs text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={record.user_agent}>
                                         {record.user_agent}
                                     </td>
                                 </tr>
@@ -1297,11 +1285,11 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
   }, [visibleTabs, activeTab]);
 
 
-  return (
+    return (
     <Modal isOpen={props.isOpen} onClose={props.onClose} title="Configuración" size="2xl">
       <div className="flex flex-col sm:flex-row -mx-6 -my-6 min-h-[60vh]">
-        {/* Left Navigation */}
-        <div className="w-full sm:w-1/3 md:w-1/4 bg-gray-50/70 p-4 border-b sm:border-b-0 sm:border-r border-gray-200">
+        {/* Left Navigation (Sidebar) */}
+        <div className="w-full sm:w-1/3 md:w-1/4 bg-gray-50/70 dark:bg-slate-900/50 p-4 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-slate-700">
           <nav className="flex flex-row flex-wrap sm:flex-col gap-1">
             {visibleTabs.map(tab => (
               <button
@@ -1309,8 +1297,8 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-3 w-auto sm:w-full text-left px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-150 ${
                   activeTab === tab.id
-                    ? 'bg-brand-secondary/10 text-brand-secondary'
-                    : 'text-gray-600 hover:bg-gray-200/60 hover:text-gray-900'
+                    ? 'bg-brand-secondary/10 text-brand-secondary dark:bg-brand-secondary/20 dark:text-brand-secondary'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200/60 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 {tab.icon}
@@ -1321,7 +1309,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         </div>
 
         {/* Right Content */}
-        <div className="w-full sm:w-2/3 md:w-3/4 p-6 overflow-y-auto">
+        <div className="w-full sm:w-2/3 md:w-3/4 p-6 overflow-y-auto bg-white dark:bg-slate-800 text-gray-900 dark:text-white">
           {activeTab === 'users' && <UserSettings profiles={props.profiles} onProfilesUpdate={props.onProfilesUpdate} currentUserProfile={props.currentUserProfile} />}
           {activeTab === 'statuses' && <StatusSettings statuses={props.statuses} onStatusesUpdate={props.onStatusesUpdate} />}
           {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}

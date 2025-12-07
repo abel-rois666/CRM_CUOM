@@ -204,27 +204,27 @@ const CollapsibleSection: React.FC<{
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
-        <div className="bg-gray-50/50 rounded-xl border border-gray-200 overflow-hidden transition-all duration-300">
+        <div className="bg-gray-50/50 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden transition-all duration-300">
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                className="w-full flex items-center justify-between p-3 sm:p-4 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-left"
             >
                 <div className="flex items-center gap-3">
-                    <div className="text-gray-500">{icon}</div>
-                    <span className="text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide">{title}</span>
+                    <div className="text-gray-500 dark:text-gray-400">{icon}</div>
+                    <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">{title}</span>
                     {count !== undefined && count > 0 && (
-                        <span className="bg-gray-200 text-gray-600 text-xs py-0.5 px-2 rounded-full font-bold">
+                        <span className="bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300 text-xs py-0.5 px-2 rounded-full font-bold">
                             {count}
                         </span>
                     )}
                 </div>
-                <div className="text-gray-400">
+                <div className="text-gray-400 dark:text-gray-500">
                     {isOpen ? <ChevronDownIcon className="w-5 h-5"/> : <ChevronRightIcon className="w-5 h-5"/>}
                 </div>
             </button>
             
             {isOpen && (
-                <div className="p-3 sm:p-4 border-t border-gray-200 bg-white animate-slide-up">
+                <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 animate-slide-up">
                     {children}
                 </div>
             )}
@@ -399,8 +399,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                         className={`
                             flex-shrink-0 flex items-center gap-2 py-2.5 px-4 sm:px-5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
                             ${activeTab === tab.id 
-                                ? 'border-brand-secondary text-brand-secondary bg-blue-50/50 rounded-t-lg' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-t-lg'
+                                ? 'border-brand-secondary text-brand-secondary bg-blue-50/50 dark:bg-blue-900/20 rounded-t-lg' 
+                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-t-lg'
                             }
                         `}
                     >
@@ -417,8 +417,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                 {activeTab === 'info' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 animate-fade-in">
                         <div className="space-y-4 sm:space-y-6">
-                            <div className="bg-gray-50 p-4 sm:p-5 rounded-xl border border-gray-200">
-                                <h5 className="font-bold text-gray-800 mb-3 border-b border-gray-200 pb-2 text-sm sm:text-base">Datos de Contacto</h5>
+                        <div className="bg-gray-50 dark:bg-slate-800 p-4 sm:p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                            <h5 className="font-bold text-gray-800 dark:text-white mb-3 border-b border-gray-200 dark:border-slate-700 pb-2 text-sm sm:text-base">Datos de Contacto</h5>
                                 <div className="space-y-2 text-sm">
                                     <div className="flex flex-col sm:grid sm:grid-cols-3 sm:gap-2">
                                         <span className="text-gray-500 font-medium sm:font-normal text-xs sm:text-sm">Email:</span>
@@ -435,8 +435,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                 </div>
                             </div>
 
-                            <div className="bg-blue-50/50 p-4 sm:p-5 rounded-xl border border-blue-100">
-                                <h5 className="font-bold text-blue-900 mb-3 border-b border-blue-200 pb-2 text-sm sm:text-base">Interés Académico</h5>
+                        <div className="bg-blue-50/50 dark:bg-blue-900/20 p-4 sm:p-5 rounded-xl border border-blue-100 dark:border-blue-800/50">
+                            <h5 className="font-bold text-blue-900 dark:text-blue-300 mb-3 border-b border-blue-200 dark:border-blue-800 pb-2 text-sm sm:text-base">Interés Académico</h5>
                                 <div className="text-center py-1">
                                     <p className="text-xs text-blue-500 uppercase tracking-wide font-bold mb-1">Licenciatura</p>
                                     <p className="text-base sm:text-lg font-bold text-brand-primary">{licenciaturaMap.get(lead.program_id)}</p>
@@ -490,10 +490,10 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                         >
                             <div className="space-y-4">
                                 {activitySections.notes.length > 0 ? activitySections.notes.map((item, idx) => (
-                                    <div key={`note-${idx}`} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative pl-3 group">
+                                    <div key={`note-${idx}`} className="bg-white dark:bg-slate-700 p-3 rounded-lg border border-gray-100 dark:border-slate-600 shadow-sm hover:shadow-md transition-shadow relative pl-3 group">
                                         <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-secondary rounded-r-md"></div>
                                         
-                                        <div className="flex justify-between items-center mb-2 border-b border-gray-50 pb-1">
+                                       <div className="flex justify-between items-center mb-2 border-b border-gray-50 dark:border-slate-600 pb-1">
                                             <div className="flex flex-col">
                                                 <span className="text-[10px] font-bold text-gray-400 uppercase">
                                                     {item.actionDate.toLocaleDateString()} {item.actionDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}

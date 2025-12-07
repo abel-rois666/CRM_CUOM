@@ -13,6 +13,7 @@ import LoginPage from './components/auth/LoginPage';
 import LeadListSkeleton from './components/LeadListSkeleton';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { useCRMData } from './hooks/useCRMData';
+import { ThemeProvider } from './context/ThemeContext';
 
 // IMPORTACIÓN DIFERIDA
 const LeadDetailModal = React.lazy(() => import('./components/LeadDetailModal'));
@@ -445,7 +446,7 @@ const AppContent: React.FC = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors duration-300">
       <Header onOpenSettings={() => setSettingsOpen(true)} userProfile={profile} onLogout={signOut} />
       <main>
         <LeadList
@@ -511,7 +512,7 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-secondary"></div></div>}>
+      <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 dark:bg-slate-900/50"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-secondary"></div></div>}>
         
         {isDetailViewOpen && selectedLead && (
             <LeadDetailModal
@@ -606,9 +607,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => (
   <AuthProvider>
-    <ToastProvider>
-        <AppContent />
-    </ToastProvider>
+    <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme"> 
+      <ToastProvider>
+          <AppContent />
+      </ToastProvider>
+    </ThemeProvider>
   </AuthProvider>
 );
 

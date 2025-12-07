@@ -241,10 +241,10 @@ const ConversionRateBarChart: React.FC<{ data: ConversionBreakdownItem[], isExpo
 };
 
 const ReportSection: React.FC<{ title: string; data: ReportSectionData; icon?: React.ReactNode; isExporting?: boolean }> = ({ title, data, icon, isExporting }) => (
-  <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white border-gray-200 shadow-sm hover:shadow-md transition-all'}`}>
+  <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all'}`}>
     <div className={`flex justify-between items-start mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100'} pb-4`}>
         <div>
-            <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800'}`}>{title}</h4>
+            <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800 dark:text-white'}`}>{title}</h4>
             <p className={`text-xs mt-1 uppercase tracking-wider font-bold ${isExporting ? 'text-black' : 'text-gray-500'}`}>Resumen del Periodo</p>
         </div>
         {icon && !isExporting && <div className="text-brand-secondary bg-brand-secondary/5 p-2 rounded-lg">{icon}</div>}
@@ -264,9 +264,9 @@ const ReportSection: React.FC<{ title: string; data: ReportSectionData; icon?: R
 );
 
 const BreakdownReportSection: React.FC<{ title: string; data: BreakdownData; totalLabel: string; isExporting?: boolean }> = ({ title, data, totalLabel, isExporting }) => (
-  <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white border-gray-200 shadow-sm hover:shadow-md transition-all'}`}>
+  <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all'}`}>
     <div className={`mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100'} pb-4`}>
-        <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800'}`}>{title}</h4>
+        <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800 dark:text-white'}`}>{title}</h4>
     </div>
     
     <div className="flex items-baseline gap-2">
@@ -288,9 +288,9 @@ const ConversionReportSection: React.FC<{ title: string; data: ConversionBreakdo
     const overallRate = totalLeadsForConversion > 0 ? (totalConversions / totalLeadsForConversion) * 100 : 0;
 
     return (
-        <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white border-gray-200 shadow-sm hover:shadow-md transition-all'}`}>
+        <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all'}`}>
             <div className={`mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100'} pb-4`}>
-                <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800'}`}>{title}</h4>
+                <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800 dark:text-white'}`}>{title}</h4>
             </div>
             
             <div className={`flex justify-between items-end p-4 rounded-xl border mb-6 ${isExporting ? 'bg-white border-black' : 'bg-green-50 border-green-200'}`}>
@@ -510,7 +510,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
       )}
 
       <div className={`space-y-8 ${isExporting ? 'pointer-events-none select-none' : ''}`}>
-        <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 flex flex-col sm:flex-row gap-4 items-end">
+        <div className="bg-gray-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-4 items-end">
             <div className="w-full sm:w-auto flex-1">
                 <Input label="Fecha Inicio" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
             </div>
@@ -528,7 +528,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             {/* Contenedor del reporte - Referenciado para captura */}
             <div className="animate-fade-in bg-white" ref={reportContentRef}>
                 <div className="text-center mb-8 pt-4">
-                    <h2 className={`text-3xl font-black tracking-tight ${isExporting ? 'text-black' : 'text-gray-900'}`}>Reporte Ejecutivo</h2>
+                    <h2 className={`text-3xl font-black tracking-tight ${isExporting ? 'text-black' : 'text-gray-900 dark:text-white'}`}>Reporte Ejecutivo</h2>
                     <p className={`font-medium mt-1 text-lg ${isExporting ? 'text-black' : 'text-gray-600'}`}>
                         {new Date(report.startDate).toLocaleDateString()} — {new Date(report.endDate).toLocaleDateString()}
                     </p>

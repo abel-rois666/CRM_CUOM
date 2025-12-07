@@ -201,8 +201,8 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
             </div>
         )}
 
-        <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Datos Personales</h4>
+        <div className="bg-gray-50 dark:bg-slate-800/50 p-5 rounded-xl border border-gray-100 dark:border-slate-700">
+           <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Datos Personales</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
                 <Input 
                     name="first_name" 
@@ -245,8 +245,8 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
             </div>
         </div>
         
-        <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
-            <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">Contacto</h4>
+        <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-xl border border-blue-100 dark:border-blue-800/50">
+          <h4 className="text-xs font-bold text-blue-400 dark:text-blue-300 uppercase tracking-wider mb-4">Contacto</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="relative">
                     <Input 
@@ -307,7 +307,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
             />
         </div>
 
-        <div className="pt-6 flex justify-end space-x-3 border-t border-gray-100">
+        <div className="pt-6 flex justify-end space-x-3 border-t border-gray-100 dark:border-slate-700">
           <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
           <Button type="submit" disabled={formIsInvalid || isSubmitting} className="shadow-lg shadow-brand-secondary/20 min-w-[140px]">
             {isSubmitting ? 'Guardando...' : (leadToEdit ? 'Actualizar Lead' : 'Crear Lead')}

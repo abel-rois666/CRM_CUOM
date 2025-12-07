@@ -120,7 +120,7 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
       <div className="flex flex-col h-[60vh]">
         
         {/* Header Configuración */}
-        <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <div className="mb-6 bg-gray-50 dark:bg-slate-700/50 p-4 rounded-xl border border-gray-200 dark:border-slate-600">
             <div className="flex flex-col sm:flex-row gap-4 items-end">
                 <div className="flex-1 w-full">
                     <Select
@@ -148,7 +148,7 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
         </div>
 
         {/* Lista de Envíos */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar border rounded-xl bg-white relative">
+        <div className="flex-1 overflow-y-auto custom-scrollbar border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 relative">
             {!selectedTemplateId && (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
                     <p className="text-gray-400 font-medium">Selecciona una plantilla para comenzar</p>
@@ -156,11 +156,11 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
             )}
             
             <table className="min-w-full divide-y divide-gray-100">
-                <thead className="bg-gray-50 sticky top-0 z-10">
-                    <tr>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Destinatario</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Dato de Contacto</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Acción</th>
+                <thead className="bg-gray-50 dark:bg-slate-700 sticky top-0 z-10">
+                  <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Destinatario</th>          
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Dato de Contacto</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Acción</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -170,7 +170,7 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                         const isValid = !!contactInfo;
 
                         return (
-                            <tr key={lead.id} className={`transition-colors ${isSent ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                            <tr key={lead.id} className={`transition-colors ${isSent ? 'bg-green-50 dark:bg-green-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'} border-b dark:border-slate-700`}>
                                 <td className="px-4 py-3">
                                     <p className="text-sm font-bold text-gray-800">{lead.first_name} {lead.paternal_last_name}</p>
                                 </td>

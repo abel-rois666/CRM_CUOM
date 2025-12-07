@@ -25,6 +25,7 @@ import KanbanBoard from './KanbanBoard';
 import ListBulletIcon from './icons/ListBulletIcon';
 import Squares2x2Icon from './icons/Squares2x2Icon';
 import DashboardStats, { QuickFilterType } from './DashboardStats';
+import CalendarView from './CalendarView'; 
 import XIcon from './icons/XIcon';
 import FilterDrawer, { FilterState } from './FilterDrawer';
 import FunnelIcon from './icons/FunnelIcon';
@@ -73,7 +74,7 @@ interface LeadListProps {
 
 type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date' | 'urgency';
 type SortDirection = 'asc' | 'desc';
-type ViewMode = 'list' | 'kanban';
+type ViewMode = 'list' | 'kanban' | 'calendar'; 
 
 const LeadList: React.FC<LeadListProps> = ({ 
   loading, leads, totalLeads, page, pageSize, onPageChange, onPageSizeChange, onFilterChange, currentFilters,
@@ -488,7 +489,9 @@ const LeadList: React.FC<LeadListProps> = ({
   if (loading && leads.length === 0) return <LeadListSkeleton viewMode={viewMode} />;
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-8xl relative min-h-screen">
+  
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-8xl relative min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors duration-300">
+
       
       {/* Dashboard Stats */}
       <DashboardStats 
@@ -573,6 +576,9 @@ const LeadList: React.FC<LeadListProps> = ({
                         </button>
                         <button onClick={() => setViewMode('kanban')} className={`p-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                             <Squares2x2Icon className="w-5 h-5" />
+                        </button>
+                        <button onClick={() => setViewMode('calendar')} className={`p-2 rounded-md transition-all ${viewMode === 'calendar' ? 'bg-white dark:bg-slate-700 text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
+                            <CalendarIcon className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
@@ -821,7 +827,7 @@ const LeadList: React.FC<LeadListProps> = ({
                     </div>
                 </div>
           </div>
-        ) : (
+        ) : viewMode === 'kanban' ? (  // <--- AGREGAMOS ESTA CONDICIÓN
           <KanbanBoard 
               leads={sortedLeads} 
               statuses={relevantStatuses} 
@@ -833,6 +839,13 @@ const LeadList: React.FC<LeadListProps> = ({
               onOpenWhatsApp={onOpenWhatsApp}
               onOpenEmail={onOpenEmail}
               onLeadMove={handleLeadMove}
+          />
+        ) : (
+
+          <CalendarView 
+              appointments={leads.flatMap(l => l.appointments || [])} 
+              leads={leads}
+              onEventClick={(lead) => onViewDetails(lead, 'appointments')}
           />
         )}
       </div>

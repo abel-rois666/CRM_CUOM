@@ -5,7 +5,8 @@ import Button from './common/Button';
 import { Profile } from '../types';
 import ArrowLeftOnRectangleIcon from './icons/ArrowLeftOnRectangleIcon';
 import logoCuom from '../assets/logo-cuom-circular.png'; 
-import NotificationDropdown from './NotificationDropdown'; // Importación nueva
+import NotificationDropdown from './NotificationDropdown';
+import ThemeToggle from './ThemeToggle';
 
 interface HeaderProps {
     onOpenSettings: () => void;
@@ -39,10 +40,11 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, userProfile, onLogout }
           {/* Acciones de Usuario */}
           <div className="flex items-center gap-2 sm:gap-4">
             
-            {/* 1. Centro de Notificaciones (NUEVO) */}
-            <div className="border-r border-white/10 pr-2 sm:pr-4 mr-2">
-                <NotificationDropdown userId={userProfile?.id} />
-            </div>
+            {/* 1. Centro de Notificaciones */}
+              <div className="border-r border-white/10 pr-2 sm:pr-4 mr-2 flex items-center gap-1">
+                  <ThemeToggle /> {/* Coloca el botón aquí */}
+                  <NotificationDropdown userId={userProfile?.id} />
+              </div>
 
             {userProfile && (
                 <Button 

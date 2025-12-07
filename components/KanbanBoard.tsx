@@ -135,9 +135,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
             return (
             <div 
                 key={status.id} 
-                className="flex-shrink-0 w-[85vw] sm:w-80 flex flex-col bg-gray-50/50 rounded-2xl border border-gray-200/60 max-h-full shadow-sm backdrop-blur-sm snap-center transition-all duration-300"
+                className="flex-shrink-0 w-[85vw] sm:w-80 flex flex-col bg-gray-50/50 dark:bg-slate-900/50 rounded-2xl border border-gray-200/60 dark:border-slate-700/60 max-h-full shadow-sm backdrop-blur-sm snap-center transition-all duration-300"
             >
-                <div className="p-4 flex justify-between items-center sticky top-0 z-10 bg-gray-50/95 rounded-t-2xl backdrop-blur-md border-b border-gray-200/50 group">
+                <div className="p-4 flex justify-between items-center sticky top-0 z-10 bg-gray-50/95 dark:bg-slate-900/95 rounded-t-2xl backdrop-blur-md border-b border-gray-200/50 dark:border-slate-700/50 group transition-colors">
                     <div className="flex items-center gap-2.5 overflow-hidden">
                         <span className={`w-2.5 h-2.5 rounded-full shadow-sm flex-shrink-0 ${status.color}`}></span>
                         <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide truncate" title={status.name}>
@@ -170,7 +170,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                 const urgencyLevel = getLeadUrgency(lead);
                                 const hasAppointment = lead.appointments?.some(a => a.status === 'scheduled');
 
-                                let cardClasses = "group relative bg-white p-4 rounded-xl border transition-all duration-300 active:scale-95 cursor-grab active:cursor-grabbing";
+                                let cardClasses = "group relative bg-white dark:bg-slate-800 p-4 rounded-xl border transition-all duration-300 active:scale-95 cursor-grab active:cursor-grabbing";
                                 let urgencyBadge = null;
 
                                 if (urgencyLevel === 3) { 
@@ -212,7 +212,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
                                                 <div className="pl-3 cursor-pointer" onClick={() => onViewDetails(lead)}>
                                                     <div className="flex justify-between items-start mb-2">
-                                                        <h4 className="font-bold text-gray-800 text-sm hover:text-brand-secondary line-clamp-1 transition-colors">
+                                                        <h4 className="font-bold text-gray-800 dark:text-gray-100 text-sm hover:text-brand-secondary line-clamp-1 transition-colors">
                                                             {lead.first_name} {lead.paternal_last_name}
                                                         </h4>
                                                         

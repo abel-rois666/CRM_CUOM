@@ -76,19 +76,19 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
       {/* Drawer Panel */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 w-full sm:w-96 bg-white shadow-2xl transform transition-transform duration-300 ease-out border-l border-gray-100 ${
+        className={`fixed inset-y-0 right-0 z-50 w-full sm:w-96 bg-white dark:bg-slate-800 shadow-2xl transform transition-transform duration-300 ease-out border-l border-gray-100 dark:border-slate-700 ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Header Moderno (Blanco/Limpio) */}
-          <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-10">
-            <div className="flex items-center gap-2.5 text-brand-primary">
-                <div className="p-2 bg-brand-secondary/10 rounded-lg text-brand-secondary">
-                    <FunnelIcon className="w-5 h-5" />
-                </div>
-                <h2 className="text-lg font-bold text-gray-900">Filtros</h2>
-            </div>
+          <div className="px-6 py-5 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-white/80 dark:bg-slate-800/90 backdrop-blur-md sticky top-0 z-10">
+              <div className="flex items-center gap-2.5 text-brand-primary dark:text-blue-400">
+                  <div className="p-2 bg-brand-secondary/10 dark:bg-blue-900/30 rounded-lg text-brand-secondary dark:text-blue-400">
+                      <FunnelIcon className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Filtros</h2>
+              </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-50 p-2 rounded-full transition-colors">
               <XIcon className="w-5 h-5" />
             </button>
@@ -155,7 +155,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-3">
+          <div className="p-6 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 flex gap-3">
             <Button 
                 variant="ghost"
                 onClick={handleClear}
