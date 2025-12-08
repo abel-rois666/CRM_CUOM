@@ -42,7 +42,7 @@ const TransferLeadModal: React.FC<TransferLeadModalProps> = ({ isOpen, onClose, 
             </div>
         </div>
 
-        <div>
+    <div>
           <label htmlFor="newAdvisor" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Nuevo Asesor <span className="text-red-500">*</span>
           </label>
@@ -50,7 +50,7 @@ const TransferLeadModal: React.FC<TransferLeadModalProps> = ({ isOpen, onClose, 
             id="newAdvisor"
             value={selectedAdvisorId}
             onChange={(e) => setSelectedAdvisorId(e.target.value)}
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md"
+            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm rounded-md bg-white dark:bg-slate-800 dark:text-white"
             required
           >
             <option value="">Seleccionar asesor destino...</option>

@@ -129,7 +129,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
         onFilterChange(activeFilter === filter ? null : filter);
     };
 
-    // Estilos dinámicos para Dark Mode
+// Estilos dinámicos para Dark Mode y Light Mode (Mejorados)
     const getNoFollowUpStyles = () => {
         const isActive = activeFilter === 'no_followup';
         if (stats.noFollowUp > 0) {
@@ -137,9 +137,10 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                 ? 'bg-red-50 ring-2 ring-red-500 shadow-lg shadow-red-100 dark:bg-red-900/30 dark:shadow-none' 
                 : 'bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/50 shadow-md shadow-red-50 dark:shadow-none hover:border-red-400';
         }
+        // ESTADO INACTIVO (0 Leads): Borde más visible en modo claro
         return isActive 
             ? 'bg-white dark:bg-slate-700 ring-2 ring-green-500 shadow-lg' 
-            : 'bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 hover:shadow-lg';
+            : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md'; 
     };
 
     const getStaleStyles = () => {
@@ -149,15 +150,17 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                 ? 'bg-amber-50 ring-2 ring-amber-500 shadow-lg shadow-amber-100 dark:bg-amber-900/30 dark:shadow-none'
                 : 'bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900/50 shadow-md shadow-amber-50 dark:shadow-none hover:border-amber-400';
         }
+        // ESTADO INACTIVO (0 Leads): Borde más visible en modo claro
         return isActive 
             ? 'bg-white dark:bg-slate-700 ring-2 ring-gray-400 shadow-lg' 
-            : 'bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 hover:shadow-lg';
+            : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md';
     };
 
     const getApptStyles = () => {
+        // ESTADO GENERAL: Borde más visible en modo claro
         return activeFilter === 'appointments_today' 
             ? 'bg-blue-50 ring-2 ring-blue-500 shadow-lg shadow-blue-100 dark:bg-blue-900/30 dark:shadow-none' 
-            : 'bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 hover:shadow-lg hover:-translate-y-1';
+            : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-lg hover:-translate-y-1';
     };
 
     return (

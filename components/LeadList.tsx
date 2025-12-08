@@ -513,7 +513,7 @@ const LeadList: React.FC<LeadListProps> = ({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {userRole === 'admin' && (
-                        <Button onClick={() => setIsBulkTransferOpen(true)} variant="secondary" size="sm" className="px-3 sm:px-4 border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800 dark:hover:bg-amber-900/40" title="Reasignar Leads">
+                        <Button onClick={() => setIsBulkTransferOpen(true)} variant="secondary" size="sm" className="px-3 sm:px-4 border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 dark:bg-amber-900/20 dark:hover:text-white dark:text-white dark:border-amber-800 dark:hover:bg-amber-900/40 dark:hover:border-shadow-lg dark:hover:shadow-brand-secondary/20 dark:hover:hidden dark:hover:md:flex" title="Reasignar Leads">
                             <TransferIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reasignar</span>
                         </Button>
                     )}
@@ -579,7 +579,7 @@ const LeadList: React.FC<LeadListProps> = ({
                         <button onClick={() => setViewMode('kanban')} className={`p-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                             <Squares2x2Icon className="w-5 h-5" />
                         </button>
-                        <button onClick={() => setViewMode('calendar')} className={`p-2 rounded-md transition-all ${viewMode === 'calendar' ? 'bg-white dark:bg-slate-700 text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
+                        <button onClick={() => setViewMode('calendar')} className={`p-2 rounded-md transition-all ${viewMode === 'calendar' ? 'bg-white text-brand-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
                             <CalendarIcon className="w-5 h-5" />
                         </button>
                     </div>
@@ -633,8 +633,9 @@ const LeadList: React.FC<LeadListProps> = ({
       <div key={`${viewMode}-${activeCategoryTab}`} className="animate-fade-in">
         {viewMode === 'list' ? (
         <div className="bg-white dark:bg-slate-800 shadow-sm rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-700 flex flex-col">
-            <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+<div className="overflow-x-auto">
+            {/* CORRECCIÓN APLICADA: dark:divide-transparent en la tabla */}
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-transparent">
                 <thead className="bg-gray-50/50 dark:bg-slate-700/50">
                   <tr>
                       {/* CHECKBOX HEADER (Solo Admin) */}
@@ -660,12 +661,15 @@ const LeadList: React.FC<LeadListProps> = ({
                       <th scope="col" className="relative px-6 py-3"><span className="sr-only">Editar</span></th>
                   </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-100 dark:divide-slate-700">
+                  
+                  {/* CORRECCIÓN APLICADA: dark:divide-none en el tbody */}
+                  <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-100 dark:divide-none">
                     {sortedLeads.map((lead) => {
                       const urgencyLevel = getLeadUrgency(lead);
                       const status = statusMap.get(lead.status_id);
                       
-                      let rowClasses = "group hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200";
+                      // Ajuste: Aseguramos que el borde en modo oscuro sea transparente o del mismo color del fondo
+                      let rowClasses = "group hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200 border-b border-transparent dark:border-slate-800";
                       let urgencyIndicator = null;
 
                       if (urgencyLevel === 3) {
@@ -757,7 +761,7 @@ const LeadList: React.FC<LeadListProps> = ({
                                 </tr>
                                 )
                             })}
-                    {sortedLeads.length === 0 && (
+                  {sortedLeads.length === 0 && (
                         <tr>
                             <td colSpan={10} className="text-center py-20">
                                 <div className="flex flex-col items-center justify-center animate-fade-in">

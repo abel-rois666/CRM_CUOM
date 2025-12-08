@@ -105,10 +105,45 @@
       cursor: wait;
   }
 
-
-  @layer base {
+@layer base {
   body {
+    /* Aseguramos que el fondo base en modo oscuro sea slate-900 */
     @apply bg-gray-100 text-gray-900 dark:bg-slate-900 dark:text-gray-100 transition-colors duration-300;
+    
+    /* FIX: Previene rebote elástico blanco en macOS/iOS */
+    overscroll-behavior-y: none; 
+  }
+
+  /* FIX: Forzar que el contenedor raíz ocupe todo el alto con el color correcto */
+  #root {
+    @apply min-h-screen dark:bg-slate-900;
+  }
+}
+
+
+/* index.css */
+
+@layer components {
+  /* ... tus estilos existentes ... */
+
+  /* Personalización del botón "Ver más" del Calendario */
+  .rbc-show-more {
+    @apply text-sm font-semibold text-gray-500 hover:text-brand-secondary hover:underline cursor-pointer transition-colors mt-1 block;
+  }
+
+  /* Soporte Modo Oscuro */
+  :global(.dark) .rbc-show-more {
+    @apply text-gray-400 hover:text-blue-300;
+    background-color: transparent !important;
+  }
+  
+  /* Fondo de la celda popup al hacer click */
+  :global(.dark) .rbc-overlay {
+    @apply bg-slate-800 border-slate-700 text-white;
+  }
+  
+  :global(.dark) .rbc-overlay-header {
+    @apply border-slate-700 text-gray-300;
   }
 }
 }

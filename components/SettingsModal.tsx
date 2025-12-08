@@ -404,27 +404,27 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         }
     };
 
-    const StatusListGroup = ({ title, list, titleColor }: {title: string, list: Status[], titleColor: string}) => (
+const StatusListGroup = ({ title, list, titleColor }: { title: string, list: Status[], titleColor: string }) => (
         <div className="mb-6">
-            <h5 className={`text-xs font-bold uppercase tracking-wider mb-3 pb-1 border-b border-gray-100 ${titleColor}`}>
+            <h5 className={`text-xs font-bold uppercase tracking-wider mb-3 pb-1 border-b border-gray-100 dark:border-slate-700 ${titleColor}`}>
                 {title} ({list.length})
             </h5>
             {list.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">No hay estados en esta categoría.</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 italic">No hay estados en esta categoría.</p>
             ) : (
                 <ul className="space-y-2">
                     {list.map(status => (
-                        <li key={status.id} className="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100 hover:border-brand-secondary/30 transition-colors group">
+                        <li key={status.id} className="flex justify-between items-center bg-gray-50 dark:bg-slate-800 p-2.5 rounded-lg border border-gray-100 dark:border-slate-700 hover:border-brand-secondary/30 transition-colors group">
                             <div className="flex items-center gap-3">
                                 <span className={`w-3 h-3 rounded-full ${status.color}`}></span>
-                                <span className="font-medium text-sm text-gray-700">{status.name}</span>
+                                <span className="font-medium text-sm text-gray-700 dark:text-gray-200">{status.name}</span>
                             </div>
                             <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 <Button variant="ghost" size="sm" onClick={() => handleEditClick(status)} title="Editar y Mover">
-                                    <EditIcon className="w-4 h-4 text-blue-500"/>
+                                    <EditIcon className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                                 </Button>
                                 <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(status)} title="Eliminar">
-                                    <TrashIcon className="w-4 h-4 text-red-500"/>
+                                    <TrashIcon className="w-4 h-4 text-red-500 dark:text-red-400" />
                                 </Button>
                             </div>
                         </li>
@@ -436,64 +436,69 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 
     return (
         <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Gestionar Estados</h3>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Estados</h3>
 
             {!statusToEdit && statuses.length === 0 && (
-                <div className="p-4 border rounded-lg bg-gray-50/70 mb-4">
-                    <h4 className="font-semibold text-gray-700">Estados Predefinidos</h4>
-                    <p className="text-sm text-gray-600 mt-1 mb-3">Carga una lista inicial para comenzar.</p>
-                    <Button onClick={handleSeedStatuses} disabled={seeding} variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4"/>}>
+                <div className="p-4 border border-gray-200 dark:border-slate-700 rounded-lg bg-gray-50/70 dark:bg-slate-800/50 mb-4">
+                    <h4 className="font-semibold text-gray-700 dark:text-gray-200">Estados Predefinidos</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 mb-3">Carga una lista inicial para comenzar.</p>
+                    <Button onClick={handleSeedStatuses} disabled={seeding} variant="secondary" leftIcon={<ArrowUpTrayIcon className="w-4 h-4" />}>
                         {seeding ? 'Cargando...' : 'Cargar Estados Recomendados'}
                     </Button>
                 </div>
             )}
 
-            <div className={`space-y-4 border-2 rounded-xl p-5 shadow-sm transition-colors ${statusToEdit ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-100'}`}>
-                <h4 className={`font-bold ${statusToEdit ? 'text-blue-800' : 'text-gray-800'}`}>
+            <div className={`space-y-4 border-2 rounded-xl p-5 shadow-sm transition-colors ${statusToEdit ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700'}`}>
+                <h4 className={`font-bold ${statusToEdit ? 'text-blue-800 dark:text-blue-300' : 'text-gray-800 dark:text-white'}`}>
                     {statusToEdit ? `Editando: ${statusToEdit.name}` : 'Añadir Nuevo Estado'}
                 </h4>
-                
-            <div className="grid grid-cols-1 gap-4">
-                <Input label="Nombre del Estado" value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Interesado" />
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5 ml-1">Color</label>
-                        {/* Select manual estilizado para coincidir con Input */}
-                        <select 
-                            value={color} 
-                            onChange={e => setColor(e.target.value)} 
-                            className="block w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary cursor-pointer"
-                        >
-                            {colors.map(c => <option key={c} value={c}>{c.replace('bg-', '').replace('-500', '')}</option>)}
-                        </select>
-                        <div className={`mt-2 h-2 w-full rounded-full ${color}`}></div>
+
+                <div className="grid grid-cols-1 gap-4">
+                    <Input 
+                        label="Nombre del Estado" 
+                        value={name} 
+                        onChange={e => setName(e.target.value)} 
+                        placeholder="Ej: Interesado" 
+                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">Color</label>
+                            {/* Select manual estilizado para coincidir con Input */}
+                            <select
+                                value={color}
+                                onChange={e => setColor(e.target.value)}
+                                className="block w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary cursor-pointer"
+                            >
+                                {colors.map(c => <option key={c} value={c}>{c.replace('bg-', '').replace('-500', '')}</option>)}
+                            </select>
+                            <div className={`mt-2 h-2 w-full rounded-full ${color}`}></div>
+                        </div>
+                        <div>
+                            <Select
+                                label="Categoría"
+                                value={category}
+                                onChange={e => setCategory(e.target.value as StatusCategory)}
+                                options={[
+                                    { value: 'active', label: 'En Proceso (Activos)' },
+                                    { value: 'won', label: 'Inscritos (Ganados)' },
+                                    { value: 'lost', label: 'Bajas (Perdidos)' }
+                                ]}
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <Select 
-                            label="Categoría"
-                            value={category}
-                            onChange={e => setCategory(e.target.value as StatusCategory)}
-                            options={[
-                                { value: 'active', label: 'En Proceso (Activos)' },
-                                { value: 'won', label: 'Inscritos (Ganados)' },
-                                { value: 'lost', label: 'Bajas (Perdidos)' }
-                            ]}
-                        />
-                    </div>
-                </div>                    
-    
-            <div className="flex justify-end gap-2 pt-2">
+
+                    <div className="flex justify-end gap-2 pt-2">
                         {statusToEdit && (
                             <Button variant="ghost" onClick={() => { setStatusToEdit(null); setName(''); setCategory('active'); }}>Cancelar</Button>
                         )}
-                        <Button onClick={handleSave} className={statusToEdit ? "shadow-lg shadow-blue-200" : "shadow-lg shadow-brand-secondary/20"} leftIcon={!statusToEdit ? <PlusIcon className="w-4 h-4"/> : undefined}>
+                        <Button onClick={handleSave} className={statusToEdit ? "shadow-lg shadow-blue-200 dark:shadow-none" : "shadow-lg shadow-brand-secondary/20"} leftIcon={!statusToEdit ? <PlusIcon className="w-4 h-4" /> : undefined}>
                             {statusToEdit ? 'Guardar Cambios' : 'Añadir Estado'}
                         </Button>
                     </div>
                 </div>
             </div>
-            
+                        
             <div className="mt-8 pt-4 border-t border-gray-100 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                 <StatusListGroup title="En Proceso (Activos)" list={activeStatuses} titleColor="text-brand-secondary" />
                 <StatusListGroup title="Inscritos (Ganados)" list={wonStatuses} titleColor="text-green-600" />

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
-import { Select, TextArea } from './common/FormElements'; // Agregamos TextArea
+import { Select, TextArea } from './common/FormElements';
 import { Profile } from '../types';
 import { supabase } from '../lib/supabase';
 import TransferIcon from './icons/TransferIcon';
@@ -10,7 +10,6 @@ import UserIcon from './icons/UserIcon';
 import CheckCircleIcon from './icons/CheckCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
-import ListBulletIcon from './icons/ListBulletIcon';
 import MagnifyingGlassIcon from './icons/MagnifyingGlassIcon';
 
 interface BulkTransferModalProps {
@@ -32,7 +31,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
   
   const [quantity, setQuantity] = useState<number>(10);
   const [onlyActive, setOnlyActive] = useState(true);
-  const [reason, setReason] = useState(''); // Nuevo estado para el motivo
+  const [reason, setReason] = useState('');
   
   // Estado para la lista manual
   const [leadsList, setLeadsList] = useState<{id: string, name: string, date: string, status: string}[]>([]);
@@ -45,8 +44,9 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<{ success: number; error?: string } | null>(null);
 
-  // Obtener conteo y lista
+  // --- EFECTO DE CARGA DE DATOS (CORREGIDO) ---
   useEffect(() => {
+    if (!isOpen) return;
     if (!sourceAdvisorId) {
         setTotalLeads(0);
         setLeadsList([]);
@@ -57,52 +57,66 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
         setLoadingCount(true);
         if (transferMode === 'selection') setLoadingList(true);
 
-        let query = supabase
-            .from('leads')
-            .select(`
-                id, 
-                first_name, 
-                paternal_last_name, 
-                registration_date,
-                status:statuses(name, category)
-            `)
-            .eq('advisor_id', sourceAdvisorId);
+        try {
+            // 1. Construir query base
+            let query = supabase
+                .from('leads')
+                .select(`
+                    id, 
+                    first_name, 
+                    paternal_last_name, 
+                    registration_date,
+                    status:statuses(name, category)
+                `)
+                .eq('advisor_id', sourceAdvisorId);
 
-        if (onlyActive) {
-            const { data: activeStatuses } = await supabase
-                .from('statuses')
-                .select('id')
-                .eq('category', 'active');
-            
-            if (activeStatuses && activeStatuses.length > 0) {
-                query = query.in('status_id', activeStatuses.map(s => s.id));
+            // 2. Lógica de filtrado "solo activos" (Método Robusto de 2 pasos)
+            if (onlyActive) {
+                const { data: activeStatuses } = await supabase
+                    .from('statuses')
+                    .select('id')
+                    .eq('category', 'active');
+                
+                if (activeStatuses && activeStatuses.length > 0) {
+                    query = query.in('status_id', activeStatuses.map(s => s.id));
+                }
             }
+
+            // 3. Ordenar
+            query = query.order('registration_date', { ascending: false });
+
+            // 4. Ejecutar con conteo exacto
+            const { data, error, count } = await query.select('*', { count: 'exact' });
+
+            if (error) throw error;
+
+            if (data) {
+                setTotalLeads(count || data.length);
+                
+                // Ajustar cantidad por defecto si es mayor al total
+                if (quantity > (count || 0)) setQuantity((count || 0) > 0 ? (count || 0) : 1);
+
+                // Mapear para la lista visual
+                const formattedList = data.map((l: any) => ({
+                    id: l.id,
+                    name: `${l.first_name} ${l.paternal_last_name}`,
+                    date: l.registration_date,
+                    status: l.status?.name || 'Desconocido'
+                }));
+                setLeadsList(formattedList);
+            }
+        } catch (err) {
+            console.error("Error cargando leads:", err);
+        } finally {
+            setLoadingCount(false);
+            setLoadingList(false);
         }
-
-        query = query.order('registration_date', { ascending: false });
-
-        const { data, error, count } = await query.select('*', { count: 'exact' });
-
-        if (!error && data) {
-            setTotalLeads(count || 0);
-            if (quantity > (count || 0)) setQuantity(count || 0);
-
-            const formattedList = data.map((l: any) => ({
-                id: l.id,
-                name: `${l.first_name} ${l.paternal_last_name}`,
-                date: l.registration_date,
-                status: l.status?.name || 'Desconocido'
-            }));
-            setLeadsList(formattedList);
-        }
-        
-        setLoadingCount(false);
-        setLoadingList(false);
     };
 
     fetchData();
-  }, [sourceAdvisorId, onlyActive, transferMode]);
+  }, [sourceAdvisorId, onlyActive, transferMode, isOpen]); // Dependencias clave
 
+  // Filtrado local para el buscador de la lista
   const filteredList = useMemo(() => {
       if (!listSearchTerm) return leadsList;
       return leadsList.filter(l => l.name.toLowerCase().includes(listSearchTerm.toLowerCase()));
@@ -142,8 +156,10 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
         let leadIdsToMove: string[] = [];
 
         if (transferMode === 'selection') {
+            // MODO SELECCIÓN: Usamos los IDs marcados manualmente
             leadIdsToMove = Array.from(selectedIds);
         } else {
+            // MODO AUTOMÁTICO (Todo / Cantidad): Consultamos IDs frescos para asegurar integridad
             let query = supabase
                 .from('leads')
                 .select('id')
@@ -151,7 +167,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
 
             if (onlyActive) {
                  const { data: activeStatuses } = await supabase.from('statuses').select('id').eq('category', 'active');
-                 if (activeStatuses) {
+                 if (activeStatuses && activeStatuses.length > 0) {
                      query = query.in('status_id', activeStatuses.map(s => s.id));
                  }
             }
@@ -162,7 +178,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
 
             const { data, error } = await query;
             if (error) throw error;
-            if (!data) throw new Error("No se encontraron leads.");
+            if (!data) throw new Error("No se encontraron leads con los criterios.");
             leadIdsToMove = data.map(l => l.id);
         }
 
@@ -180,15 +196,14 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
         // 2. Ejecutar la actualización masiva
         const { error: updateError } = await supabase
             .from('leads')
-            .update({ advisor_id: targetAdvisorId })
+            .update({ advisor_id: targetAdvisorId, updated_at: new Date().toISOString() })
             .in('id', leadIdsToMove);
 
         if (updateError) throw updateError;
 
-        // 3. Insertar notas de seguimiento DETALLADAS (Igual que Transferencia Unitaria)
+        // 3. Insertar notas de seguimiento
         const notesPayload = leadIdsToMove.map(id => ({
             lead_id: id,
-            // Formato idéntico al de LeadDetailModal para consistencia
             notes: `🔄 REASIGNACIÓN MASIVA\nDe: ${sourceName}\nA: ${targetName}\nMotivo: ${finalReason}`,
             date: new Date().toISOString(),
         }));
@@ -197,7 +212,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
 
         setResult({ success: leadIdsToMove.length });
         setSelectedIds(new Set());
-        setReason(''); // Resetear motivo
+        setReason(''); 
         
         setTimeout(() => {
             onSuccess();
@@ -221,14 +236,14 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
       <div className="space-y-6">
         
         {/* Header Informativo */}
-    <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800 flex gap-4 items-start">
-        <div className="bg-amber-100 dark:bg-amber-800/50 p-2 rounded-full text-amber-600 dark:text-amber-200 mt-1">
-            <TransferIcon className="w-6 h-6" />
-        </div>
-        <div>
-            <h4 className="font-bold text-amber-900 dark:text-amber-100 text-sm uppercase">Herramienta Administrativa</h4>
-            <p className="text-sm text-amber-800 dark:text-amber-200 mt-1"><p>Esta función permite reasignar múltiples leads de un asesor a otro de manera rápida y eficiente. Utilízala para balancear cargas de trabajo o en casos de renuncias.</p></p>
-                </div>
+        <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800 flex gap-4 items-start">
+            <div className="bg-amber-100 dark:bg-amber-800/50 p-2 rounded-full text-amber-600 dark:text-amber-200 mt-1 flex-shrink-0">
+                <TransferIcon className="w-6 h-6" />
+            </div>
+            <div>
+                <h4 className="font-bold text-amber-900 dark:text-amber-100 text-sm uppercase">Herramienta Administrativa</h4>
+                <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">Esta función permite reasignar múltiples leads de un asesor a otro de manera rápida y eficiente.</p>
+            </div>
         </div>
 
         {/* Selección de Asesores */}
@@ -242,12 +257,12 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                         value={sourceAdvisorId}
                         onChange={e => setSourceAdvisorId(e.target.value)}
                         options={[{value: '', label: '-- Seleccionar Asesor --'}, ...advisors.map(a => ({ value: a.id, label: a.full_name }))]}
-                        className="bg-white dark:bg-slate-800 dark:text-white dark:border-slate-600 mb-2"
+                        className="bg-white dark:bg-slate-900 dark:text-white dark:border-slate-700 mb-2"
                     />
                     {sourceAdvisorId && (
-                        <div className="flex items-center justify-between text-xs text-red-700">
-                            <span>Total en cartera:</span>
-                            <span className="font-bold bg-white px-2 py-0.5 rounded border border-red-100">
+                        <div className="flex items-center justify-between text-xs text-red-700 dark:text-red-300">
+                            <span>Total disponible:</span>
+                            <span className="font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-red-100 dark:border-red-900">
                                 {loadingCount ? '...' : totalLeads}
                             </span>
                         </div>
@@ -264,7 +279,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                         value={targetAdvisorId}
                         onChange={e => setTargetAdvisorId(e.target.value)}
                         options={[{value: '', label: '-- Seleccionar Asesor --'}, ...advisors.filter(a => a.id !== sourceAdvisorId).map(a => ({ value: a.id, label: a.full_name }))]}
-                        className="bg-white dark:bg-slate-800 dark:text-white dark:border-slate-600"
+                        className="bg-white dark:bg-slate-900 dark:text-white dark:border-slate-700"
                     />
                 </div>
             </div>
@@ -272,56 +287,52 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
 
         {/* Configuración de Transferencia */}
         {sourceAdvisorId && (
-            <div className="border-t border-gray-100 pt-4 animate-fade-in space-y-5">
+            <div className="border-t border-gray-100 dark:border-slate-700 pt-4 animate-fade-in space-y-5">
                 
                 {/* Opciones Superiores */}
                 <div className="flex justify-between items-center">
-                    <h5 className="font-bold text-gray-800 flex items-center gap-2">
+                    <h5 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                         <UserIcon className="w-5 h-5 text-brand-secondary"/>
                         Método de Transferencia
                     </h5>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            checked={onlyActive}
-                            onChange={e => setOnlyActive(e.target.checked)}
-                            className="rounded text-brand-secondary focus:ring-brand-secondary border-gray-300"
-                        />
-                        <span className="text-sm text-gray-600">Solo leads activos</span>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                        <div className="relative flex items-center">
+                            <input 
+                                type="checkbox" 
+                                checked={onlyActive}
+                                onChange={e => setOnlyActive(e.target.checked)}
+                                className="w-4 h-4 rounded text-brand-secondary focus:ring-brand-secondary border-gray-300 dark:border-slate-600 dark:bg-slate-800"
+                            />
+                        </div>
+                        <span className="text-sm text-gray-600 dark:text-gray-300 group-hover:text-brand-secondary transition-colors">Solo leads activos</span>
                     </label>
                 </div>
                 
-                {/* Selector de Modo */}
+                {/* Selector de Modo - FIX MODO OSCURO APLICADO */}
                 <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                        onClick={() => setTransferMode('all')}
-                        className={`flex-1 p-3 rounded-lg border text-left transition-all ${
-                            transferMode === 'all' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
-                        }`}
-                    >
-                        <span className="block text-sm font-bold text-gray-900 dark:text-white">Transferir TODOS</span>
-                        <span className="text-xs text-gray-500">Mueve los {totalLeads} leads disponibles.</span>
-                    </button>
-
-                    <button
-                        onClick={() => setTransferMode('quantity')}
-                        className={`flex-1 p-3 rounded-lg border text-left transition-all ${
-                            transferMode === 'quantity' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
-                        }`}
-                    >
-                        <span className="block text-sm font-bold text-gray-900 dark:text-white">Por Cantidad</span>
-                        <span className="text-xs text-gray-500">Mueve los X más recientes.</span>
-                    </button>
-
-                    <button
-                        onClick={() => setTransferMode('selection')}
-                        className={`flex-1 p-3 rounded-lg border text-left transition-all ${
-                            transferMode === 'selection' ? 'border-brand-secondary bg-blue-50 ring-1 ring-brand-secondary' : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
-                        }`}
-                    >
-                        <span className="block text-sm font-bold text-gray-900 dark:text-white">Selección Manual</span>
-                        <span className="text-xs text-gray-500">Elige uno por uno de la lista.</span>
-                    </button>
+                    {[
+                        { id: 'all', label: 'Transferir TODOS', sub: `Mueve los ${totalLeads} leads.` },
+                        { id: 'quantity', label: 'Por Cantidad', sub: 'Mueve los X más recientes.' },
+                        { id: 'selection', label: 'Selección Manual', sub: 'Elige uno por uno.' }
+                    ].map((option) => (
+                        <button
+                            key={option.id}
+                            onClick={() => setTransferMode(option.id as any)}
+                            className={`flex-1 p-3 rounded-lg border text-left transition-all duration-200 
+                                ${transferMode === option.id 
+                                    ? 'border-brand-secondary ring-1 ring-brand-secondary bg-blue-50 dark:bg-blue-900/40' // Activo: fondo azul claro (dark: azul oscuro traslúcido)
+                                    : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700' // Inactivo
+                                }`
+                            }
+                        >
+                            <span className={`block text-sm font-bold ${transferMode === option.id ? 'text-brand-secondary dark:text-blue-300' : 'text-gray-900 dark:text-gray-200'}`}>
+                                {option.label}
+                            </span>
+                            <span className={`text-xs ${transferMode === option.id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                {option.sub}
+                            </span>
+                        </button>
+                    ))}
                 </div>
 
                 {/* CONTENIDO ESPECÍFICO DEL MODO */}
@@ -337,13 +348,13 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                                 max={totalLeads} 
                                 value={quantity} 
                                 onChange={e => setQuantity(Number(e.target.value))}
-                                className="flex-1"
+                                className="flex-1 accent-brand-secondary"
                             />
                             <input 
                                 type="number" 
                                 value={quantity}
                                 onChange={e => setQuantity(Number(e.target.value))}
-                                className="w-20 px-2 py-1 border border-gray-300 rounded text-center font-bold"
+                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white rounded text-center font-bold outline-none focus:ring-2 focus:ring-brand-secondary"
                             />
                         </div>
                     </div>
@@ -351,7 +362,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
 
                 {transferMode === 'selection' && (
                     <div className="animate-fade-in border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
-                      <div className="p-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
+                      <div className="p-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700 flex items-center gap-6">
                             <div className="relative w-full max-w-xs">
                                 <MagnifyingGlassIcon className="absolute left-2 top-2 w-4 h-4 text-gray-400" />
                                 <input 
@@ -363,7 +374,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                                 />
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500">{selectedIds.size} seleccionados</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">{selectedIds.size} seleccionados</span>
                                 <button onClick={toggleSelectAll} className="text-xs font-bold text-brand-secondary hover:underline">
                                     {selectedIds.size === filteredList.length ? 'Desmarcar todos' : 'Marcar todos'}
                                 </button>
@@ -378,20 +389,20 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                             ) : filteredList.length === 0 ? (
                                 <div className="p-8 text-center text-gray-400 italic">No se encontraron leads.</div>
                             ) : (
-                                <ul className="divide-y divide-gray-100">
+                                <ul className="divide-y divide-gray-100 dark:divide-slate-700">
                                     {filteredList.map(lead => (
-                                        <li key={lead.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-700 transition-colors border-b border-gray-100 dark:border-slate-700 last:border-0">
+                                        <li key={lead.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 last:border-0">
                                             <label className="flex items-center px-4 py-3 cursor-pointer">
                                                 <input 
                                                     type="checkbox" 
                                                     checked={selectedIds.has(lead.id)}
                                                     onChange={() => toggleSelection(lead.id)}
-                                                    className="w-4 h-4 text-brand-secondary border-gray-300 rounded focus:ring-brand-secondary"
+                                                    className="w-4 h-4 text-brand-secondary border-gray-300 rounded focus:ring-brand-secondary dark:bg-slate-800 dark:border-slate-600"
                                                 />
                                                 <div className="ml-3 flex-1">
                                                     <p className="text-sm font-medium text-gray-900 dark:text-gray-200">{lead.name}</p>
-                                                    <p className="text-xs text-gray-500">
-                                                        {new Date(lead.date).toLocaleDateString()} • <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px]">{lead.status}</span>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {new Date(lead.date).toLocaleDateString()} • <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 text-[10px]">{lead.status}</span>
                                                     </p>
                                                 </div>
                                             </label>
@@ -418,7 +429,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
 
         {/* Mensajes de Resultado */}
         {result && (
-            <div className={`p-4 rounded-xl flex items-center gap-3 animate-fade-in ${result.error ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
+            <div className={`p-4 rounded-xl flex items-center gap-3 animate-fade-in ${result.error ? 'bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200' : 'bg-green-50 text-green-800 dark:bg-green-900/30 dark:text-green-200'}`}>
                 {result.error ? <ExclamationCircleIcon className="w-6 h-6"/> : <CheckCircleIcon className="w-6 h-6"/>}
                 <div>
                     <p className="font-bold">{result.error ? 'Error' : '¡Transferencia Exitosa!'}</p>
@@ -428,7 +439,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
         )}
 
         {/* Footer Actions */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-700">
             <Button variant="ghost" onClick={onClose} disabled={processing}>Cancelar</Button>
             <Button 
                 onClick={handleTransfer} 
