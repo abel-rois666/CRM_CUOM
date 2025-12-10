@@ -416,6 +416,20 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                             </div>
                         </div>
 
+                        {/* Score AI */}
+                        {(() => {
+                            const score = calculateLeadScore(lead);
+                            const colorClass = getScoreColor(score);
+                            const label = getScoreLabel(score);
+                            return (
+                                <div className={`hidden sm:flex flex-col items-center px-3 py-1 rounded-lg border ${colorClass} ml-2 cursor-help`} title={getScoreBreakdown(lead)}>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Probabilidad</span>
+                                    <div className="text-lg font-bold leading-none my-0.5">{score}%</div>
+                                    <span className="text-[10px] opacity-75 whitespace-nowrap">{label}</span>
+                                </div>
+                            );
+                        })()}
+
                         <div className="w-full sm:w-auto flex-shrink-0">
                             <Select
                                 name="status_id"
