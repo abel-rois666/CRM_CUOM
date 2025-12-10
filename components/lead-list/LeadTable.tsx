@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Lead, Status, Profile, Licenciatura } from '../../types';
+import { calculateLeadScore, getScoreColor, getScoreLabel, getScoreBreakdown } from '../../utils/leadScoring';
 import Badge from '../common/Badge';
 import BellAlertIcon from '../icons/BellAlertIcon';
 import ExclamationCircleIcon from '../icons/ExclamationCircleIcon';
@@ -14,7 +15,7 @@ import Button from '../common/Button';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
 import ChevronUpDownIcon from '../icons/ChevronUpDownIcon';
 
-export type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date' | 'urgency';
+export type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date' | 'urgency' | 'score';
 export type SortDirection = 'asc' | 'desc';
 
 interface LeadTableProps {
@@ -123,6 +124,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
                             </th>
 
                             <SortableHeader column="urgency" label="!" className="w-10 text-center" />
+                            <SortableHeader column="score" label="Probabilidad" className="w-24 text-center" />
                             <SortableHeader column="name" label="Nombre" />
                             <SortableHeader column="advisor_id" label="Asesor" className="hidden md:table-cell" />
                             <SortableHeader column="status_id" label="Estado" />
@@ -169,6 +171,17 @@ const LeadTable: React.FC<LeadTableProps> = ({
 
                                     <td className="px-2 py-4 whitespace-nowrap text-center">
                                         <div className="flex justify-center">{urgencyIndicator}</div>
+                                    </td>
+                                    <td className="px-2 py-4 whitespace-nowrap text-center">
+                                        {(() => {
+                                            const score = calculateLeadScore(lead);
+                                            const colorClass = getScoreColor(score);
+                                            return (
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${colorClass} cursor-help`} title={getScoreBreakdown(lead)}>
+                                                    {score}%
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center cursor-pointer" onClick={() => onViewDetails(lead, 'info')}>

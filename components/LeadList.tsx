@@ -11,6 +11,7 @@ import FilterDrawer from './FilterDrawer';
 import BulkTransferModal from './BulkTransferModal';
 import { supabase } from '../lib/supabase';
 import BulkMessageModal from './BulkMessageModal';
+import { calculateLeadScore } from '../utils/leadScoring';
 
 // Components Refactorizados
 import LeadHeader from './lead-list/LeadHeader';
@@ -224,6 +225,10 @@ const LeadList: React.FC<LeadListProps> = ({
                 case 'registration_date':
                     valA = new Date(a.registration_date).getTime();
                     valB = new Date(b.registration_date).getTime();
+                    break;
+                case 'score':
+                    valA = calculateLeadScore(a);
+                    valB = calculateLeadScore(b);
                     break;
             }
             if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
