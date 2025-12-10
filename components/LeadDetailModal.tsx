@@ -1,7 +1,7 @@
 // components/LeadDetailModal.tsx
 import React, { useState, useMemo } from 'react';
 import { Lead, Profile, Status, FollowUp, Source, Appointment, Licenciatura } from '../types';
-import { calculateLeadScore, getScoreColor, getScoreLabel } from '../utils/leadScoring';
+import { calculateLeadScore, getScoreColor, getScoreLabel, getScoreBreakdown } from '../utils/leadScoring';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import { Select, TextArea, Input } from './common/FormElements';
