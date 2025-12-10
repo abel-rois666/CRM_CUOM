@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate } from '../types';
+import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, DashboardMetrics } from '../types';
 import { useToast } from '../context/ToastContext';
 
 // Interfaz para los filtros que se enviarán a la BD
@@ -159,6 +159,21 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     }
   }, [session, userRole, userId, page, pageSize, filters, toastError]);
 
+  // --- DASHBOARD METRICS ---
+  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
+
+  const fetchMetrics = useCallback(async () => {
+    if (!session?.access_token) return;
+
+    try {
+      const { data, error } = await supabase.rpc('get_dashboard_metrics');
+      if (error) throw error;
+      setDashboardMetrics(data as unknown as DashboardMetrics);
+    } catch (error) {
+      console.error('Error fetching metrics:', error);
+    }
+  }, [session]);
+
   // Efectos de carga inicial
   useEffect(() => {
     if (!catalogsLoaded) fetchCatalogs();
@@ -166,7 +181,8 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
 
   useEffect(() => {
     fetchLeads();
-  }, [fetchLeads]);
+    fetchMetrics();
+  }, [fetchLeads, fetchMetrics]);
 
   // 3. SUSCRIPCIÓN A REALTIME (Adaptada para Paginación)
   useEffect(() => {
@@ -178,6 +194,9 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads' },
         async (payload) => {
+          // Refrescar métricas ante cualquier cambio
+          fetchMetrics();
+
           // --- EVENTO INSERT ---
           if (payload.eventType === 'INSERT') {
             const newLead = payload.new as Lead;
@@ -226,13 +245,14 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, userRole, userId, page, filters, fetchLeads, toastInfo]);
+  }, [session, userRole, userId, page, filters, fetchLeads, toastInfo, fetchMetrics]);
 
   // --- HELPERS LOCALES ---
 
   const updateLocalLead = useCallback((updatedLead: Lead) => {
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-  }, []);
+    fetchMetrics(); // Actualizar métricas al editar
+  }, [fetchMetrics]);
 
   const addLocalLead = useCallback((newLead: Lead) => {
     if (newLead.id) {
@@ -241,18 +261,21 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     }
     // Forzamos recarga para ver el nuevo lead ordenado correctamente
     fetchLeads(true);
-  }, [fetchLeads]);
+    fetchMetrics();
+  }, [fetchLeads, fetchMetrics]);
 
   const removeLocalLead = useCallback((leadId: string) => {
     setLeads(prev => prev.filter(l => l.id !== leadId));
     setTotalLeads(prev => Math.max(0, prev - 1));
-  }, []);
+    fetchMetrics();
+  }, [fetchMetrics]);
 
   const removeManyLocalLeads = useCallback((leadIds: string[]) => {
     const idsSet = new Set(leadIds);
     setLeads(prev => prev.filter(l => !idsSet.has(l.id)));
     setTotalLeads(prev => Math.max(0, prev - idsSet.size));
-  }, []);
+    fetchMetrics();
+  }, [fetchMetrics]);
 
   // Helper para aplicar filtros y resetear a pág 1
   const handleSetFilters = (newFilters: Partial<DataFilters>) => {
@@ -285,11 +308,13 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     setWhatsappTemplates,
     setEmailTemplates,
 
+    dashboardMetrics, // <--- EXPOSED
+
     updateLocalLead,
     addLocalLead,
     removeLocalLead,
     removeManyLocalLeads,
-    refetch: () => fetchLeads(true),
+    refetch: () => { fetchLeads(true); fetchMetrics(); },
     refreshCatalogs: fetchCatalogs
   };
 };

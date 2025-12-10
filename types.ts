@@ -114,3 +114,14 @@ export interface Notification {
   created_at: string;
   link?: string;
 }
+
+// --- Dashboard Metrics ---
+export interface DashboardMetrics {
+  totalLeads: number;
+  newLeadsToday: number;
+  appointmentsToday: number;
+  noFollowUp: number;
+  staleFollowUp: number;
+  statusCallback: { name: string; value: number; color: string }[];
+  advisorStats: { name: string; value: number; fullName: string }[];
+}

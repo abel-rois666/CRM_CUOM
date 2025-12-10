@@ -1,6 +1,5 @@
-// components/DashboardStats.tsx
 import React, { useState, useMemo } from 'react';
-import { Lead, Status, Profile } from '../types';
+import { Lead, Status, Profile, DashboardMetrics } from '../types';
 import CalendarIcon from './icons/CalendarIcon';
 import BellAlertIcon from './icons/BellAlertIcon';
 import ClockIcon from './icons/ClockIcon';
@@ -17,7 +16,8 @@ import {
 export type QuickFilterType = 'appointments_today' | 'no_followup' | 'stale_followup' | null;
 
 interface DashboardStatsProps {
-    leads: Lead[];
+    leads: Lead[]; // Kept for compatibility if needed elsewhere, but mainly unused for stats now
+    metrics: DashboardMetrics | null; // <--- NEW PROP
     statuses: Status[];
     advisors: Profile[];
     activeFilter: QuickFilterType;
@@ -49,81 +49,39 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
     return null;
 };
 
-const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, advisors, activeFilter, onFilterChange }) => {
+const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuses, advisors, activeFilter, onFilterChange }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [activeTab, setActiveTab] = useState<'agenda' | 'analytics'>('agenda');
 
+    // Use memoized stats from props or defaults
     const stats = useMemo(() => {
-        // ... (TU LÓGICA ORIGINAL DE STATS SE MANTIENE IGUAL, NO CAMBIA) ...
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const threeDaysAgo = new Date();
-        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        if (metrics) {
+            return {
+                appointmentsToday: metrics.appointmentsToday,
+                noFollowUp: metrics.noFollowUp,
+                staleFollowUp: metrics.staleFollowUp,
+                totalLeads: metrics.totalLeads,
+                newLeadsToday: metrics.newLeadsToday,
+                statusData: metrics.statusCallback.map(item => ({
+                    ...item,
+                    originalColor: item.color, // Keep original class for reference if needed
+                    color: tailwindColorMap[item.color] || '#cbd5e1' // Map to Hex or fallback
+                })),
+                advisorData: metrics.advisorStats
+            };
+        }
 
-        let appointmentsToday = 0;
-        let noFollowUp = 0;
-        let staleFollowUp = 0;
-        let newLeadsToday = 0;
-
-        const statusCounts: Record<string, number> = {};
-        const advisorCounts: Record<string, number> = {};
-
-        const statusCategoryMap = new Map(statuses.map(s => [s.id, s.category || 'active']));
-
-        advisors.forEach(a => advisorCounts[a.id] = 0);
-
-        leads.forEach(lead => {
-            const regDate = new Date(lead.registration_date);
-            const regDateZero = new Date(lead.registration_date);
-            regDateZero.setHours(0, 0, 0, 0);
-
-            const category = statusCategoryMap.get(lead.status_id);
-            const isActive = category === 'active';
-
-            if (isActive) {
-                const hasAppointmentToday = lead.appointments?.some(appt => {
-                    const apptDate = new Date(appt.date);
-                    apptDate.setHours(0, 0, 0, 0);
-                    return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
-                });
-                if (hasAppointmentToday) appointmentsToday++;
-
-                const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
-                if (hasNoFollowUps && regDate < threeDaysAgo) noFollowUp++;
-
-                if (lead.follow_ups && lead.follow_ups.length > 0) {
-                    const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                    if (new Date(lastFollowUp.date) < sevenDaysAgo) staleFollowUp++;
-                }
-            }
-
-            if (regDateZero.getTime() === today.getTime()) newLeadsToday++;
-            statusCounts[lead.status_id] = (statusCounts[lead.status_id] || 0) + 1;
-            advisorCounts[lead.advisor_id] = (advisorCounts[lead.advisor_id] || 0) + 1;
-        });
-
-        const statusData = statuses
-            .map(s => ({
-                name: s.name,
-                colorKey: s.color,
-                color: tailwindColorMap[s.color] || '#cbd5e1',
-                value: statusCounts[s.id] || 0
-            }))
-            .filter(s => s.value > 0)
-            .sort((a, b) => b.value - a.value);
-
-        const advisorData = advisors
-            .map(a => ({
-                name: a.full_name.split(' ')[0],
-                fullName: a.full_name,
-                value: advisorCounts[a.id] || 0
-            }))
-            .sort((a, b) => b.value - a.value);
-
-        return { appointmentsToday, noFollowUp, staleFollowUp, totalLeads: leads.length, newLeadsToday, statusData, advisorData };
-    }, [leads, statuses, advisors]);
+        // Fallback zeros while loading
+        return {
+            appointmentsToday: 0,
+            noFollowUp: 0,
+            staleFollowUp: 0,
+            totalLeads: 0,
+            newLeadsToday: 0,
+            statusData: [],
+            advisorData: []
+        };
+    }, [metrics]);
 
     const handleCardClick = (filter: QuickFilterType) => {
         onFilterChange(activeFilter === filter ? null : filter);

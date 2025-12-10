@@ -32,7 +32,10 @@ const LeadHeader: React.FC<LeadHeaderProps> = ({
             <div>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Clientes Potenciales</h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                    Total en Base: <span className="font-bold text-brand-primary dark:text-blue-400">{totalLeads}</span> | Cargados: <span className="font-bold text-gray-700 dark:text-gray-300">{loadedLeadsCount}</span>
+                    Total en Base: <span className="font-bold text-brand-primary dark:text-blue-400">{totalLeads}</span>
+                    {userRole === 'admin' && (
+                        <> | Cargados: <span className="font-bold text-gray-700 dark:text-gray-300">{loadedLeadsCount}</span></>
+                    )}
                 </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">

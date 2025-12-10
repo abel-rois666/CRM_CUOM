@@ -1,6 +1,6 @@
 // components/LeadList.tsx
 import React, { useState, useMemo, useEffect } from 'react';
-import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate } from '../types';
+import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate, DashboardMetrics } from '../types';
 import { DataFilters } from '../hooks/useCRMData';
 import ConfirmationModal from './common/ConfirmationModal';
 import LeadListSkeleton from './LeadListSkeleton';
@@ -47,6 +47,7 @@ interface LeadListProps {
     onRefresh?: () => void;
     onLocalDeleteMany?: (ids: string[]) => void;
     currentUser?: Profile | null;
+    metrics: DashboardMetrics | null; // <--- NEW PROP
 }
 
 const LeadList: React.FC<LeadListProps> = ({
@@ -55,7 +56,7 @@ const LeadList: React.FC<LeadListProps> = ({
     whatsappTemplates, emailTemplates,
     onAddNew, onEdit, onDelete, onViewDetails,
     onOpenReports, onOpenImport, onOpenWhatsApp,
-    onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany, currentUser
+    onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany, currentUser, metrics
 }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
@@ -369,6 +370,7 @@ const LeadList: React.FC<LeadListProps> = ({
 
             <DashboardStats
                 leads={leads}
+                metrics={metrics} // <--- Pass server-side metrics
                 statuses={statuses}
                 advisors={advisors}
                 activeFilter={quickFilter}

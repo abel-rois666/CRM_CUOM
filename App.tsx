@@ -53,7 +53,8 @@ const AppContent: React.FC = () => {
     addLocalLead,
     removeLocalLead,
     removeManyLocalLeads,
-    refetch
+    refetch,
+    dashboardMetrics // <--- New Destructuring
   } = useCRMData(session, profile?.role, profile?.id);
 
   // Estados de UI
@@ -487,6 +488,7 @@ const AppContent: React.FC = () => {
           currentUser={profile}
           onRefresh={refetch}
           onLocalDeleteMany={removeManyLocalLeads}
+          metrics={dashboardMetrics} // <--- PASSING THE METRICS
         />
       </main>
 
