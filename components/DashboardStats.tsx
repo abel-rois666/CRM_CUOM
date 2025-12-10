@@ -9,9 +9,9 @@ import ChartBarIcon from './icons/ChartBarIcon';
 import ListBulletIcon from './icons/ListBulletIcon';
 import CheckCircleIcon from './icons/CheckCircleIcon';
 import InformationCircleIcon from './icons/InformationCircleIcon';
-import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps 
+import {
+    PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps
 } from 'recharts';
 
 export type QuickFilterType = 'appointments_today' | 'no_followup' | 'stale_followup' | null;
@@ -37,14 +37,14 @@ const tailwindColorMap: { [key: string]: string } = {
 
 const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
     if (active && payload && payload.length) {
-      return (
-        <div className="bg-white dark:bg-slate-800 p-3 border border-gray-100 dark:border-slate-600 shadow-xl rounded-xl text-xs">
-          <p className="font-bold text-gray-800 dark:text-white mb-1">{payload[0].name || label}</p>
-          <p className="text-gray-600 dark:text-gray-300">
-            <span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads
-          </p>
-        </div>
-      );
+        return (
+            <div className="bg-white dark:bg-slate-800 p-3 border border-gray-100 dark:border-slate-600 shadow-xl rounded-xl text-xs">
+                <p className="font-bold text-gray-800 dark:text-white mb-1">{payload[0].name || label}</p>
+                <p className="text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads
+                </p>
+            </div>
+        );
     }
     return null;
 };
@@ -77,7 +77,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
         leads.forEach(lead => {
             const regDate = new Date(lead.registration_date);
             const regDateZero = new Date(lead.registration_date);
-            regDateZero.setHours(0,0,0,0);
+            regDateZero.setHours(0, 0, 0, 0);
 
             const category = statusCategoryMap.get(lead.status_id);
             const isActive = category === 'active';
@@ -85,7 +85,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
             if (isActive) {
                 const hasAppointmentToday = lead.appointments?.some(appt => {
                     const apptDate = new Date(appt.date);
-                    apptDate.setHours(0,0,0,0);
+                    apptDate.setHours(0, 0, 0, 0);
                     return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
                 });
                 if (hasAppointmentToday) appointmentsToday++;
@@ -105,22 +105,22 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
         });
 
         const statusData = statuses
-            .map(s => ({ 
-                name: s.name, 
+            .map(s => ({
+                name: s.name,
                 colorKey: s.color,
-                color: tailwindColorMap[s.color] || '#cbd5e1', 
-                value: statusCounts[s.id] || 0 
+                color: tailwindColorMap[s.color] || '#cbd5e1',
+                value: statusCounts[s.id] || 0
             }))
             .filter(s => s.value > 0)
-            .sort((a,b) => b.value - a.value);
+            .sort((a, b) => b.value - a.value);
 
         const advisorData = advisors
-            .map(a => ({ 
-                name: a.full_name.split(' ')[0], 
+            .map(a => ({
+                name: a.full_name.split(' ')[0],
                 fullName: a.full_name,
-                value: advisorCounts[a.id] || 0 
+                value: advisorCounts[a.id] || 0
             }))
-            .sort((a,b) => b.value - a.value);
+            .sort((a, b) => b.value - a.value);
 
         return { appointmentsToday, noFollowUp, staleFollowUp, totalLeads: leads.length, newLeadsToday, statusData, advisorData };
     }, [leads, statuses, advisors]);
@@ -129,37 +129,37 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
         onFilterChange(activeFilter === filter ? null : filter);
     };
 
-// Estilos dinámicos para Dark Mode y Light Mode (Mejorados)
+    // Estilos dinámicos para Dark Mode y Light Mode (Mejorados)
     const getNoFollowUpStyles = () => {
         const isActive = activeFilter === 'no_followup';
         if (stats.noFollowUp > 0) {
-            return isActive 
-                ? 'bg-red-50 ring-2 ring-red-500 shadow-lg shadow-red-100 dark:bg-red-900/30 dark:shadow-none' 
+            return isActive
+                ? 'bg-red-50 ring-2 ring-red-500 shadow-lg shadow-red-100 dark:bg-red-900/30 dark:shadow-none'
                 : 'bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/50 shadow-md shadow-red-50 dark:shadow-none hover:border-red-400';
         }
         // ESTADO INACTIVO (0 Leads): Borde más visible en modo claro
-        return isActive 
-            ? 'bg-white dark:bg-slate-700 ring-2 ring-green-500 shadow-lg' 
-            : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md'; 
+        return isActive
+            ? 'bg-white dark:bg-slate-700 ring-2 ring-green-500 shadow-lg'
+            : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md';
     };
 
     const getStaleStyles = () => {
         const isActive = activeFilter === 'stale_followup';
         if (stats.staleFollowUp > 0) {
-            return isActive 
+            return isActive
                 ? 'bg-amber-50 ring-2 ring-amber-500 shadow-lg shadow-amber-100 dark:bg-amber-900/30 dark:shadow-none'
                 : 'bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900/50 shadow-md shadow-amber-50 dark:shadow-none hover:border-amber-400';
         }
         // ESTADO INACTIVO (0 Leads): Borde más visible en modo claro
-        return isActive 
-            ? 'bg-white dark:bg-slate-700 ring-2 ring-gray-400 shadow-lg' 
+        return isActive
+            ? 'bg-white dark:bg-slate-700 ring-2 ring-gray-400 shadow-lg'
             : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md';
     };
 
     const getApptStyles = () => {
         // ESTADO GENERAL: Borde más visible en modo claro
-        return activeFilter === 'appointments_today' 
-            ? 'bg-blue-50 ring-2 ring-blue-500 shadow-lg shadow-blue-100 dark:bg-blue-900/30 dark:shadow-none' 
+        return activeFilter === 'appointments_today'
+            ? 'bg-blue-50 ring-2 ring-blue-500 shadow-lg shadow-blue-100 dark:bg-blue-900/30 dark:shadow-none'
             : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-lg hover:-translate-y-1';
     };
 
@@ -167,21 +167,21 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
         <div className="mb-8 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-md">
             <div className="bg-white dark:bg-slate-800 px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center transition-colors">
                 <div className="flex space-x-1 bg-gray-100/50 dark:bg-slate-700/50 p-1 rounded-xl">
-                     <button 
+                    <button
                         onClick={() => setActiveTab('agenda')}
                         className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'agenda' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
                         <div className="flex items-center gap-2">
-                            <ListBulletIcon className="w-4 h-4"/>
+                            <ListBulletIcon className="w-4 h-4" />
                             Indicadores de Atención
                         </div>
                     </button>
-                    <button 
+                    <button
                         onClick={() => setActiveTab('analytics')}
                         className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'analytics' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
                         <div className="flex items-center gap-2">
-                            <ChartBarIcon className="w-4 h-4"/>
+                            <ChartBarIcon className="w-4 h-4" />
                             Métricas Globales
                         </div>
                     </button>
@@ -190,14 +190,14 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                     <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
             </div>
-            
+
             {isExpanded && (
                 <div className="p-6 animate-fade-in bg-gray-50/30 dark:bg-slate-900/30">
                     {activeTab === 'agenda' ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            
+
                             {/* Card 1: Agenda */}
-                            <div 
+                            <div
                                 onClick={() => handleCardClick('appointments_today')}
                                 className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group ${getApptStyles()}`}
                             >
@@ -218,7 +218,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                             </div>
 
                             {/* Card 2: Nuevos sin Atender */}
-                            <div 
+                            <div
                                 onClick={() => handleCardClick('no_followup')}
                                 className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1 ${getNoFollowUpStyles()}`}
                             >
@@ -228,7 +228,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                             <p className={`text-sm font-bold uppercase tracking-wide ${stats.noFollowUp > 0 ? 'text-red-700 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                                 Nuevos sin Atender
                                             </p>
-                                            <div 
+                                            <div
                                                 className={`transition-colors ${stats.noFollowUp > 0 ? 'text-red-400 hover:text-red-600' : 'text-gray-400 hover:text-gray-600'}`}
                                                 title="Criterio: Leads registrados hace más de 3 días que NO tienen ninguna nota."
                                                 onClick={(e) => e.stopPropagation()}
@@ -236,7 +236,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                                 <InformationCircleIcon className="w-4 h-4 cursor-help" />
                                             </div>
                                         </div>
-                                        
+
                                         <p className={`text-4xl font-black tracking-tight ${stats.noFollowUp > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-white'}`}>
                                             {stats.noFollowUp}
                                         </p>
@@ -252,7 +252,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                             </div>
 
                             {/* Card 3: Seguimiento Vencido */}
-                            <div 
+                            <div
                                 onClick={() => handleCardClick('stale_followup')}
                                 className={`relative overflow-hidden p-6 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1 ${getStaleStyles()}`}
                             >
@@ -262,7 +262,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                             <p className={`text-sm font-bold uppercase tracking-wide ${stats.staleFollowUp > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                                 Seguimiento Vencido
                                             </p>
-                                            <div 
+                                            <div
                                                 className={`transition-colors ${stats.staleFollowUp > 0 ? 'text-amber-500 hover:text-amber-700' : 'text-gray-400 hover:text-gray-600'}`}
                                                 title="Criterio: Leads con historial activo, sin nota en >7 días."
                                                 onClick={(e) => e.stopPropagation()}
@@ -297,7 +297,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                     <p className="text-5xl font-black text-green-600 dark:text-green-400 tracking-tighter">+{stats.newLeadsToday}</p>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm">
                                     <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Distribución por Estado</h4>
@@ -336,16 +336,16 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, statuses, adviso
                                                     <XAxis type="number" hide />
                                                     <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#94a3b8' }} width={70} />
                                                     <Tooltip cursor={{ fill: 'transparent' }} content={({ active, payload }) => {
-                                                            if (active && payload && payload.length) {
-                                                                return (
-                                                                    <div className="bg-white dark:bg-slate-800 p-3 border border-gray-100 dark:border-slate-600 shadow-xl rounded-xl text-xs">
-                                                                        <p className="font-bold text-gray-800 dark:text-white mb-1">{payload[0].payload.fullName}</p>
-                                                                        <p className="text-gray-600 dark:text-gray-300"><span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads asignados</p>
-                                                                    </div>
-                                                                );
-                                                            }
-                                                            return null;
-                                                        }}
+                                                        if (active && payload && payload.length) {
+                                                            return (
+                                                                <div className="bg-white dark:bg-slate-800 p-3 border border-gray-100 dark:border-slate-600 shadow-xl rounded-xl text-xs">
+                                                                    <p className="font-bold text-gray-800 dark:text-white mb-1">{payload[0].payload.fullName}</p>
+                                                                    <p className="text-gray-600 dark:text-gray-300"><span className="font-semibold text-brand-secondary">{payload[0].value}</span> leads asignados</p>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    }}
                                                     />
                                                     <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
                                                 </BarChart>

@@ -44,7 +44,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<{ success: number; error?: string } | null>(null);
 
-  // --- EFECTO DE CARGA DE DATOS (CORREGIDO) ---
+  // --- EFECTO DE CARGA DE DATOS ---
   useEffect(() => {
     if (!isOpen) return;
     if (!sourceAdvisorId) {
@@ -58,35 +58,33 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
         if (transferMode === 'selection') setLoadingList(true);
 
         try {
-            // 1. Construir query base
-            let query = supabase
-                .from('leads')
+            // FIX: Casteamos a 'any' para evitar errores de tipo 'never' en la consulta
+            let query = (supabase.from('leads') as any)
                 .select(`
                     id, 
                     first_name, 
                     paternal_last_name, 
                     registration_date,
                     status:statuses(name, category)
-                `)
+                `, { count: 'exact' })
                 .eq('advisor_id', sourceAdvisorId);
 
-            // 2. Lógica de filtrado "solo activos" (Método Robusto de 2 pasos)
+            // 2. Lógica de filtrado "solo activos"
             if (onlyActive) {
-                const { data: activeStatuses } = await supabase
-                    .from('statuses')
+                const { data: activeStatuses } = await (supabase.from('statuses') as any)
                     .select('id')
                     .eq('category', 'active');
                 
                 if (activeStatuses && activeStatuses.length > 0) {
-                    query = query.in('status_id', activeStatuses.map(s => s.id));
+                    query = query.in('status_id', activeStatuses.map((s: any) => s.id));
                 }
             }
 
             // 3. Ordenar
             query = query.order('registration_date', { ascending: false });
 
-            // 4. Ejecutar con conteo exacto
-            const { data, error, count } = await query.select('*', { count: 'exact' });
+            // 4. Ejecutar
+            const { data, error, count } = await query;
 
             if (error) throw error;
 
@@ -114,7 +112,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
     };
 
     fetchData();
-  }, [sourceAdvisorId, onlyActive, transferMode, isOpen]); // Dependencias clave
+  }, [sourceAdvisorId, onlyActive, transferMode, isOpen]); 
 
   // Filtrado local para el buscador de la lista
   const filteredList = useMemo(() => {
@@ -159,16 +157,16 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
             // MODO SELECCIÓN: Usamos los IDs marcados manualmente
             leadIdsToMove = Array.from(selectedIds);
         } else {
-            // MODO AUTOMÁTICO (Todo / Cantidad): Consultamos IDs frescos para asegurar integridad
-            let query = supabase
-                .from('leads')
+            // MODO AUTOMÁTICO: Consultamos IDs frescos
+            // FIX: Casteamos a 'any' para evitar bloqueo de tipos
+            let query = (supabase.from('leads') as any)
                 .select('id')
                 .eq('advisor_id', sourceAdvisorId);
 
             if (onlyActive) {
-                 const { data: activeStatuses } = await supabase.from('statuses').select('id').eq('category', 'active');
+                 const { data: activeStatuses } = await (supabase.from('statuses') as any).select('id').eq('category', 'active');
                  if (activeStatuses && activeStatuses.length > 0) {
-                     query = query.in('status_id', activeStatuses.map(s => s.id));
+                     query = query.in('status_id', activeStatuses.map((s: any) => s.id));
                  }
             }
 
@@ -179,7 +177,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
             const { data, error } = await query;
             if (error) throw error;
             if (!data) throw new Error("No se encontraron leads con los criterios.");
-            leadIdsToMove = data.map(l => l.id);
+            leadIdsToMove = data.map((l: any) => l.id);
         }
 
         if (leadIdsToMove.length === 0) {
@@ -194,8 +192,8 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
         const finalReason = reason.trim() || 'Reestructuración de Cartera';
 
         // 2. Ejecutar la actualización masiva
-        const { error: updateError } = await supabase
-            .from('leads')
+        // FIX CRÍTICO: Casteo 'as any' aquí para solucionar el error de la imagen
+        const { error: updateError } = await (supabase.from('leads') as any)
             .update({ advisor_id: targetAdvisorId, updated_at: new Date().toISOString() })
             .in('id', leadIdsToMove);
 
@@ -208,7 +206,8 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
             date: new Date().toISOString(),
         }));
 
-        await supabase.from('follow_ups').insert(notesPayload);
+        // FIX: Casteo 'as any' también en follow_ups por seguridad
+        await (supabase.from('follow_ups') as any).insert(notesPayload);
 
         setResult({ success: leadIdsToMove.length });
         setSelectedIds(new Set());
@@ -308,7 +307,7 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                     </label>
                 </div>
                 
-                {/* Selector de Modo - FIX MODO OSCURO APLICADO */}
+                {/* Selector de Modo */}
                 <div className="flex flex-col sm:flex-row gap-3">
                     {[
                         { id: 'all', label: 'Transferir TODOS', sub: `Mueve los ${totalLeads} leads.` },
@@ -320,8 +319,8 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
                             onClick={() => setTransferMode(option.id as any)}
                             className={`flex-1 p-3 rounded-lg border text-left transition-all duration-200 
                                 ${transferMode === option.id 
-                                    ? 'border-brand-secondary ring-1 ring-brand-secondary bg-blue-50 dark:bg-blue-900/40' // Activo: fondo azul claro (dark: azul oscuro traslúcido)
-                                    : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700' // Inactivo
+                                    ? 'border-brand-secondary ring-1 ring-brand-secondary bg-blue-50 dark:bg-blue-900/40' 
+                                    : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700' 
                                 }`
                             }
                         >

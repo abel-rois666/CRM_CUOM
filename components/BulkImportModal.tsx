@@ -309,7 +309,7 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
         if (followUpsToInsert.length > 0) {
             const { error: followUpError } = await supabase
                 .from('follow_ups')
-                .insert(followUpsToInsert);
+                .insert<FollowUpInsert>(followUpsToInsert);
             
             if (followUpError) {
                 errorLog.push(`Advertencia lote ${i}: Leads creados, pero error al guardar notas.`);

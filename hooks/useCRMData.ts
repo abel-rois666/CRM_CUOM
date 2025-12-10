@@ -17,11 +17,11 @@ export interface DataFilters {
 
 export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
   const { error: toastError, info: toastInfo } = useToast();
-  
+
   // --- DATOS PRINCIPALES ---
   const [leads, setLeads] = useState<Lead[]>([]);
   const [totalLeads, setTotalLeads] = useState(0); // Total real en base de datos para paginación
-  
+
   // --- ESTADOS DE PAGINACIÓN Y FILTROS (SERVER-SIDE) ---
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -41,12 +41,12 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   const [licenciaturas, setLicenciaturas] = useState<Licenciatura[]>([]);
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
-  
+
   // --- ESTADOS DE CARGA ---
   const [loadingData, setLoadingData] = useState(true); // Carga inicial de catálogos
   const [loadingLeads, setLoadingLeads] = useState(false); // Carga de tabla/paginación
   const [catalogsLoaded, setCatalogsLoaded] = useState(false);
-  
+
   const lastFetchedToken = useRef<string | undefined>(undefined);
   const processedIds = useRef<Set<string>>(new Set());
   const leadsRef = useRef<Lead[]>([]);
@@ -63,7 +63,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   // 1. CARGAR CATÁLOGOS (Estáticos - Se cargan una sola vez)
   const fetchCatalogs = useCallback(async () => {
     if (!session?.access_token) return;
-    
+
     try {
       const results = await Promise.allSettled([
         supabase.from('profiles').select('*'),
@@ -85,13 +85,13 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       setLicenciaturas(getData<Licenciatura>(3));
       setWhatsappTemplates(getData<WhatsAppTemplate>(4));
       setEmailTemplates(getData<EmailTemplate>(5));
-      
+
       setCatalogsLoaded(true);
     } catch (error) {
       console.error('Error fetching catalogs:', error);
       toastError('Error al cargar catálogos.');
     } finally {
-        setLoadingData(false);
+      setLoadingData(false);
     }
   }, [session, toastError]);
 
@@ -108,42 +108,42 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       let query = supabase
         .from('leads')
         .select(`
-            *, 
-            appointments(*, created_by(full_name)), 
-            follow_ups(*, created_by(full_name)), 
-            status_history(*, created_by(full_name))
-        `, { count: 'exact' }); // Pedimos el conteo total
+  *,
+  appointments(*, created_by(full_name)),
+  follow_ups(*, created_by(full_name)),
+  status_history(*, created_by(full_name))
+    `, { count: 'exact' }); // Pedimos el conteo total
 
       // --- FILTROS DE SEGURIDAD (ROL) ---
       if (userRole === 'advisor' && userId) {
-          query = query.eq('advisor_id', userId);
+        query = query.eq('advisor_id', userId);
       }
 
       // --- FILTROS DE UI (Aplicados en BD) ---
       if (filters.advisorId !== 'all') query = query.eq('advisor_id', filters.advisorId);
       if (filters.statusId !== 'all') query = query.eq('status_id', filters.statusId);
       if (filters.programId !== 'all') query = query.eq('program_id', filters.programId);
-      
+
       // Filtro de Fechas
       if (filters.startDate && filters.endDate) {
-          query = query.gte('registration_date', `${filters.startDate}T00:00:00.000Z`)
-                       .lte('registration_date', `${filters.endDate}T23:59:59.999Z`);
+        query = query.gte('registration_date', `${filters.startDate}T00:00:00.000Z`)
+          .lte('registration_date', `${filters.endDate}T23:59:59.999Z`);
       }
 
       // Búsqueda de Texto (Usando la nueva columna search_text)
       if (filters.searchTerm) {
-          const cleanTerm = normalizeSearchTerm(filters.searchTerm);
-          // Usamos ilike sobre la columna search_text optimizada
-          query = query.ilike('search_text', `%${cleanTerm}%`);
+        const cleanTerm = normalizeSearchTerm(filters.searchTerm);
+        // Usamos ilike sobre la columna search_text optimizada
+        query = query.ilike('search_text', `%${cleanTerm}%`);
       }
 
       // --- PAGINACIÓN ---
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
-      
+
       const { data, error, count } = await query
-          .order('registration_date', { ascending: false })
-          .range(from, to);
+        .order('registration_date', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
 
@@ -153,7 +153,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
 
     } catch (error: any) {
       console.error('Error fetching leads:', error);
-      toastError(`Error al cargar leads: ${error.message}`);
+      toastError(`Error al cargar leads: ${error.message} `);
     } finally {
       setLoadingLeads(false);
     }
@@ -161,11 +161,11 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
 
   // Efectos de carga inicial
   useEffect(() => {
-      if (!catalogsLoaded) fetchCatalogs();
+    if (!catalogsLoaded) fetchCatalogs();
   }, [catalogsLoaded, fetchCatalogs]);
 
   useEffect(() => {
-      fetchLeads();
+    fetchLeads();
   }, [fetchLeads]);
 
   // 3. SUSCRIPCIÓN A REALTIME (Adaptada para Paginación)
@@ -181,40 +181,40 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
           // --- EVENTO INSERT ---
           if (payload.eventType === 'INSERT') {
             const newLead = payload.new as Lead;
-            
+
             // Filtros de Rol y Duplicados
             if (userRole === 'advisor' && userId && newLead.advisor_id !== userId) return;
             if (processedIds.current.has(newLead.id)) return;
 
             // Notificación inteligente
             if (page === 1 && !filters.searchTerm) {
-                 toastInfo('🔔 Nuevo lead recibido. Actualizando lista...');
-                 // Recarga suave para mostrarlo
-                 setTimeout(() => fetchLeads(true), 1000); 
+              toastInfo('🔔 Nuevo lead recibido. Actualizando lista...');
+              // Recarga suave para mostrarlo
+              setTimeout(() => fetchLeads(true), 1000);
             } else {
-                 toastInfo('🔔 Nuevo lead recibido en el sistema.');
+              toastInfo('🔔 Nuevo lead recibido en el sistema.');
             }
-          } 
+          }
           // --- EVENTO UPDATE ---
           else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as Lead;
-            
+
             // Actualización optimista solo si el lead está visible
             setLeads(prev => {
-                const exists = prev.find(l => l.id === updated.id);
-                if (exists) {
-                    return prev.map(l => l.id === updated.id ? { 
-                        ...l, 
-                        ...updated,
-                        // Mantenemos relaciones (no vienen en el payload de realtime)
-                        appointments: l.appointments,
-                        follow_ups: l.follow_ups,
-                        status_history: l.status_history
-                    } : l);
-                }
-                return prev;
+              const exists = prev.find(l => l.id === updated.id);
+              if (exists) {
+                return prev.map(l => l.id === updated.id ? {
+                  ...l,
+                  ...updated,
+                  // Mantenemos relaciones (no vienen en el payload de realtime)
+                  appointments: l.appointments,
+                  follow_ups: l.follow_ups,
+                  status_history: l.status_history
+                } : l);
+              }
+              return prev;
             });
-          } 
+          }
           // --- EVENTO DELETE ---
           else if (payload.eventType === 'DELETE') {
             setLeads(prev => prev.filter(l => l.id !== payload.old.id));
@@ -236,8 +236,8 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
 
   const addLocalLead = useCallback((newLead: Lead) => {
     if (newLead.id) {
-        processedIds.current.add(newLead.id);
-        setTimeout(() => processedIds.current.delete(newLead.id), 5000);
+      processedIds.current.add(newLead.id);
+      setTimeout(() => processedIds.current.delete(newLead.id), 5000);
     }
     // Forzamos recarga para ver el nuevo lead ordenado correctamente
     fetchLeads(true);
@@ -249,15 +249,15 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   }, []);
 
   const removeManyLocalLeads = useCallback((leadIds: string[]) => {
-      const idsSet = new Set(leadIds);
-      setLeads(prev => prev.filter(l => !idsSet.has(l.id)));
-      setTotalLeads(prev => Math.max(0, prev - idsSet.size));
+    const idsSet = new Set(leadIds);
+    setLeads(prev => prev.filter(l => !idsSet.has(l.id)));
+    setTotalLeads(prev => Math.max(0, prev - idsSet.size));
   }, []);
 
   // Helper para aplicar filtros y resetear a pág 1
   const handleSetFilters = (newFilters: Partial<DataFilters>) => {
-      setFilters(prev => ({ ...prev, ...newFilters }));
-      setPage(1); 
+    setFilters(prev => ({ ...prev, ...newFilters }));
+    setPage(1);
   };
 
   return {
@@ -271,7 +271,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     setPageSize,
     filters,
     setFilters: handleSetFilters,
-    
+
     profiles,
     statuses,
     sources,
@@ -284,11 +284,11 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     setLicenciaturas,
     setWhatsappTemplates,
     setEmailTemplates,
-    
+
     updateLocalLead,
     addLocalLead,
     removeLocalLead,
-    removeManyLocalLeads, 
+    removeManyLocalLeads,
     refetch: () => fetchLeads(true),
     refreshCatalogs: fetchCatalogs
   };

@@ -2,10 +2,10 @@
 
 // --- Perfil de Usuario ---
 export interface Profile {
-  id: string; 
+  id: string;
   full_name: string;
   email: string;
-  role: 'admin' | 'advisor' | 'moderator'; 
+  role: 'admin' | 'advisor' | 'moderator';
 }
 
 // --- Catálogos ---
@@ -74,7 +74,7 @@ export interface Lead {
   source_id: string; // UUID
   registration_date: string; // ISO String
   updated_at?: string;
-  
+
   // Relaciones (Opcionales porque dependen del query)
   follow_ups?: FollowUp[];
   appointments?: Appointment[];
