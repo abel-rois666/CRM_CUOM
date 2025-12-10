@@ -35,7 +35,7 @@ const tailwindColorMap: { [key: string]: string } = {
     'bg-rose-500': '#f43f5e'
 };
 
-const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         return (
             <div className="bg-white dark:bg-slate-800 p-3 border border-gray-100 dark:border-slate-600 shadow-xl rounded-xl text-xs">

@@ -1,7 +1,8 @@
 // App.tsx
 import React, { useState, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { supabase } from './lib/supabase';
+import { supabase as supabaseClient } from './lib/supabase';
+const supabase = supabaseClient as any;
 import Header from './components/Header';
 import LeadList from './components/LeadList';
 import LeadFormModal from './components/LeadFormModal';
@@ -23,7 +24,7 @@ const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'))
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
-  const { success, error: toastError } = useToast();
+  const { success, error: toastError, info } = useToast();
 
   const {
     loadingData,
@@ -168,7 +169,7 @@ const AppContent: React.FC = () => {
       const oldLead = leads.find(l => l.id === leadIdToEdit);
       const { data, error } = await supabase
         .from('leads')
-        .update({ ...leadData })
+        .update({ ...leadData } as any)
         .eq('id', leadIdToEdit)
         .select(`*, appointments(*, created_by(full_name)), follow_ups(*, created_by(full_name)), status_history(*, created_by(full_name))`)
         .single();
@@ -184,7 +185,7 @@ const AppContent: React.FC = () => {
           lead_id: leadIdToEdit,
           date: new Date().toISOString(),
           created_by: profile?.id
-        }).select().single();
+        } as any).select().single();
 
         if (!historyError && newHistory) {
           const historyWithProfile = { ...newHistory, created_by: profile };
@@ -209,7 +210,7 @@ const AppContent: React.FC = () => {
           lead_id: data.id,
           date: new Date().toISOString(),
           created_by: profile?.id
-        }).select().single();
+        } as any).select().single();
 
         const fullNewLead = {
           ...data,
@@ -233,7 +234,7 @@ const AppContent: React.FC = () => {
 
     const { data: leadData, error } = await supabase
       .from('leads')
-      .update(updates)
+      .update(updates as any)
       .eq('id', leadId)
       .select()
       .single();
@@ -248,7 +249,7 @@ const AppContent: React.FC = () => {
         lead_id: leadId,
         date: new Date().toISOString(),
         created_by: profile?.id
-      }).select().single();
+      } as any).select().single();
 
       if (historyData) {
         newHistoryItem = { ...historyData, created_by: profile };
@@ -284,7 +285,7 @@ const AppContent: React.FC = () => {
       date: new Date().toISOString(),
       notes: transferNote,
       created_by: profile?.id
-    }).select().single();
+    } as any).select().single();
 
     const { error: updateError } = await supabase.rpc('transfer_lead', { lead_id: leadId, new_advisor_id: newAdvisorId });
 
@@ -316,7 +317,7 @@ const AppContent: React.FC = () => {
       ...followUp,
       lead_id: leadId,
       created_by: profile?.id
-    }).select().single();
+    } as any).select().single();
 
     if (error) { toastError("Error al guardar."); return; }
 
@@ -369,10 +370,10 @@ const AppContent: React.FC = () => {
     };
 
     if (appointmentIdToEdit) {
-      const { data, error } = await supabase.from('appointments').update(payload).eq('id', appointmentIdToEdit).select().single();
+      const { data, error } = await supabase.from('appointments').update(payload as any).eq('id', appointmentIdToEdit).select().single();
       if (error) { toastError("Error actualizando."); return; } savedAppointment = data; success("Cita actualizada.");
     } else {
-      const { data, error } = await supabase.from('appointments').insert({ ...payload, lead_id: leadId, status: 'scheduled' }).select().single();
+      const { data, error } = await supabase.from('appointments').insert({ ...payload, lead_id: leadId, status: 'scheduled' } as any).select().single();
       if (error) { toastError("Error creando cita."); return; } savedAppointment = data; success("Cita programada.");
     }
 
@@ -406,7 +407,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleUpdateAppointmentStatus = async (leadId: string, appointmentId: string, status: 'completed' | 'canceled') => {
-    const { data, error } = await supabase.from('appointments').update({ status }).eq('id', appointmentId).select().single();
+    const { data, error } = await supabase.from('appointments').update({ status } as any).eq('id', appointmentId).select().single();
     if (error) { toastError("Error actualizando."); return; }
 
     const l = leads.find(l => l.id === leadId);
