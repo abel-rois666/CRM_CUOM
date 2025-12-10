@@ -9,12 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "^1.32.0",
     "@hello-pangea/dnd": "16.6.0",
     "@supabase/supabase-js": "^2.81.1",
     "@tailwindcss/vite": "^4.1.17",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
+    "eslint-config-next": "^16.0.8",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.4",
+    "next": "^16.0.8",
     "papaparse": "5.4.1",
     "react": "^19.2.1",
     "react-big-calendar": "^1.19.4",

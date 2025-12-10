@@ -589,6 +589,7 @@ const AppContent: React.FC = () => {
           onClose={() => setWhatsAppModalOpen(false)}
           lead={selectedLeadForWhatsApp}
           templates={whatsappTemplates}
+          licenciaturas={licenciaturas} // [NEW] Pasamos el catálogo
           initialTemplateId={initialWhatsAppTemplateId}
           onMessageSent={handleMessageSent} // CORRECCIÓN CLAVE
         />
@@ -600,6 +601,7 @@ const AppContent: React.FC = () => {
           onClose={() => setIsEmailModalOpen(false)}
           lead={selectedLeadForEmail}
           templates={emailTemplates}
+          licenciaturas={licenciaturas} // [NEW]
           initialTemplateId={initialEmailTemplateId}
           onMessageSent={handleMessageSent} // CORRECCIÓN CLAVE
         />
