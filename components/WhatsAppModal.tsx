@@ -93,7 +93,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
       setGeneratedLink(null); // Reset link since message changed
     } catch (error) {
       console.error(error);
-      alert("No se pudo generar el mensaje. Verifica que hayas configurado tu API Key en el archivo .env (VITE_GEMINI_API_KEY).");
+      alert("No se pudo generar el mensaje. Verifica que hayas configurado tu API Key en el archivo .env (VITE_OPENROUTER_API_KEY).");
     } finally {
       setIsGenerating(false);
     }

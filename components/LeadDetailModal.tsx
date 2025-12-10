@@ -16,6 +16,8 @@ import TransferLeadModal from './TransferLeadModal';
 import FollowUpFormModal from './FollowUpFormModal';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
 import UserIcon from './icons/UserIcon';
+import SparklesIcon from './icons/SparklesIcon'; // [NEW]
+import { generateLeadSummary } from '../utils/aiAssistant'; // [NEW]
 import ListBulletIcon from './icons/ListBulletIcon';
 import ClockIcon from './icons/ClockIcon';
 import TagIcon from './icons/TagIcon';
@@ -385,10 +387,65 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
         onUpdateLead(lead.id, { [e.target.name]: e.target.value });
     };
 
+    // [NEW] Estados para resumen inteligente
+    const [summary, setSummary] = useState<string | null>(null);
+    const [isSummarizing, setIsSummarizing] = useState(false);
+
+    const handleGenerateSummary = async () => {
+        if (!lead) return;
+        setIsSummarizing(true);
+        try {
+            const text = await generateLeadSummary(lead);
+            setSummary(text);
+        } catch (error) {
+            console.error(error);
+            setSummary("No se pudo generar el resumen.");
+        } finally {
+            setIsSummarizing(false);
+        }
+    };
+
+    if (!lead) return null;
+
     return (
         <>
-            <Modal isOpen={isOpen} onClose={onClose} title="Expediente del Alumno" size="3xl">
-                <div className="flex flex-col h-full min-h-[500px] max-h-[85vh]">
+            <Modal isOpen={isOpen} onClose={onClose} title="Detalle del Lead" size="2xl">
+                <div className="flex flex-col h-[70vh]">
+
+                    {/* [NEW] Sección Resumen IA (Collapsible o fija) */}
+                    <div className="mb-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-3 animate-fade-in">
+                        <div className="flex justify-between items-start gap-3">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-indigo-100 dark:bg-indigo-800 rounded-lg text-indigo-600 dark:text-indigo-300">
+                                    <SparklesIcon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-200">Resumen Inteligente</h4>
+                                    {!summary && <p className="text-xs text-indigo-600/80 dark:text-indigo-400">Analiza el historial completo en un clic.</p>}
+                                </div>
+                            </div>
+                            {!summary && (
+                                <button
+                                    onClick={handleGenerateSummary}
+                                    disabled={isSummarizing}
+                                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                                >
+                                    {isSummarizing ? 'Analizando...' : 'Generar Resumen'}
+                                </button>
+                            )}
+                        </div>
+
+                        {summary && (
+                            <div className="mt-3 pl-1">
+                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic border-l-2 border-indigo-300 pl-3">
+                                    "{summary}"
+                                </p>
+                                <div className="mt-2 flex justify-end">
+                                    <button onClick={() => setSummary(null)} className="text-xs text-indigo-500 hover:underline">Ocultar</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Header del Expediente */}
                     <div className="flex flex-col sm:flex-row items-center gap-4 mb-4 pb-4 border-b border-gray-100 dark:border-slate-700 flex-shrink-0">
@@ -733,51 +790,57 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                 confirmButtonVariant="danger"
             />
 
-            {isAppointmentModalOpen && (
-                <AppointmentFormModal
-                    isOpen={isAppointmentModalOpen}
-                    onClose={() => setAppointmentModalOpen(false)}
-                    lead={lead}
-                    appointment={activeAppointment}
-                    existingAppointments={lead.appointments || []}
-                    canDelete={isAdmin}
-                    onSave={(data) => onSaveAppointment(lead.id, data, activeAppointment?.id)}
-                    onDelete={() => {
-                        if (activeAppointment) {
-                            onDeleteAppointment(lead.id, activeAppointment.id);
-                            setAppointmentModalOpen(false);
-                        }
-                    }}
-                />
-            )}
+            {
+                isAppointmentModalOpen && (
+                    <AppointmentFormModal
+                        isOpen={isAppointmentModalOpen}
+                        onClose={() => setAppointmentModalOpen(false)}
+                        lead={lead}
+                        appointment={activeAppointment}
+                        existingAppointments={lead.appointments || []}
+                        canDelete={isAdmin}
+                        onSave={(data) => onSaveAppointment(lead.id, data, activeAppointment?.id)}
+                        onDelete={() => {
+                            if (activeAppointment) {
+                                onDeleteAppointment(lead.id, activeAppointment.id);
+                                setAppointmentModalOpen(false);
+                            }
+                        }}
+                    />
+                )
+            }
 
-            {isFollowUpModalOpen && (
-                <FollowUpFormModal
-                    isOpen={isFollowUpModalOpen}
-                    onClose={() => setFollowUpModalOpen(false)}
-                    onSave={(data) => {
-                        const [year, month, day] = data.date.split('-').map(Number);
-                        const localDate = new Date(year, month - 1, day);
-                        localDate.setHours(12, 0, 0, 0);
+            {
+                isFollowUpModalOpen && (
+                    <FollowUpFormModal
+                        isOpen={isFollowUpModalOpen}
+                        onClose={() => setFollowUpModalOpen(false)}
+                        onSave={(data) => {
+                            const [year, month, day] = data.date.split('-').map(Number);
+                            const localDate = new Date(year, month - 1, day);
+                            localDate.setHours(12, 0, 0, 0);
 
-                        onAddFollowUp(lead.id, {
-                            date: localDate.toISOString(),
-                            notes: data.notes
-                        });
-                        setFollowUpModalOpen(false);
-                    }}
-                />
-            )}
+                            onAddFollowUp(lead.id, {
+                                date: localDate.toISOString(),
+                                notes: data.notes
+                            });
+                            setFollowUpModalOpen(false);
+                        }}
+                    />
+                )
+            }
 
-            {isTransferModalOpen && (
-                <TransferLeadModal
-                    isOpen={isTransferModalOpen}
-                    onClose={() => setTransferModalOpen(false)}
-                    onTransfer={(newAdvisorId, reason) => onTransferLead(lead.id, newAdvisorId, reason)}
-                    advisors={advisors}
-                    currentAdvisorId={lead.advisor_id}
-                />
-            )}
+            {
+                isTransferModalOpen && (
+                    <TransferLeadModal
+                        isOpen={isTransferModalOpen}
+                        onClose={() => setTransferModalOpen(false)}
+                        onTransfer={(newAdvisorId, reason) => onTransferLead(lead.id, newAdvisorId, reason)}
+                        advisors={advisors}
+                        currentAdvisorId={lead.advisor_id}
+                    />
+                )
+            }
         </>
     );
 };

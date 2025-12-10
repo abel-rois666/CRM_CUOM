@@ -68,3 +68,60 @@ export const generateMessage = async (lead: Lead, context: string, type: 'whatsa
         throw error;
     }
 };
+
+// [NEW] Función para Resumen Inteligente
+export const generateLeadSummary = async (lead: Lead): Promise<string> => {
+    if (!API_KEY) throw new Error('Falta API Key');
+
+    // 1. Historial de Notas
+    const notesHistory = lead.follow_ups && lead.follow_ups.length > 0
+        ? lead.follow_ups.map(f => `- ${new Date(f.created_at).toLocaleDateString()}: ${f.notes}`).join('\n')
+        : 'Sin historial de notas.';
+
+    // 2. Historial de Citas (Nuevo)
+    const appointmentsHistory = lead.appointments && lead.appointments.length > 0
+        ? lead.appointments.map(a => `- ${new Date(a.date).toLocaleDateString()} (${a.status}): ${a.title}`).join('\n')
+        : 'Sin citas registradas.';
+
+    const systemPrompt = `
+    Eres un asistente analítico de CRM universitario.
+    Tu objetivo es leer el historial COMPLETO (notas y citas) de un prospecto y generar un RESUMEN EJECUTIVO MUY BREVE (máximo 3 líneas).
+    
+    Datos del prospecto:
+    - Nombre: ${lead.first_name} ${lead.paternal_last_name}
+    - Programa ID: ${lead.program_id}
+    
+    Historial de Notas:
+    ${notesHistory}
+    
+    Historial de Citas:
+    ${appointmentsHistory}
+    
+    Instrucciones:
+    1. Integra la información de citas y notas. Si falló a una cita, es CRÍTICO mencionarlo. Si ya tiene cita agendada, menciónalo.
+    2. Identifica el nivel de interés real.
+    3. Menciona el bloqueo principal o siguiente paso.
+    4. Sé directo. Ejemplo: "Faltó a su cita de ayer. Dice tener problemas de transporte. Interés medio, reagendar para la próxima semana."
+    `;
+
+    try {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                "model": "meta-llama/llama-3.3-70b-instruct:free",
+                "messages": [{ "role": "system", "content": systemPrompt }]
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message || 'Error en OpenRouter');
+        return data.choices[0]?.message?.content || "No se pudo generar el resumen.";
+    } catch (error) {
+        console.error('Error generating summary:', error);
+        return "Error al generar resumen.";
+    }
+};
