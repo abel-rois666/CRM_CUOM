@@ -75,6 +75,7 @@ const AppContent: React.FC = () => {
   const [selectedLeadForWhatsApp, setSelectedLeadForWhatsApp] = useState<Lead | null>(null);
   const [selectedLeadForEmail, setSelectedLeadForEmail] = useState<Lead | null>(null);
   const [automationLead, setAutomationLead] = useState<Lead | null>(null);
+  const [lastUpdatedLead, setLastUpdatedLead] = useState<Lead | null>(null); // [NEW] Sync State
 
   const [initialEmailTemplateId, setInitialEmailTemplateId] = useState<string | undefined>(undefined);
   const [initialWhatsAppTemplateId, setInitialWhatsAppTemplateId] = useState<string | undefined>(undefined);
@@ -271,6 +272,8 @@ const AppContent: React.FC = () => {
       setSelectedLead(updatedLeadComplete as Lead);
     }
 
+    setLastUpdatedLead(updatedLeadComplete as Lead);
+
     if (updates.status_id) checkAndTriggerAutomation(updates.status_id, updatedLeadComplete as Lead);
   };
 
@@ -465,6 +468,7 @@ const AppContent: React.FC = () => {
           advisors={assignableStaff}
           statuses={statuses}
           licenciaturas={licenciaturas}
+          sources={sources}
           whatsappTemplates={whatsappTemplates}
           emailTemplates={emailTemplates}
 
@@ -490,6 +494,7 @@ const AppContent: React.FC = () => {
           onRefresh={refetch}
           onLocalDeleteMany={removeManyLocalLeads}
           metrics={dashboardMetrics} // <--- PASSING THE METRICS
+          lastUpdatedLead={lastUpdatedLead} // [NEW] Pass sync lead
         />
       </main>
 
@@ -535,6 +540,16 @@ const AppContent: React.FC = () => {
             onTransferLead={handleTransferLead}
             currentUser={profile}
             initialTab={detailInitialTab}
+            onOpenWhatsApp={(lead) => {
+              setSelectedLeadForWhatsApp(lead);
+              setInitialWhatsAppTemplateId(undefined);
+              setWhatsAppModalOpen(true);
+            }}
+            onOpenEmail={(lead) => {
+              setSelectedLeadForEmail(lead);
+              setInitialEmailTemplateId(undefined);
+              setIsEmailModalOpen(true);
+            }}
           />
         )}
 
@@ -610,13 +625,19 @@ const AppContent: React.FC = () => {
   );
 };
 
+import { ConfigProvider } from './context/ConfigContext';
+
+// ... imports
+
 const App: React.FC = () => (
   <AuthProvider>
-    <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
-    </ThemeProvider>
+    <ConfigProvider>
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </ThemeProvider>
+    </ConfigProvider>
   </AuthProvider>
 );
 

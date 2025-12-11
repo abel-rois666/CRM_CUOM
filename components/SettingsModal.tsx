@@ -1,7 +1,7 @@
 // components/SettingsModal.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Input, Select, TextArea } from './common/FormElements';
-import { createClient } from '@supabase/supabase-js'; 
+import { createClient } from '@supabase/supabase-js';
 import { Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, StatusCategory } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
@@ -21,37 +21,38 @@ import { useToast } from '../context/ToastContext';
 import EnvelopeIcon from './icons/EnvelopeIcon';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
+import CameraIcon from './icons/CameraIcon';
 
 interface SettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  profiles: Profile[];
-  statuses: Status[];
-  sources: Source[];
-  licenciaturas: Licenciatura[];
-  whatsappTemplates: WhatsAppTemplate[];
-  emailTemplates: EmailTemplate[];
-  currentUserProfile: Profile | null;
-  onProfilesUpdate: (profiles: Profile[]) => void;
-  onStatusesUpdate: (statuses: Status[]) => void;
-  onSourcesUpdate: (sources: Source[]) => void;
-  onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void;
-  onWhatsappTemplatesUpdate: (templates: WhatsAppTemplate[]) => void;
-  onEmailTemplatesUpdate: (templates: EmailTemplate[]) => void;
+    isOpen: boolean;
+    onClose: () => void;
+    profiles: Profile[];
+    statuses: Status[];
+    sources: Source[];
+    licenciaturas: Licenciatura[];
+    whatsappTemplates: WhatsAppTemplate[];
+    emailTemplates: EmailTemplate[];
+    currentUserProfile: Profile | null;
+    onProfilesUpdate: (profiles: Profile[]) => void;
+    onStatusesUpdate: (statuses: Status[]) => void;
+    onSourcesUpdate: (sources: Source[]) => void;
+    onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void;
+    onWhatsappTemplatesUpdate: (templates: WhatsAppTemplate[]) => void;
+    onEmailTemplatesUpdate: (templates: EmailTemplate[]) => void;
 }
 
 const colors = [
-  'bg-slate-500', 'bg-gray-500', 'bg-zinc-500', 'bg-neutral-500', 'bg-stone-500',
-  'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-500', 'bg-lime-500',
-  'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-sky-500',
-  'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500',
-  'bg-pink-500', 'bg-rose-500'
+    'bg-slate-500', 'bg-gray-500', 'bg-zinc-500', 'bg-neutral-500', 'bg-stone-500',
+    'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-500', 'bg-lime-500',
+    'bg-green-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-sky-500',
+    'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500',
+    'bg-pink-500', 'bg-rose-500'
 ];
 
 interface UserSettingsProps {
-  profiles: Profile[];
-  onProfilesUpdate: (profiles: Profile[]) => void;
-  currentUserProfile: Profile | null;
+    profiles: Profile[];
+    onProfilesUpdate: (profiles: Profile[]) => void;
+    currentUserProfile: Profile | null;
 }
 
 const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate, currentUserProfile }) => {
@@ -77,7 +78,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             {
                 auth: {
                     autoRefreshToken: false,
-                    persistSession: false, 
+                    persistSession: false,
                     detectSessionInUrl: false
                 }
             }
@@ -87,7 +88,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             email,
             password,
         });
-        
+
         if (signUpError) {
             toastError(signUpError.message);
             setLoading(false);
@@ -100,21 +101,21 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             return;
         }
 
-        const { error: profileError } = await supabase.rpc('create_user_profile', {
+        const { error: profileError } = await (supabase as any).rpc('create_user_profile', {
             user_id: newUser.id,
             full_name: fullName,
             user_email: newUser.email!,
             user_role: role
         });
-        
+
         if (profileError) {
             toastError(`Usuario Auth creado, pero error en perfil: ${profileError.message}`);
             setLoading(false);
             return;
         }
-        
+
         success(`Usuario ${email} creado con éxito`);
-        
+
         const newProfile: Profile = {
             id: newUser.id,
             full_name: fullName,
@@ -123,7 +124,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         };
 
         onProfilesUpdate([...profiles, newProfile]);
-        
+
         setFullName('');
         setEmail('');
         setPassword('');
@@ -132,7 +133,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
     };
 
     const handleUpdateUser = async (userId: string, updates: { fullName: string; role: 'admin' | 'advisor' | 'moderator'; newPassword?: string }) => {
-        const { error } = await supabase.rpc('update_user_details', {
+        const { error } = await (supabase.rpc as any)('update_user_details', {
             user_id_to_update: userId,
             new_full_name: updates.fullName,
             new_role: updates.role,
@@ -150,26 +151,21 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         }
     };
 
-    const handleDeleteUser = async () => {
-        if (!userToDelete) return;
-
-        const { error } = await supabase.rpc('delete_user_by_id', {
-            user_id_to_delete: userToDelete.id
-        });
-
-        if (error) {
-            console.error("Error deleting user:", error);
-            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            toastError(`Error al eliminar: ${errorMessage}`);
-        } else {
-            onProfilesUpdate(profiles.filter(p => p.id !== userToDelete.id));
-            success(`Usuario eliminado correctamente`);
-            setUserToDelete(null);
+    const handleDeleteUser = async (userId: string) => {
+        try {
+            const { error } = await (supabase.rpc as any)('delete_user_by_id', { user_id_to_delete: userId });
+            if (error) throw error;
+            success('Usuario eliminado');
+            onProfilesUpdate(profiles.filter(p => p.id !== userId)); // Refresh profiles
+            setUserToDelete(null); // Close confirmation modal
+        } catch (error: any) {
+            console.error('Error deleting user:', error);
+            toastError(error.message || 'Error al eliminar usuario');
         }
     };
 
     const getRoleLabel = (r: string) => {
-        switch(r) {
+        switch (r) {
             case 'admin': return 'Administrador';
             case 'moderator': return 'Coordinador';
             default: return 'Asesor';
@@ -177,7 +173,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
     };
 
     const getRoleColor = (r: string) => {
-        switch(r) {
+        switch (r) {
             case 'admin': return 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200 dark:border-indigo-800';
             case 'moderator': return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-800';
             default: return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800';
@@ -187,17 +183,17 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Usuarios</h3>
-            
+
             <form onSubmit={handleCreateUser} className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 space-y-4 shadow-sm">
                 <h4 className="font-semibold text-gray-700 dark:text-gray-300">Crear Nuevo Usuario</h4>
-                
+
                 <Input label="Nombre Completo" value={fullName} onChange={e => setFullName(e.target.value)} required />
                 <Input label="Correo Electrónico" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
                 <Input label="Contraseña Inicial" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres" />
-                
-                <Select 
-                    label="Rol" 
-                    value={role} 
+
+                <Select
+                    label="Rol"
+                    value={role}
                     onChange={e => setRole(e.target.value as any)}
                     options={[
                         { value: 'advisor', label: 'Asesor (Acceso limitado)' },
@@ -213,7 +209,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
                 </div>
             </form>
 
-            <hr className="my-4 border-gray-200 dark:border-slate-700"/>
+            <hr className="my-4 border-gray-200 dark:border-slate-700" />
 
             <h4 className="font-semibold text-gray-700 dark:text-gray-300">Usuarios Actuales</h4>
             <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
@@ -227,11 +223,11 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
                             <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${getRoleColor(profile.role)}`}>
                                 {getRoleLabel(profile.role)}
                             </span>
-                             <Button variant="ghost" size="sm" onClick={() => setUserToEdit(profile)} aria-label={`Editar ${profile.full_name}`}>
-                                <EditIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-brand-secondary"/>
+                            <Button variant="ghost" size="sm" onClick={() => setUserToEdit(profile)} aria-label={`Editar ${profile.full_name}`}>
+                                <EditIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-brand-secondary" />
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => setUserToDelete(profile)} disabled={profile.id === currentUserProfile?.id} aria-label={`Eliminar ${profile.full_name}`}>
-                                <TrashIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-500 disabled:text-gray-300"/>
+                                <TrashIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-500 disabled:text-gray-300" />
                             </Button>
                         </div>
                     </li>
@@ -244,14 +240,14 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
                     onClose={() => setUserToEdit(null)}
                     user={userToEdit}
                     // @ts-ignore
-                    onSave={handleUpdateUser} 
+                    onSave={handleUpdateUser}
                 />
             )}
             {userToDelete && (
                 <ConfirmationModal
                     isOpen={!!userToDelete}
                     onClose={() => setUserToDelete(null)}
-                    onConfirm={handleDeleteUser}
+                    onConfirm={() => handleDeleteUser(userToDelete.id)}
                     title="Confirmar Eliminación"
                     message={<>¿Estás seguro de que quieres eliminar a <strong>{userToDelete.full_name}</strong>? Esta acción es irreversible.</>}
                     confirmButtonText="Sí, Eliminar"
@@ -269,14 +265,14 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     const [seeding, setSeeding] = useState(false);
     const [statusToDelete, setStatusToDelete] = useState<Status | null>(null);
     const [statusToEdit, setStatusToEdit] = useState<Status | null>(null);
-    
+
     const { success, error: toastError } = useToast();
 
     const activeStatuses = useMemo(() => statuses.filter(s => !s.category || s.category === 'active'), [statuses]);
     const wonStatuses = useMemo(() => statuses.filter(s => s.category === 'won'), [statuses]);
     const lostStatuses = useMemo(() => statuses.filter(s => s.category === 'lost'), [statuses]);
 
-    const recommendedStatuses: {name: string, color: string, category: StatusCategory}[] = [
+    const recommendedStatuses: { name: string, color: string, category: StatusCategory }[] = [
         { name: 'Primer Contacto (Respuesta Pendiente)', color: 'bg-yellow-500', category: 'active' },
         { name: 'En Seguimiento', color: 'bg-sky-500', category: 'active' },
         { name: 'Cita en Negociación', color: 'bg-cyan-500', category: 'active' },
@@ -297,24 +293,24 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 
     const handleSeedStatuses = async () => {
         setSeeding(true);
-        
+
         const existingStatusNames = new Set(statuses.map(s => s.name.toLowerCase()));
-        
+
         const newStatusesToInsert = recommendedStatuses.filter(
             rec => !existingStatusNames.has(rec.name.toLowerCase())
         );
-    
+
         if (newStatusesToInsert.length === 0) {
             success('Todos los estados recomendados ya existen.');
             setSeeding(false);
             return;
         }
-        
-        const { data: insertedData, error } = await supabase
+
+        const { data: insertedData, error } = await (supabase as any)
             .from('statuses')
             .insert(newStatusesToInsert)
             .select();
-    
+
         if (error) {
             console.error('Error seeding statuses:', error);
             toastError(`Error: ${error.message}`);
@@ -322,29 +318,29 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
             onStatusesUpdate([...statuses, ...insertedData]);
             success(`¡Se añadieron ${insertedData.length} nuevos estados!`);
         }
-        
+
         setSeeding(false);
     };
 
     const handleSave = async () => {
-        if(!name.trim()) return;
+        if (!name.trim()) return;
 
         if (statusToEdit) {
-             const { data, error } = await supabase.from('statuses').update({ name: name.trim(), color, category }).eq('id', statusToEdit.id).select().single();
-            if(error) { 
-                console.error(error); 
+            const { data, error } = await (supabase as any).from('statuses').update({ name: name.trim(), color, category }).eq('id', statusToEdit.id).select().single();
+            if (error) {
+                console.error(error);
                 toastError("Error al actualizar estado");
-                return; 
+                return;
             }
             onStatusesUpdate(statuses.map(s => s.id === statusToEdit.id ? data : s));
             success("Estado actualizado");
             setStatusToEdit(null);
         } else {
-            const { data, error } = await supabase.from('statuses').insert({ name: name.trim(), color, category }).select().single();
-            if(error) { 
-                console.error(error); 
+            const { data, error } = await (supabase as any).from('statuses').insert({ name: name.trim(), color, category }).select().single();
+            if (error) {
+                console.error(error);
                 toastError("Error al crear estado");
-                return; 
+                return;
             }
             onStatusesUpdate([...statuses, data]);
             success("Estado creado");
@@ -352,14 +348,14 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         setName('');
         setCategory('active');
     }
-    
+
     const handleEditClick = (status: Status) => {
         setStatusToEdit(status);
         setName(status.name);
         setColor(status.color);
-        setCategory(status.category || 'active'); 
+        setCategory(status.category || 'active');
     };
-    
+
     const handleVerifyAndDelete = async (status: Status) => {
         const { count, error: checkError } = await supabase
             .from('leads')
@@ -382,13 +378,13 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
         if (!statusToDelete) return;
 
         const { error } = await supabase.from('statuses').delete().eq('id', statusToDelete.id);
-        if(error) { 
-             if (error.code === '23503') {
+        if (error) {
+            if (error.code === '23503') {
                 toastError(`No se puede eliminar "${statusToDelete.name}" porque está en uso.`);
             } else {
                 toastError(`Error al eliminar estado: ${error.message}`);
             }
-            console.error(error); 
+            console.error(error);
         } else {
             onStatusesUpdate(statuses.filter(s => s.id !== statusToDelete.id));
             success("Estado eliminado");
@@ -397,14 +393,14 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
     }
 
     const getCategoryLabel = (cat: StatusCategory) => {
-        switch(cat) {
+        switch (cat) {
             case 'won': return 'Inscritos (Ganados)';
             case 'lost': return 'Bajas (Perdidos)';
             default: return 'En Proceso (Activos)';
         }
     };
 
-const StatusListGroup = ({ title, list, titleColor }: { title: string, list: Status[], titleColor: string }) => (
+    const StatusListGroup = ({ title, list, titleColor }: { title: string, list: Status[], titleColor: string }) => (
         <div className="mb-6">
             <h5 className={`text-xs font-bold uppercase tracking-wider mb-3 pb-1 border-b border-gray-100 dark:border-slate-700 ${titleColor}`}>
                 {title} ({list.length})
@@ -454,11 +450,11 @@ const StatusListGroup = ({ title, list, titleColor }: { title: string, list: Sta
                 </h4>
 
                 <div className="grid grid-cols-1 gap-4">
-                    <Input 
-                        label="Nombre del Estado" 
-                        value={name} 
-                        onChange={e => setName(e.target.value)} 
-                        placeholder="Ej: Interesado" 
+                    <Input
+                        label="Nombre del Estado"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="Ej: Interesado"
                     />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -498,7 +494,7 @@ const StatusListGroup = ({ title, list, titleColor }: { title: string, list: Sta
                     </div>
                 </div>
             </div>
-                        
+
             <div className="mt-8 pt-4 border-t border-gray-100 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                 <StatusListGroup title="En Proceso (Activos)" list={activeStatuses} titleColor="text-brand-secondary" />
                 <StatusListGroup title="Inscritos (Ganados)" list={wonStatuses} titleColor="text-green-600" />
@@ -531,20 +527,20 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
 
     const handleAdd = async () => {
         if (name.trim()) {
-            const { data, error } = await supabase.from('sources').insert({ name: name.trim() }).select().single();
-            if(error) { 
-                console.error(error); 
+            const { data, error } = await (supabase as any).from('sources').insert({ name: name.trim() }).select().single();
+            if (error) {
+                console.error(error);
                 toastError("Error al crear origen");
-                return; 
+                return;
             }
             onSourcesUpdate([...sources, data]);
             success("Origen creado");
             setName('');
         }
     };
-    
+
     const handleVerifyAndDelete = async (source: Source) => {
-         const { count, error: checkError } = await supabase
+        const { count, error: checkError } = await supabase
             .from('leads')
             .select('id', { count: 'exact', head: true })
             .eq('source_id', source.id);
@@ -563,13 +559,13 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
         if (!sourceToDelete) return;
 
         const { error } = await supabase.from('sources').delete().eq('id', sourceToDelete.id);
-        if(error) { 
+        if (error) {
             if (error.code === '23503') {
                 toastError(`No se puede eliminar "${sourceToDelete.name}" porque está en uso.`);
             } else {
                 toastError(`Error al eliminar origen: ${error.message}`);
             }
-            console.error(error); 
+            console.error(error);
         } else {
             onSourcesUpdate(sources.filter(s => s.id !== sourceToDelete.id));
             success("Origen eliminado");
@@ -584,16 +580,16 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
                 <h4 className="font-semibold text-gray-700 dark:text-gray-300">Añadir Nuevo Origen</h4>
                 <div className="flex gap-2 items-end">
                     <Input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre del Origen" />
-                    <Button onClick={handleAdd} leftIcon={<PlusIcon className="w-4 h-4"/>}>Añadir</Button>
+                    <Button onClick={handleAdd} leftIcon={<PlusIcon className="w-4 h-4" />}>Añadir</Button>
                 </div>
-                <hr className="my-4 border-gray-200 dark:border-slate-700"/>
+                <hr className="my-4 border-gray-200 dark:border-slate-700" />
                 <h4 className="font-semibold text-gray-700 dark:text-gray-300">Orígenes Actuales</h4>
                 <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
                     {sources.map(source => (
                         <li key={source.id} className="flex justify-between items-center bg-gray-50 dark:bg-slate-800 p-2 rounded-md">
                             <span className="text-gray-800 dark:text-gray-200">{source.name}</span>
                             <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(source)}>
-                                <TrashIcon className="w-4 h-4 text-red-500"/>
+                                <TrashIcon className="w-4 h-4 text-red-500" />
                             </Button>
                         </li>
                     ))}
@@ -632,7 +628,7 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
 
         if (licenciaturaToEdit) {
             // ACTUALIZAR
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('licenciaturas')
                 .update({ name: name.trim() })
                 .eq('id', licenciaturaToEdit.id)
@@ -650,11 +646,11 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
             }
         } else {
             // CREAR (Lógica original)
-            const { data, error } = await supabase.from('licenciaturas').insert({ name: name.trim() }).select().single();
-            if (error) { 
-                console.error(error); 
+            const { data, error } = await (supabase as any).from('licenciaturas').insert({ name: name.trim() }).select().single();
+            if (error) {
+                console.error(error);
                 toastError("Error al crear oferta académica");
-                return; 
+                return;
             }
             onLicenciaturasUpdate([...licenciaturas, data]);
             success("Oferta académica creada");
@@ -671,7 +667,7 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
         setLicenciaturaToEdit(null);
         setName('');
     };
-    
+
     const handleVerifyAndDelete = async (lic: Licenciatura) => {
         const { count, error: checkError } = await supabase
             .from('leads')
@@ -692,13 +688,13 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
         if (!licenciaturaToDelete) return;
 
         const { error } = await supabase.from('licenciaturas').delete().eq('id', licenciaturaToDelete.id);
-        if(error) { 
+        if (error) {
             if (error.code === '23503') {
                 toastError(`No se puede eliminar "${licenciaturaToDelete.name}" porque está en uso.`);
             } else {
                 toastError(`Error al eliminar oferta académica: ${error.message}`);
             }
-            console.error(error); 
+            console.error(error);
         } else {
             onLicenciaturasUpdate(licenciaturas.filter(s => s.id !== licenciaturaToDelete.id));
             success("Oferta académica eliminada");
@@ -707,80 +703,80 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
     };
 
     return (
-            <div className="space-y-4">
-                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Oferta Académica</h3>
-                
-                <div className={`space-y-4 border p-5 rounded-2xl shadow-sm transition-colors ${licenciaturaToEdit ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700'}`}>
-                    <h4 className={`font-semibold ${licenciaturaToEdit ? 'text-blue-800 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                        {licenciaturaToEdit ? `Editando: ${licenciaturaToEdit.name}` : 'Añadir Nueva Oferta Académica'}
-                    </h4>
-                    
-                    <div className="flex flex-col sm:flex-row gap-3 items-end">
-                        <div className="flex-grow w-full">
-                            <Input 
-                                value={name} 
-                                onChange={e => setName(e.target.value)} 
-                                placeholder="Nombre de la Licenciatura / Programa" 
-                            />
-                        </div>
-                        
-                        <div className="flex gap-2 w-full sm:w-auto">
-                            {licenciaturaToEdit && (
-                                <Button variant="ghost" onClick={handleCancelEdit}>Cancelar</Button>
-                            )}
-                            <Button 
-                                onClick={handleSave} 
-                                size="sm" 
-                                leftIcon={!licenciaturaToEdit ? <PlusIcon className="w-4 h-4"/> : undefined}
-                                className={licenciaturaToEdit ? "shadow-blue-200" : ""}
-                            >
-                                {licenciaturaToEdit ? 'Actualizar' : 'Añadir Oferta'}
-                            </Button>
-                        </div>
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Oferta Académica</h3>
+
+            <div className={`space-y-4 border p-5 rounded-2xl shadow-sm transition-colors ${licenciaturaToEdit ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700'}`}>
+                <h4 className={`font-semibold ${licenciaturaToEdit ? 'text-blue-800 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                    {licenciaturaToEdit ? `Editando: ${licenciaturaToEdit.name}` : 'Añadir Nueva Oferta Académica'}
+                </h4>
+
+                <div className="flex flex-col sm:flex-row gap-3 items-end">
+                    <div className="flex-grow w-full">
+                        <Input
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            placeholder="Nombre de la Licenciatura / Programa"
+                        />
+                    </div>
+
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        {licenciaturaToEdit && (
+                            <Button variant="ghost" onClick={handleCancelEdit}>Cancelar</Button>
+                        )}
+                        <Button
+                            onClick={handleSave}
+                            size="sm"
+                            leftIcon={!licenciaturaToEdit ? <PlusIcon className="w-4 h-4" /> : undefined}
+                            className={licenciaturaToEdit ? "shadow-blue-200" : ""}
+                        >
+                            {licenciaturaToEdit ? 'Actualizar' : 'Añadir Oferta'}
+                        </Button>
                     </div>
                 </div>
-
-                <hr className="my-6 border-gray-100 dark:border-slate-700"/>
-                
-                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Oferta Académica Actual</h4>
-                <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                    {licenciaturas.map(lic => (
-                        <li key={lic.id} className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm hover:border-brand-secondary/30 transition-colors">
-                            <span className="font-medium text-gray-700 dark:text-gray-200">{lic.name}</span>
-                            <div className="flex gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => handleEditClick(lic)} title="Editar Nombre">
-                                    <EditIcon className="w-4 h-4 text-blue-500"/>
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(lic)} title="Eliminar">
-                                    <TrashIcon className="w-4 h-4 text-red-500"/>
-                                </Button>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-                <ConfirmationModal
-                    isOpen={!!licenciaturaToDelete}
-                    onClose={() => setLicenciaturaToDelete(null)}
-                    onConfirm={handleConfirmDelete}
-                    title="¿Eliminar Oferta Académica?"
-                    message={
-                        <>
-                            Se eliminará <strong>{licenciaturaToDelete?.name}</strong> del catálogo.
-                            <br /><br />
-                            <span className="text-red-600 font-bold">Esta acción es permanente.</span>
-                        </>
-                    }
-                    confirmButtonText="Eliminar"
-                    confirmButtonVariant="danger"
-                />
             </div>
-        );
+
+            <hr className="my-6 border-gray-100 dark:border-slate-700" />
+
+            <h4 className="font-semibold text-gray-700 dark:text-gray-300">Oferta Académica Actual</h4>
+            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {licenciaturas.map(lic => (
+                    <li key={lic.id} className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm hover:border-brand-secondary/30 transition-colors">
+                        <span className="font-medium text-gray-700 dark:text-gray-200">{lic.name}</span>
+                        <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(lic)} title="Editar Nombre">
+                                <EditIcon className="w-4 h-4 text-blue-500" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(lic)} title="Eliminar">
+                                <TrashIcon className="w-4 h-4 text-red-500" />
+                            </Button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+            <ConfirmationModal
+                isOpen={!!licenciaturaToDelete}
+                onClose={() => setLicenciaturaToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="¿Eliminar Oferta Académica?"
+                message={
+                    <>
+                        Se eliminará <strong>{licenciaturaToDelete?.name}</strong> del catálogo.
+                        <br /><br />
+                        <span className="text-red-600 font-bold">Esta acción es permanente.</span>
+                    </>
+                }
+                confirmButtonText="Eliminar"
+                confirmButtonVariant="danger"
+            />
+        </div>
+    );
 }
 
-const WhatsappTemplateSettings: React.FC<{ 
-    templates: WhatsAppTemplate[], 
+const WhatsappTemplateSettings: React.FC<{
+    templates: WhatsAppTemplate[],
     onTemplatesUpdate: (t: WhatsAppTemplate[]) => void,
-    userProfile: Profile | null 
+    userProfile: Profile | null
 }> = ({ templates, onTemplatesUpdate, userProfile }) => {
     const [name, setName] = useState('');
     const [content, setContent] = useState('');
@@ -801,9 +797,9 @@ const WhatsappTemplateSettings: React.FC<{
         const toInsert = newTemplates.filter(t => !currentNames.has(t.name));
 
         if (toInsert.length === 0) {
-             success("Ya tienes las plantillas recomendadas.");
-             setSaving(false);
-             return;
+            success("Ya tienes las plantillas recomendadas.");
+            setSaving(false);
+            return;
         }
 
         if (templates.length + toInsert.length > 5) {
@@ -812,7 +808,7 @@ const WhatsappTemplateSettings: React.FC<{
             return;
         }
 
-        const { data, error } = await supabase.from('whatsapp_templates').insert(toInsert).select();
+        const { data, error } = await (supabase as any).from('whatsapp_templates').insert(toInsert).select();
         if (error) {
             toastError("Error al crear plantillas: " + error.message);
         } else if (data) {
@@ -827,13 +823,13 @@ const WhatsappTemplateSettings: React.FC<{
         setSaving(true);
 
         if (editingId) {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('whatsapp_templates')
                 .update({ name: name.trim(), content: content.trim() })
                 .eq('id', editingId)
                 .select()
                 .single();
-            
+
             if (error) {
                 console.error('Error updating template:', error);
                 toastError('Error al actualizar la plantilla.');
@@ -851,14 +847,14 @@ const WhatsappTemplateSettings: React.FC<{
                 setSaving(false);
                 return;
             }
-            
-            const { data, error } = await supabase
+
+            const { data, error } = await (supabase as any)
                 .from('whatsapp_templates')
                 .insert({ name: name.trim(), content: content.trim() })
                 .select()
                 .single();
-            
-             if (error) {
+
+            if (error) {
                 console.error('Error creating template:', error);
                 toastError('Error al crear la plantilla.');
             } else if (data) {
@@ -889,11 +885,11 @@ const WhatsappTemplateSettings: React.FC<{
 
     const handleConfirmDelete = async () => {
         if (!templateToDelete) return;
-        
+
         const { error } = await supabase.from('whatsapp_templates').delete().eq('id', templateToDelete.id);
         if (error) {
-             console.error('Error deleting template:', error);
-             toastError('Error al eliminar la plantilla.');
+            console.error('Error deleting template:', error);
+            toastError('Error al eliminar la plantilla.');
         } else {
             onTemplatesUpdate(templates.filter(t => t.id !== templateToDelete.id));
             success("Plantilla eliminada");
@@ -904,22 +900,22 @@ const WhatsappTemplateSettings: React.FC<{
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Plantillas de WhatsApp</h3>
-            
+
             <div className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 shadow-sm">
                 <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
                 <div className="space-y-4">
-                    <Input 
-                        label="Nombre de la Plantilla" 
-                        value={name} 
-                        onChange={e => setName(e.target.value)} 
-                        placeholder="Ej: Saludo Inicial" 
+                    <Input
+                        label="Nombre de la Plantilla"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="Ej: Saludo Inicial"
                     />
-                    <TextArea 
-                        label="Contenido del Mensaje" 
-                        value={content} 
-                        onChange={e => setContent(e.target.value)} 
-                        placeholder="Hola, te contacto para..." 
-                        rows={3} 
+                    <TextArea
+                        label="Contenido del Mensaje"
+                        value={content}
+                        onChange={e => setContent(e.target.value)}
+                        placeholder="Hola, te contacto para..."
+                        rows={3}
                     />
                     <div className="flex justify-end gap-2 pt-2">
                         {editingId && (
@@ -934,8 +930,8 @@ const WhatsappTemplateSettings: React.FC<{
                 </div>
             </div>
 
-            <hr className="my-6 border-gray-100 dark:border-slate-700"/>
-            
+            <hr className="my-6 border-gray-100 dark:border-slate-700" />
+
             <h4 className="font-semibold text-gray-700 dark:text-gray-300">Plantillas Guardadas ({templates.length}/5)</h4>
             <div className="space-y-3">
                 {templates.map(t => (
@@ -944,11 +940,11 @@ const WhatsappTemplateSettings: React.FC<{
                             <h5 className="font-bold text-gray-800 dark:text-white text-sm">{t.name}</h5>
                             <div className="flex gap-1">
                                 <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
-                                    <EditIcon className="w-4 h-4"/>
+                                    <EditIcon className="w-4 h-4" />
                                 </button>
                                 {(userProfile?.role === 'admin' || userProfile?.role === 'moderator' || userProfile?.role === 'advisor') && (
                                     <button onClick={() => handleDeleteClick(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
-                                        <TrashIcon className="w-4 h-4"/>
+                                        <TrashIcon className="w-4 h-4" />
                                     </button>
                                 )}
                             </div>
@@ -959,23 +955,23 @@ const WhatsappTemplateSettings: React.FC<{
                 {templates.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400 italic">No hay plantillas configuradas.</p>}
             </div>
 
-            <ConfirmationModal 
-                isOpen={!!templateToDelete} 
-                onClose={() => setTemplateToDelete(null)} 
-                onConfirm={handleConfirmDelete} 
-                title="Eliminar Plantilla" 
-                message={`¿Estás seguro de que quieres eliminar la plantilla "${templateToDelete?.name}"? Esta acción no se puede deshacer.`} 
-                confirmButtonText="Sí, Eliminar" 
-                confirmButtonVariant="danger" 
+            <ConfirmationModal
+                isOpen={!!templateToDelete}
+                onClose={() => setTemplateToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="Eliminar Plantilla"
+                message={`¿Estás seguro de que quieres eliminar la plantilla "${templateToDelete?.name}"? Esta acción no se puede deshacer.`}
+                confirmButtonText="Sí, Eliminar"
+                confirmButtonVariant="danger"
             />
         </div>
     );
 };
 
-const EmailTemplateSettings: React.FC<{ 
-    templates: EmailTemplate[], 
+const EmailTemplateSettings: React.FC<{
+    templates: EmailTemplate[],
     onTemplatesUpdate: (t: EmailTemplate[]) => void,
-    userProfile: Profile | null 
+    userProfile: Profile | null
 }> = ({ templates, onTemplatesUpdate, userProfile }) => {
     const [name, setName] = useState('');
     const [subject, setSubject] = useState('');
@@ -988,15 +984,15 @@ const EmailTemplateSettings: React.FC<{
     const handleSeedTemplates = async () => {
         setSaving(true);
         const newTemplates = [
-            { 
-                name: 'Bienvenida', 
-                subject: 'Bienvenido/a a la Universidad', 
-                body: '<p>Hola,</p><p>Gracias por contactarnos. Adjunto encontrarás la información de la licenciatura de tu interés.</p><p>Estamos a tus órdenes para cualquier duda.</p><p>Saludos cordiales,</p>' 
+            {
+                name: 'Bienvenida',
+                subject: 'Bienvenido/a a la Universidad',
+                body: '<p>Hola,</p><p>Gracias por contactarnos. Adjunto encontrarás la información de la licenciatura de tu interés.</p><p>Estamos a tus órdenes para cualquier duda.</p><p>Saludos cordiales,</p>'
             },
-            { 
-                name: 'Recordatorio Cita', 
-                subject: 'Recordatorio de tu cita en Campus', 
-                body: '<p>Hola,</p><p>Te recordamos que tienes una cita programada con nosotros para conocer el campus y resolver tus dudas.</p><p>¡Te esperamos!</p>' 
+            {
+                name: 'Recordatorio Cita',
+                subject: 'Recordatorio de tu cita en Campus',
+                body: '<p>Hola,</p><p>Te recordamos que tienes una cita programada con nosotros para conocer el campus y resolver tus dudas.</p><p>¡Te esperamos!</p>'
             },
             {
                 name: 'Seguimiento',
@@ -1004,17 +1000,17 @@ const EmailTemplateSettings: React.FC<{
                 body: '<p>Hola,</p><p>Esperamos que te encuentres muy bien.</p><p>Queríamos saber si tuviste oportunidad de revisar la información que te enviamos anteriormente y si tienes alguna pregunta adicional.</p>'
             }
         ];
-        
+
         const currentNames = new Set(templates.map(t => t.name));
         const toInsert = newTemplates.filter(t => !currentNames.has(t.name));
 
         if (toInsert.length === 0) {
-             success("Ya tienes las plantillas recomendadas.");
-             setSaving(false);
-             return;
+            success("Ya tienes las plantillas recomendadas.");
+            setSaving(false);
+            return;
         }
 
-        const { data, error } = await supabase.from('email_templates').insert(toInsert).select();
+        const { data, error } = await (supabase as any).from('email_templates').insert(toInsert).select();
         if (error) {
             toastError("Error al crear plantillas: " + error.message);
         } else if (data) {
@@ -1029,13 +1025,13 @@ const EmailTemplateSettings: React.FC<{
         setSaving(true);
 
         if (editingId) {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('email_templates')
                 .update({ name: name.trim(), subject: subject.trim(), body: body.trim() })
                 .eq('id', editingId)
                 .select()
                 .single();
-            
+
             if (error) {
                 console.error('Error updating template:', error);
                 toastError('Error al actualizar la plantilla.');
@@ -1049,13 +1045,13 @@ const EmailTemplateSettings: React.FC<{
                 setBody('');
             }
         } else {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('email_templates')
                 .insert({ name: name.trim(), subject: subject.trim(), body: body.trim() })
                 .select()
                 .single();
-            
-             if (error) {
+
+            if (error) {
                 console.error('Error creating template:', error);
                 toastError('Error al crear la plantilla.');
             } else if (data) {
@@ -1089,11 +1085,11 @@ const EmailTemplateSettings: React.FC<{
 
     const handleConfirmDelete = async () => {
         if (!templateToDelete) return;
-        
+
         const { error } = await supabase.from('email_templates').delete().eq('id', templateToDelete.id);
         if (error) {
-             console.error('Error deleting template:', error);
-             toastError('Error al eliminar la plantilla.');
+            console.error('Error deleting template:', error);
+            toastError('Error al eliminar la plantilla.');
         } else {
             onTemplatesUpdate(templates.filter(t => t.id !== templateToDelete.id));
             success("Plantilla eliminada");
@@ -1102,80 +1098,80 @@ const EmailTemplateSettings: React.FC<{
     };
 
     return (
-            <div className="space-y-4">
-                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Plantillas de Correo</h3>
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Plantillas de Correo</h3>
 
-                <div className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 shadow-sm">
-                    <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
-                    <div className="space-y-4">
-                        <Input 
-                            label="Nombre de la Plantilla" 
-                            value={name} 
-                            onChange={e => setName(e.target.value)} 
-                            placeholder="Ej: Bienvenida" 
-                        />
-                        <Input 
-                            label="Asunto del Correo" 
-                            value={subject} 
-                            onChange={e => setSubject(e.target.value)} 
-                            placeholder="Bienvenido a la universidad..." 
-                        />
-                        <TextArea 
-                            label="Cuerpo del Correo (HTML Soportado)" 
-                            value={body} 
-                            onChange={e => setBody(e.target.value)} 
-                            placeholder="<p>Hola...</p>" 
-                            rows={5} 
-                        />
-                        <div className="flex justify-end gap-2 pt-2">
-                            {editingId && (
-                                <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>
-                                    Cancelar
-                                </Button>
-                            )}
-                            <Button onClick={handleSave} size="sm" disabled={!name || !subject || !body || saving}>
-                                {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
+            <div className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 shadow-sm">
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
+                <div className="space-y-4">
+                    <Input
+                        label="Nombre de la Plantilla"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="Ej: Bienvenida"
+                    />
+                    <Input
+                        label="Asunto del Correo"
+                        value={subject}
+                        onChange={e => setSubject(e.target.value)}
+                        placeholder="Bienvenido a la universidad..."
+                    />
+                    <TextArea
+                        label="Cuerpo del Correo (HTML Soportado)"
+                        value={body}
+                        onChange={e => setBody(e.target.value)}
+                        placeholder="<p>Hola...</p>"
+                        rows={5}
+                    />
+                    <div className="flex justify-end gap-2 pt-2">
+                        {editingId && (
+                            <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>
+                                Cancelar
                             </Button>
-                        </div>
+                        )}
+                        <Button onClick={handleSave} size="sm" disabled={!name || !subject || !body || saving}>
+                            {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
+                        </Button>
                     </div>
                 </div>
-
-                <hr className="my-6 border-gray-100 dark:border-slate-700"/>
-                
-                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Plantillas Guardadas</h4>
-                <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
-                    {templates.map(t => (
-                        <div key={t.id} className="border border-gray-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all relative group">
-                            <div className="flex justify-between items-start mb-2">
-                                <h5 className="font-bold text-gray-800 dark:text-white text-sm">{t.name}</h5>
-                                <div className="flex gap-1">
-                                    <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
-                                        <EditIcon className="w-4 h-4"/>
-                                    </button>
-                                    <button onClick={() => setTemplateToDelete(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
-                                        <TrashIcon className="w-4 h-4"/>
-                                    </button>
-                                </div>
-                            </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Asunto: {t.subject}</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 line-clamp-2">{t.body}</p>
-                        </div>
-                    ))}
-                    {templates.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400 italic">No hay plantillas de correo configuradas.</p>}
-                </div>
-
-            
-                <ConfirmationModal 
-                    isOpen={!!templateToDelete} 
-                    onClose={() => setTemplateToDelete(null)} 
-                    onConfirm={handleConfirmDelete} 
-                    title="Eliminar Plantilla" 
-                    message="Esta acción no se puede deshacer." 
-                    confirmButtonText="Sí, Eliminar" 
-                    confirmButtonVariant="danger" 
-                />
             </div>
-        );
+
+            <hr className="my-6 border-gray-100 dark:border-slate-700" />
+
+            <h4 className="font-semibold text-gray-700 dark:text-gray-300">Plantillas Guardadas</h4>
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+                {templates.map(t => (
+                    <div key={t.id} className="border border-gray-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all relative group">
+                        <div className="flex justify-between items-start mb-2">
+                            <h5 className="font-bold text-gray-800 dark:text-white text-sm">{t.name}</h5>
+                            <div className="flex gap-1">
+                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
+                                    <EditIcon className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => setTemplateToDelete(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Asunto: {t.subject}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 line-clamp-2">{t.body}</p>
+                    </div>
+                ))}
+                {templates.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400 italic">No hay plantillas de correo configuradas.</p>}
+            </div>
+
+
+            <ConfirmationModal
+                isOpen={!!templateToDelete}
+                onClose={() => setTemplateToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="Eliminar Plantilla"
+                message="Esta acción no se puede deshacer."
+                confirmButtonText="Sí, Eliminar"
+                confirmButtonVariant="danger"
+            />
+        </div>
+    );
 };
 
 const LoginHistorySettings: React.FC = () => {
@@ -1205,19 +1201,19 @@ const LoginHistorySettings: React.FC = () => {
     }, []);
 
     if (configError) {
-         const fixSql = `DO $$ BEGIN CREATE TABLE IF NOT EXISTS public.login_history ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, user_id UUID NOT NULL, login_at TIMESTAMP WITH TIME ZONE DEFAULT now(), user_agent TEXT ); ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY; IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'login_history_user_id_fkey') THEN ALTER TABLE public.login_history DROP CONSTRAINT login_history_user_id_fkey; END IF; ALTER TABLE public.login_history ADD CONSTRAINT login_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE; DROP POLICY IF EXISTS "Insertar propio historial" ON public.login_history; CREATE POLICY "Insertar propio historial" ON public.login_history FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id); DROP POLICY IF EXISTS "Admins ven historial" ON public.login_history; CREATE POLICY "Admins ven historial" ON public.login_history FOR SELECT TO authenticated USING ( EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin') ); END $$; NOTIFY pgrst, 'reload';`;
+        const fixSql = `DO $$ BEGIN CREATE TABLE IF NOT EXISTS public.login_history ( id UUID DEFAULT gen_random_uuid() PRIMARY KEY, user_id UUID NOT NULL, login_at TIMESTAMP WITH TIME ZONE DEFAULT now(), user_agent TEXT ); ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY; IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'login_history_user_id_fkey') THEN ALTER TABLE public.login_history DROP CONSTRAINT login_history_user_id_fkey; END IF; ALTER TABLE public.login_history ADD CONSTRAINT login_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE; DROP POLICY IF EXISTS "Insertar propio historial" ON public.login_history; CREATE POLICY "Insertar propio historial" ON public.login_history FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id); DROP POLICY IF EXISTS "Admins ven historial" ON public.login_history; CREATE POLICY "Admins ven historial" ON public.login_history FOR SELECT TO authenticated USING ( EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin') ); END $$; NOTIFY pgrst, 'reload';`;
 
         return (
-             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 space-y-3">
-                 <div className="flex items-center gap-2 font-bold">
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 space-y-3">
+                <div className="flex items-center gap-2 font-bold">
                     <ExclamationCircleIcon className="w-5 h-5" />
                     <span>Error de Configuración</span>
-                 </div>
-                 <p className="text-sm">Detalle: {configError}</p>
-                 <div className="bg-gray-800 text-gray-200 p-3 rounded text-xs font-mono overflow-x-auto">
+                </div>
+                <p className="text-sm">Detalle: {configError}</p>
+                <div className="bg-gray-800 text-gray-200 p-3 rounded text-xs font-mono overflow-x-auto">
                     <pre>{fixSql}</pre>
-                 </div>
-                 <Button size="sm" variant="secondary" onClick={() => window.location.reload()} leftIcon={<ArrowPathIcon className="w-4 h-4"/>}>Recargar</Button>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => window.location.reload()} leftIcon={<ArrowPathIcon className="w-4 h-4" />}>Recargar</Button>
             </div>
         );
     }
@@ -1225,7 +1221,7 @@ const LoginHistorySettings: React.FC = () => {
     return (
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Historial de Accesos</h3>
-            
+
             <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
                     <thead className="bg-gray-50 dark:bg-slate-700/50">
@@ -1237,7 +1233,7 @@ const LoginHistorySettings: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                         {loading ? (
-                             <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</td></tr>
+                            <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</td></tr>
                         ) : history.length === 0 ? (
                             <tr><td colSpan={3} className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">No hay registros.</td></tr>
                         ) : (
@@ -1263,69 +1259,203 @@ const LoginHistorySettings: React.FC = () => {
     );
 };
 
+import { useConfig } from '../context/ConfigContext';
+// PhotoIcon imported at top
+
+// ... (existing helper components)
+
+// ... (existing helper components like UserSettings, StatusSettings, etc.)
+
+const PersonalizationSettings: React.FC = () => {
+    const { settings, updateSettings, loading } = useConfig();
+    const [name, setName] = useState(settings.company_name);
+    const [subtitle, setSubtitle] = useState(settings.company_subtitle);
+    const [logoUrl, setLogoUrl] = useState(settings.logo_url || '');
+    const [saving, setSaving] = useState(false);
+    const { success, error } = useToast();
+
+    // Sync state with settings when loaded
+    useEffect(() => {
+        setName(settings.company_name);
+        setSubtitle(settings.company_subtitle);
+        setLogoUrl(settings.logo_url || '');
+    }, [settings]);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await updateSettings({
+                company_name: name,
+                company_subtitle: subtitle,
+                logo_url: logoUrl
+            });
+            success("Configuración actualizada.");
+        } catch (err) {
+            error("Error al guardar.");
+            console.error(err);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+
+        const file = e.target.files[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `logo-${Math.random()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        try {
+            setSaving(true);
+            // 1. Upload to Supabase Storage (bucket 'branding' or 'public')
+            // Assuming a 'public' bucket exists or similar. If uncertain, we try 'avatars' or just skip and ask to enable storage.
+            // For now, let's assume a bucket named 'assets' exists.
+            const { error: uploadError } = await supabase.storage
+                .from('assets')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            // 2. Get Public URL
+            const { data } = supabase.storage.from('assets').getPublicUrl(filePath);
+            setLogoUrl(data.publicUrl);
+            success("Logo subido. No olvides guardar cambios.");
+        } catch (err: any) {
+            console.error("Upload error:", err);
+            error("Error al subir imagen. Verifica bucket 'assets'.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) return <div className="p-4 text-center">Cargando...</div>;
+
+    return (
+        <div className="space-y-6">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Personalización de Marca</h3>
+
+            <div className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                        label="Nombre de la Empresa"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="Ej: Mi Universidad"
+                    />
+                    <Input
+                        label="Subtítulo / Slogan"
+                        value={subtitle}
+                        onChange={e => setSubtitle(e.target.value)}
+                        placeholder="Ej: Panel Administrativo"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Logotipo</label>
+                    <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 flex items-center justify-center overflow-hidden">
+                            {logoUrl ? <img src={logoUrl} alt="Logo Preview" className="w-full h-full object-cover" /> : <CameraIcon className="w-6 h-6 text-gray-400" />}
+                        </div>
+                        <div className="flex-1">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoUpload}
+                                className="block w-full text-sm text-gray-500
+                                    file:mr-4 file:py-2 file:px-4
+                                    file:rounded-full file:border-0
+                                    file:text-sm file:font-semibold
+                                    file:bg-brand-primary/10 file:text-brand-primary
+                                    hover:file:bg-brand-primary/20
+                                "
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Recomendado: PNG o JPG cuadrado (500x500px).</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                    <Button onClick={handleSave} disabled={saving}>
+                        {saving ? 'Guardando...' : 'Guardar Cambios'}
+                    </Button>
+                </div>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
+                <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm mb-1">Nota Importante</h4>
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                    Estos cambios afectarán la cabecera de la aplicación para todos los usuarios.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {
-  const [activeTab, setActiveTab] = useState<string>('');
+    const [activeTab, setActiveTab] = useState<string>('');
 
-  const allTabs = useMemo(() => [
-    { id: 'users', label: 'Usuarios', icon: <UserIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
-    { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
-    { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
-    { id: 'licenciaturas', label: 'Oferta Académica', icon: <AcademicCapIcon className="w-6 h-6 flex-shrink-0" />, allowedRoles: ['admin'] }, // Actualizado nombre y tamaño icono
-    
-    // Plantillas visibles para todos los roles con permisos de gestión
-    { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
-    { id: 'email', label: 'Plantillas Email', icon: <EnvelopeIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
-    
-    { id: 'audit', label: 'Historial de Accesos', icon: <ArrowUpTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
-  ], []);
+    const allTabs = useMemo(() => [
+        { id: 'branding', label: 'General', icon: <CameraIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+        { id: 'users', label: 'Usuarios', icon: <UserIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+        { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+        { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+        { id: 'licenciaturas', label: 'Oferta Académica', icon: <AcademicCapIcon className="w-6 h-6 flex-shrink-0" />, allowedRoles: ['admin'] },
 
-  const visibleTabs = useMemo(() => {
-      return allTabs.filter(tab => props.currentUserProfile && tab.allowedRoles.includes(props.currentUserProfile.role));
-  }, [allTabs, props.currentUserProfile]);
+        // Plantillas visibles para todos los roles con permisos de gestión
+        { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
+        { id: 'email', label: 'Plantillas Email', icon: <EnvelopeIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
 
-  useEffect(() => {
-      if (visibleTabs.length > 0 && !visibleTabs.find(t => t.id === activeTab)) {
-          setActiveTab(visibleTabs[0].id);
-      }
-  }, [visibleTabs, activeTab]);
+        { id: 'audit', label: 'Historial de Accesos', icon: <ArrowUpTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+    ], []);
+
+    const visibleTabs = useMemo(() => {
+        return allTabs.filter(tab => props.currentUserProfile && tab.allowedRoles.includes(props.currentUserProfile.role));
+    }, [allTabs, props.currentUserProfile]);
+
+    useEffect(() => {
+        if (visibleTabs.length > 0 && !visibleTabs.find(t => t.id === activeTab)) {
+            setActiveTab(visibleTabs[0].id);
+        }
+    }, [visibleTabs, activeTab]);
 
 
     return (
-    <Modal isOpen={props.isOpen} onClose={props.onClose} title="Configuración" size="2xl">
-      <div className="flex flex-col sm:flex-row -mx-6 -my-6 min-h-[60vh]">
-        {/* Left Navigation (Sidebar) */}
-        <div className="w-full sm:w-1/3 md:w-1/4 bg-gray-50/70 dark:bg-slate-900/50 p-4 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-slate-700">
-          <nav className="flex flex-row flex-wrap sm:flex-col gap-1">
-            {visibleTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 w-auto sm:w-full text-left px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-150 ${
-                  activeTab === tab.id
-                    ? 'bg-brand-secondary/10 text-brand-secondary dark:bg-brand-secondary/20 dark:text-brand-secondary'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200/60 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
+        <Modal isOpen={props.isOpen} onClose={props.onClose} title="Configuración" size="2xl">
+            <div className="flex flex-col sm:flex-row -mx-6 -my-6 min-h-[60vh]">
+                {/* Left Navigation (Sidebar) */}
+                <div className="w-full sm:w-1/3 md:w-1/4 bg-gray-50/70 dark:bg-slate-900/50 p-4 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-slate-700">
+                    <nav className="grid grid-cols-2 sm:flex sm:flex-col gap-2">
+                        {visibleTabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex items-center gap-2 sm:gap-3 w-full text-left px-3 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 border border-transparent ${activeTab === tab.id
+                                    ? 'bg-brand-secondary/10 text-brand-secondary dark:bg-brand-secondary/20 dark:text-brand-secondary ring-1 ring-brand-secondary/20 dark:ring-0'
+                                    : 'text-gray-600 dark:text-gray-400 bg-gray-100/50 dark:bg-slate-800/50 sm:bg-transparent hover:bg-gray-200 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
+                                    }`}
+                            >
+                                {tab.icon}
+                                <span>{tab.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </div>
 
-        {/* Right Content */}
-        <div className="w-full sm:w-2/3 md:w-3/4 p-6 overflow-y-auto bg-white dark:bg-slate-800 text-gray-900 dark:text-white">
-          {activeTab === 'users' && <UserSettings profiles={props.profiles} onProfilesUpdate={props.onProfilesUpdate} currentUserProfile={props.currentUserProfile} />}
-          {activeTab === 'statuses' && <StatusSettings statuses={props.statuses} onStatusesUpdate={props.onStatusesUpdate} />}
-          {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}
-          {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}
-          {activeTab === 'whatsapp' && <WhatsappTemplateSettings templates={props.whatsappTemplates} onTemplatesUpdate={props.onWhatsappTemplatesUpdate} userProfile={props.currentUserProfile} />}
-          {activeTab === 'email' && <EmailTemplateSettings templates={props.emailTemplates} onTemplatesUpdate={props.onEmailTemplatesUpdate} userProfile={props.currentUserProfile} />}
-          {activeTab === 'audit' && <LoginHistorySettings />}
-        </div>
-      </div>
-    </Modal>
-  );
+                {/* Right Content */}
+                <div className="w-full sm:w-2/3 md:w-3/4 p-6 overflow-y-auto bg-white dark:bg-slate-800 text-gray-900 dark:text-white">
+                    {activeTab === 'branding' && <PersonalizationSettings />}
+                    {activeTab === 'users' && <UserSettings profiles={props.profiles} onProfilesUpdate={props.onProfilesUpdate} currentUserProfile={props.currentUserProfile} />}
+                    {activeTab === 'statuses' && <StatusSettings statuses={props.statuses} onStatusesUpdate={props.onStatusesUpdate} />}
+                    {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}
+                    {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}
+                    {activeTab === 'whatsapp' && <WhatsappTemplateSettings templates={props.whatsappTemplates} onTemplatesUpdate={props.onWhatsappTemplatesUpdate} userProfile={props.currentUserProfile} />}
+                    {activeTab === 'email' && <EmailTemplateSettings templates={props.emailTemplates} onTemplatesUpdate={props.onEmailTemplatesUpdate} userProfile={props.currentUserProfile} />}
+                    {activeTab === 'audit' && <LoginHistorySettings />}
+                </div>
+            </div>
+        </Modal>
+    );
 };
 
 export default SettingsModal;

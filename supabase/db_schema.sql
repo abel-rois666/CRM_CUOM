@@ -137,6 +137,21 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   link TEXT
 );
 
+CREATE TABLE IF NOT EXISTS public.organization_settings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_name TEXT DEFAULT 'CUOM CRM',
+  company_subtitle TEXT DEFAULT 'Administración',
+  logo_url TEXT,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL
+);
+
+-- Policies for organization_settings
+ALTER TABLE public.organization_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Read Org Settings" ON public.organization_settings FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admin Update Org Settings" ON public.organization_settings FOR ALL TO authenticated USING ( public.is_role('admin') );
+
 -- 4. TRIGGERS Y AUTOMATIZACIÓN (AQUÍ ESTÁ EL FIX DEL ERROR)
 -- ==============================================================================
 

@@ -13,6 +13,7 @@ export interface DataFilters {
   startDate: string;
   endDate: string;
   searchTerm: string;
+  category?: string; // Nuevo filtro por categoría de estado
 }
 
 export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
@@ -31,12 +32,15 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     programId: 'all',
     startDate: '',
     endDate: '',
-    searchTerm: ''
+    searchTerm: '',
+    category: 'active' // Por defecto mostramos leads activos
   });
 
   // --- CATÁLOGOS ---
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
+  // ... (otros estados)
+
   const [sources, setSources] = useState<Source[]>([]);
   const [licenciaturas, setLicenciaturas] = useState<Licenciatura[]>([]);
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -98,6 +102,8 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   // 2. CARGAR LEADS (PAGINACIÓN EN SERVIDOR)
   const fetchLeads = useCallback(async (force = false) => {
     if (!session?.access_token) return;
+    // Evitamos cargar leads hasta tener los estados para poder filtrar por categoría correctamente
+    if (!catalogsLoaded && !force && filters.category !== 'all') return;
 
     setLoadingLeads(true);
 
@@ -124,6 +130,21 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       if (filters.statusId !== 'all') query = query.eq('status_id', filters.statusId);
       if (filters.programId !== 'all') query = query.eq('program_id', filters.programId);
 
+      // Filtro de Categoría (Usando los IDs de los estados cargados)
+      if (filters.category && filters.category !== 'all') {
+        const relevantStatusIds = statuses
+          .filter(s => s.category === filters.category)
+          .map(s => s.id);
+
+        if (relevantStatusIds.length > 0) {
+          query = query.in('status_id', relevantStatusIds);
+        } else {
+          // Caso borde: Si no hay estados para esa categoría, no debería devolver nada.
+          // Usamos un ID imposible.
+          query = query.eq('status_id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
+
       // Filtro de Fechas
       if (filters.startDate && filters.endDate) {
         query = query.gte('registration_date', `${filters.startDate}T00:00:00.000Z`)
@@ -138,14 +159,20 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       }
 
       // --- PAGINACIÓN ---
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
+      const safePage = Number(page) || 1;
+      const safePageSize = Number(pageSize) || 10;
+      const from = (safePage - 1) * safePageSize;
+      const to = from + safePageSize - 1;
+
+      console.log(`[DEBUG] Fetching leads. Page: ${safePage}, Size: ${safePageSize}, Range: ${from}-${to}`);
 
       const { data, error, count } = await query
         .order('registration_date', { ascending: false })
         .range(from, to);
 
       if (error) throw error;
+
+      console.log(`[DEBUG] Fetched ${data?.length} leads. Total in DB: ${count}`);
 
       // @ts-ignore
       setLeads(data || []);
@@ -157,7 +184,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     } finally {
       setLoadingLeads(false);
     }
-  }, [session, userRole, userId, page, pageSize, filters, toastError]);
+  }, [session, userRole, userId, page, pageSize, filters, toastError, statuses, catalogsLoaded]);
 
   // --- DASHBOARD METRICS ---
   const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);

@@ -76,17 +76,19 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
                 </div>
 
                 <div className="flex items-center w-full sm:w-auto gap-3 justify-between sm:justify-end">
-                    <button
-                        onClick={onToggleFilters}
-                        className={`relative inline-flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all ${activeFilterCount > 0
-                            ? 'bg-brand-secondary/10 text-brand-secondary ring-1 ring-brand-secondary/20 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600'
-                            }`}
-                    >
-                        <FunnelIcon className="w-4 h-4 mr-2" />
-                        Filtros
-                        {activeFilterCount > 0 && <span className="ml-2 bg-brand-secondary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilterCount}</span>}
-                    </button>
+                    {viewMode !== 'calendar' && (
+                        <button
+                            onClick={onToggleFilters}
+                            className={`relative inline-flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all ${activeFilterCount > 0
+                                ? 'bg-brand-secondary/10 text-brand-secondary ring-1 ring-brand-secondary/20 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600'
+                                }`}
+                        >
+                            <FunnelIcon className="w-4 h-4 mr-2" />
+                            Filtros
+                            {activeFilterCount > 0 && <span className="ml-2 bg-brand-secondary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilterCount}</span>}
+                        </button>
+                    )}
 
                     <div className="h-8 w-px bg-gray-200 dark:bg-slate-700 hidden sm:block"></div>
 

@@ -1,7 +1,7 @@
 // components/LeadList.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Views } from 'react-big-calendar';
-import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate, DashboardMetrics } from '../types';
+import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate, DashboardMetrics, Source } from '../types';
 import { DataFilters } from '../hooks/useCRMData';
 import ConfirmationModal from './common/ConfirmationModal';
 import LeadListSkeleton from './LeadListSkeleton';
@@ -14,8 +14,9 @@ import { supabase } from '../lib/supabase';
 import BulkMessageModal from './BulkMessageModal';
 import { calculateLeadScore } from '../utils/leadScoring';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
+import { useKanbanData } from '../hooks/useKanbanData';
 
-// Components Refactorizados
+// Componentes Refactorizados
 import LeadHeader from './lead-list/LeadHeader';
 import LeadToolbar, { ViewMode } from './lead-list/LeadToolbar';
 import LeadTable, { SortableColumn, SortDirection } from './lead-list/LeadTable';
@@ -35,6 +36,7 @@ interface LeadListProps {
     advisors: Profile[];
     statuses: Status[];
     licenciaturas: Licenciatura[];
+    sources: Source[]; // <--- NEW PROP
     whatsappTemplates: WhatsAppTemplate[];
     emailTemplates: EmailTemplate[];
     onAddNew: () => void;
@@ -50,19 +52,31 @@ interface LeadListProps {
     onRefresh?: () => void;
     onLocalDeleteMany?: (ids: string[]) => void;
     currentUser?: Profile | null;
-    metrics: DashboardMetrics | null; // <--- NEW PROP
+    metrics: DashboardMetrics | null;
+    lastUpdatedLead?: Lead | null; // [NEW] Prop to sync updates
 }
 
 const LeadList: React.FC<LeadListProps> = ({
     loading, leads, totalLeads, page, pageSize, onPageChange, onPageSizeChange, onFilterChange, currentFilters,
-    advisors, statuses, licenciaturas,
+    advisors, statuses, licenciaturas, sources,
     whatsappTemplates, emailTemplates,
     onAddNew, onEdit, onDelete, onViewDetails,
     onOpenReports, onOpenImport, onOpenWhatsApp,
-    onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany, currentUser, metrics
+    onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany, currentUser, metrics,
+    lastUpdatedLead // [NEW]
 }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
-    const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>('active');
+
+    // [FIX] Initialize from server filter properly
+    const [activeCategoryTab, setActiveCategoryTab] = useState<StatusCategory>((currentFilters.category as StatusCategory) || 'active');
+
+    // [FIX] Sync tab if external filters change
+    useEffect(() => {
+        if (currentFilters.category && currentFilters.category !== activeCategoryTab) {
+            setActiveCategoryTab(currentFilters.category as StatusCategory);
+        }
+    }, [currentFilters.category, activeCategoryTab]);
+
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
     const [isBulkTransferOpen, setIsBulkTransferOpen] = useState(false);
 
@@ -74,7 +88,6 @@ const LeadList: React.FC<LeadListProps> = ({
     const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    // States unused in refactor but kept for completeness of logic if needed later or removing if dead code
     const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
     const [isBulkStatusOpen, setIsBulkStatusOpen] = useState(false);
     const [bulkTargetStatus, setBulkTargetStatus] = useState<string>('');
@@ -90,10 +103,25 @@ const LeadList: React.FC<LeadListProps> = ({
     const { events: calendarEvents, currentDate, setCurrentDate, loading: calendarLoading } = useCalendarEvents(new Date(), currentFilters.advisorId);
     const [currentCalendarView, setCurrentCalendarView] = useState<View>(Views.MONTH);
 
+    // KANBAN DATA HOOK
+    const { leads: kanbanLeads, loading: kanbanLoading, updateLocalLead: updateKanbanLead } = useKanbanData({
+        advisorId: currentFilters.advisorId,
+        programId: currentFilters.programId,
+        searchTerm: currentFilters.searchTerm
+    }, viewMode === 'kanban');
+
+    // [FIX] Sync external updates to Kanban state
+    useEffect(() => {
+        if (lastUpdatedLead && viewMode === 'kanban') {
+            updateKanbanLead(lastUpdatedLead.id, lastUpdatedLead);
+        }
+    }, [lastUpdatedLead, viewMode, updateKanbanLead]);
+
     // Helpers Maps
     const advisorMap = React.useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
     const statusMap = React.useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color, category: s.category || 'active' }])), [statuses]);
     const licenciaturaMap = React.useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
+    const sourceMap = React.useMemo(() => new Map(sources.map(s => [s.id, s.name])), [sources]);
 
     // Efecto de Debounce
     useEffect(() => {
@@ -158,12 +186,53 @@ const LeadList: React.FC<LeadListProps> = ({
         setQuickFilter(filter);
         if (filter !== null) {
             setActiveCategoryTab('active');
+            onFilterChange({ category: 'active', statusId: 'all' });
             onPageChange(1);
         }
     };
 
     const filteredLeads = useMemo(() => {
         return leads.filter(lead => {
+            const status = statusMap.get(lead.status_id);
+            const category = status ? status.category : 'active';
+
+            // [FIX] Ensure local updates respect the current category tab
+            if (category !== activeCategoryTab) return false;
+
+            if (quickFilter) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const threeDaysAgo = new Date();
+                threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                const regDate = new Date(lead.registration_date);
+
+                if (quickFilter === 'appointments_today') {
+                    const hasAppt = lead.appointments?.some(appt => {
+                        const apptDate = new Date(appt.date);
+                        apptDate.setHours(0, 0, 0, 0);
+                        return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
+                    });
+                    if (!hasAppt) return false;
+                }
+                if (quickFilter === 'no_followup') {
+                    const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
+                    if (!(hasNoFollowUps && regDate < threeDaysAgo)) return false;
+                }
+                if (quickFilter === 'stale_followup') {
+                    if (!lead.follow_ups || lead.follow_ups.length === 0) return false;
+                    const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                    const lastDate = new Date(lastFollowUp.date);
+                    if (!(lastDate < sevenDaysAgo)) return false;
+                }
+            }
+            return true;
+        });
+    }, [leads, activeCategoryTab, quickFilter, statusMap]);
+
+    const filteredKanbanLeads = useMemo(() => {
+        return kanbanLeads.filter(lead => {
             const status = statusMap.get(lead.status_id);
             const category = status ? status.category : 'active';
 
@@ -199,7 +268,7 @@ const LeadList: React.FC<LeadListProps> = ({
             }
             return true;
         });
-    }, [leads, activeCategoryTab, quickFilter, statusMap]);
+    }, [kanbanLeads, activeCategoryTab, quickFilter, statusMap]);
 
     const sortedLeads = useMemo(() => {
         return [...filteredLeads].sort((a, b) => {
@@ -292,6 +361,7 @@ const LeadList: React.FC<LeadListProps> = ({
     };
 
     const handleExportCSV = () => {
+        // ... (Export logic retained)
         const dataToExport = sortedLeads;
         const maxNotes = dataToExport.reduce((max, lead) => Math.max(max, lead.follow_ups?.length || 0), 0);
         const maxAppts = dataToExport.reduce((max, lead) => Math.max(max, lead.appointments?.length || 0), 0);
@@ -315,7 +385,7 @@ const LeadList: React.FC<LeadListProps> = ({
                 escapeCsvField(licenciaturaMap.get(lead.program_id)),
                 escapeCsvField(new Date(lead.registration_date).toLocaleDateString())
             ];
-
+            // ... (Notes and Appts logic)
             const sortedNotes = lead.follow_ups
                 ? [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                 : [];
@@ -350,7 +420,6 @@ const LeadList: React.FC<LeadListProps> = ({
                     apptCols.push('""', '""');
                 }
             }
-
             return [...baseData, ...noteCols, ...apptCols].join(',');
         });
 
@@ -366,6 +435,9 @@ const LeadList: React.FC<LeadListProps> = ({
     };
 
     const handleLeadMove = (leadId: string, newStatusId: string) => {
+        if (viewMode === 'kanban') {
+            updateKanbanLead(leadId, { status_id: newStatusId });
+        }
         onUpdateLead(leadId, { status_id: newStatusId });
     };
 
@@ -380,7 +452,7 @@ const LeadList: React.FC<LeadListProps> = ({
 
             <DashboardStats
                 leads={leads}
-                metrics={metrics} // <--- Pass server-side metrics
+                metrics={metrics}
                 statuses={statuses}
                 advisors={advisors}
                 activeFilter={quickFilter}
@@ -391,6 +463,7 @@ const LeadList: React.FC<LeadListProps> = ({
             <div className="mb-8 flex flex-col gap-6">
                 <LeadHeader
                     totalLeads={totalLeads}
+                    globalTotal={metrics?.totalLeads || 0}
                     loadedLeadsCount={leads.length}
                     userRole={userRole}
                     onOpenImport={onOpenImport}
@@ -409,7 +482,11 @@ const LeadList: React.FC<LeadListProps> = ({
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                     activeCategoryTab={activeCategoryTab}
-                    onCategoryTabChange={(category) => { setActiveCategoryTab(category); setQuickFilter(null); }}
+                    onCategoryTabChange={(category) => {
+                        setActiveCategoryTab(category);
+                        setQuickFilter(null);
+                        onFilterChange({ category, statusId: 'all' });
+                    }}
                     currentCalendarView={currentCalendarView as any}
                 />
             </div>
@@ -418,7 +495,7 @@ const LeadList: React.FC<LeadListProps> = ({
             {activeFilterCount > 0 && (
                 <div className="flex flex-wrap gap-2 mb-6">
                     {Object.entries(currentFilters).map(([key, value]) => {
-                        if (value === 'all' || !value || key === 'searchTerm') return null;
+                        if (value === 'all' || !value || key === 'searchTerm' || key === 'category') return null;
                         let label = '';
                         if (key === 'advisorId') label = `Asesor: ${advisorMap.get(value)}`;
                         if (key === 'statusId') label = `Estado: ${statusMap.get(value)?.name}`;
@@ -441,7 +518,7 @@ const LeadList: React.FC<LeadListProps> = ({
                 {viewMode === 'list' ? (
                     <>
                         <LeadTable
-                            leads={sortedLeads}
+                            leads={sortedLeads} // [FIX] No slicing, assuming server paging returns correct page
                             selectedIds={selectedIds}
                             onSelectAll={handleSelectAll}
                             onSelectOne={handleSelectOne}
@@ -451,6 +528,7 @@ const LeadList: React.FC<LeadListProps> = ({
                             advisorMap={advisorMap}
                             statusMap={statusMap}
                             licenciaturaMap={licenciaturaMap}
+                            sourceMap={sourceMap}
                             onViewDetails={onViewDetails}
                             onOpenWhatsApp={onOpenWhatsApp}
                             onOpenEmail={onOpenEmail}
@@ -466,7 +544,7 @@ const LeadList: React.FC<LeadListProps> = ({
                         />
 
                         <LeadPagination
-                            totalLeads={totalLeads}
+                            totalLeads={totalLeads} // [FIX] Use server total
                             page={page}
                             pageSize={pageSize}
                             onPageChange={onPageChange}
@@ -474,18 +552,25 @@ const LeadList: React.FC<LeadListProps> = ({
                         />
                     </>
                 ) : viewMode === 'kanban' ? (
-                    <KanbanBoard
-                        leads={filteredLeads}
-                        statuses={relevantStatuses}
-                        advisors={advisors}
-                        licenciaturas={licenciaturas}
-                        onEdit={onEdit}
-                        onDelete={(id) => setLeadToDelete(id)}
-                        onViewDetails={onViewDetails}
-                        onOpenWhatsApp={onOpenWhatsApp}
-                        onOpenEmail={onOpenEmail}
-                        onLeadMove={handleLeadMove}
-                    />
+                    <div className="h-full">
+                        {kanbanLoading && kanbanLeads.length === 0 && (
+                            <div className="flex justify-center items-center h-40">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
+                            </div>
+                        )}
+                        <KanbanBoard
+                            leads={filteredKanbanLeads}
+                            statuses={relevantStatuses}
+                            advisors={advisors}
+                            licenciaturas={licenciaturas}
+                            onEdit={onEdit}
+                            onDelete={(id) => setLeadToDelete(id)}
+                            onViewDetails={onViewDetails}
+                            onOpenWhatsApp={onOpenWhatsApp}
+                            onOpenEmail={onOpenEmail}
+                            onLeadMove={handleLeadMove}
+                        />
+                    </div>
                 ) : (
                     <CalendarView
                         events={calendarEvents}

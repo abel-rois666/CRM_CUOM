@@ -43,6 +43,8 @@ interface LeadDetailModalProps {
     onTransferLead: (leadId: string, newAdvisorId: string, reason: string) => void;
     currentUser: Profile | null;
     initialTab?: 'info' | 'activity' | 'appointments' | 'summary';
+    onOpenWhatsApp?: (lead: Lead) => void;
+    onOpenEmail?: (lead: Lead) => void;
 }
 
 interface AppointmentFormModalProps {
@@ -278,7 +280,7 @@ const CollapsibleSection: React.FC<{
 };
 
 // --- MAIN COMPONENT ---
-const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info' }) => {
+const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info', onOpenWhatsApp, onOpenEmail }) => {
     const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary'>(initialTab);
 
     const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
@@ -550,11 +552,21 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                         <div className="space-y-1.5 text-xs sm:text-sm">
                                             <div className="flex flex-col sm:grid sm:grid-cols-3 sm:gap-2">
                                                 <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal">Email:</span>
-                                                <span className="text-gray-900 dark:text-gray-200 sm:col-span-2 break-all">{lead.email || '-'}</span>
+                                                <button
+                                                    onClick={() => onOpenEmail && onOpenEmail(lead)}
+                                                    className="text-left text-blue-600 dark:text-blue-400 hover:underline sm:col-span-2 break-all"
+                                                >
+                                                    {lead.email || '-'}
+                                                </button>
                                             </div>
                                             <div className="flex flex-col sm:grid sm:grid-cols-3 sm:gap-2">
                                                 <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal">Teléfono:</span>
-                                                <span className="text-gray-900 dark:text-gray-200 sm:col-span-2">{lead.phone}</span>
+                                                <button
+                                                    onClick={() => onOpenWhatsApp && onOpenWhatsApp(lead)}
+                                                    className="text-left text-blue-600 dark:text-blue-400 hover:underline sm:col-span-2"
+                                                >
+                                                    {lead.phone}
+                                                </button>
                                             </div>
                                             <div className="flex flex-col sm:grid sm:grid-cols-3 sm:gap-2">
                                                 <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal">Origen:</span>

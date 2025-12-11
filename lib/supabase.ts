@@ -257,34 +257,76 @@ export interface Database {
           link?: string | null
         }
       }
+      organization_settings: {
+        Row: {
+          id: string
+          company_name: string
+          company_subtitle: string
+          logo_url: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_name: string
+          company_subtitle: string
+          logo_url?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_name?: string
+          company_subtitle?: string
+          logo_url?: string | null
+          created_at?: string
+        }
+      }
     }
     Views: {
-      [_ in never]: never
     }
     Functions: {
       create_user_profile: {
-        Args: { user_id: string; full_name: string; user_email: string; user_role: string }
+        Args: {
+          user_id: string
+          full_name: string
+          user_email: string
+          user_role: string
+        }
         Returns: void
       }
       update_user_details: {
-        Args: { user_id_to_update: string; new_full_name: string; new_role: string; new_password?: string }
+        Args: {
+          user_id_to_update: string
+          new_full_name: string
+          new_role: string
+          new_password?: string
+        }
         Returns: void
       }
       delete_user_by_id: {
-        Args: { user_id_to_delete: string }
+        Args: {
+          user_id_to_delete: string
+        }
         Returns: void
       }
       transfer_lead: {
-        Args: { lead_id: string; new_advisor_id: string }
+        Args: {
+          lead_id: string
+          new_advisor_id: string
+        }
         Returns: void
       }
       check_duplicate_lead: {
-        Args: { check_email: string | null; check_phone: string | null }
-        Returns: { id: string; advisor_name: string }[]
+        Args: {
+          check_email: string | null
+          check_phone: string | null
+        }
+        Returns: {
+          id: string
+          advisor_name: string
+        }[]
       }
     }
     Enums: {
-      [_ in never]: never
     }
   }
 }
