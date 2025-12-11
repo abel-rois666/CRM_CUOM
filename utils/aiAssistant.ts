@@ -70,12 +70,12 @@ export const generateMessage = async (lead: Lead, context: string, type: 'whatsa
 };
 
 // [NEW] Función para Resumen Inteligente
-export const generateLeadSummary = async (lead: Lead): Promise<string> => {
+export const generateLeadSummary = async (lead: Lead, statusName: string, programName: string): Promise<string> => {
     if (!API_KEY) throw new Error('Falta API Key');
 
     // 1. Historial de Notas
     const notesHistory = lead.follow_ups && lead.follow_ups.length > 0
-        ? lead.follow_ups.map(f => `- ${new Date(f.created_at).toLocaleDateString()}: ${f.notes}`).join('\n')
+        ? lead.follow_ups.map(f => `- ${new Date(f.created_at || f.date).toLocaleDateString()}: ${f.notes}`).join('\n')
         : 'Sin historial de notas.';
 
     // 2. Historial de Citas (Nuevo)
@@ -89,7 +89,8 @@ export const generateLeadSummary = async (lead: Lead): Promise<string> => {
     
     Datos del prospecto:
     - Nombre: ${lead.first_name} ${lead.paternal_last_name}
-    - Programa ID: ${lead.program_id}
+    - Programa de Interés: ${programName}
+    - Estatus Actual: ${statusName}
     
     Historial de Notas:
     ${notesHistory}
@@ -99,7 +100,7 @@ export const generateLeadSummary = async (lead: Lead): Promise<string> => {
     
     Instrucciones:
     1. Integra la información de citas y notas. Si falló a una cita, es CRÍTICO mencionarlo. Si ya tiene cita agendada, menciónalo.
-    2. Identifica el nivel de interés real.
+    2. Identifica el nivel de interés real, tomando en cuenta el estatus actual "${statusName}".
     3. Menciona el bloqueo principal o siguiente paso.
     4. Sé directo. Ejemplo: "Faltó a su cita de ayer. Dice tener problemas de transporte. Interés medio, reagendar para la próxima semana."
     `;

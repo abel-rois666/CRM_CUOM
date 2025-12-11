@@ -42,7 +42,7 @@ interface LeadDetailModalProps {
     onDeleteAppointment: (leadId: string, appointmentId: string) => void;
     onTransferLead: (leadId: string, newAdvisorId: string, reason: string) => void;
     currentUser: Profile | null;
-    initialTab?: 'info' | 'activity' | 'appointments';
+    initialTab?: 'info' | 'activity' | 'appointments' | 'summary';
 }
 
 interface AppointmentFormModalProps {
@@ -279,7 +279,7 @@ const CollapsibleSection: React.FC<{
 
 // --- MAIN COMPONENT ---
 const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info' }) => {
-    const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments'>(initialTab);
+    const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary'>(initialTab);
 
     const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
     const [isFollowUpModalOpen, setFollowUpModalOpen] = useState(false);
@@ -395,7 +395,9 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
         if (!lead) return;
         setIsSummarizing(true);
         try {
-            const text = await generateLeadSummary(lead);
+            const statusName = statuses.find(s => s.id === lead.status_id)?.name || 'Desconocido';
+            const programName = licenciaturaMap.get(lead.program_id) || 'No especificado';
+            const text = await generateLeadSummary(lead, statusName, programName);
             setSummary(text);
         } catch (error) {
             console.error(error);
@@ -412,40 +414,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
             <Modal isOpen={isOpen} onClose={onClose} title="Detalle del Lead" size="2xl">
                 <div className="flex flex-col h-[70vh]">
 
-                    {/* [NEW] Sección Resumen IA (Collapsible o fija) */}
-                    <div className="mb-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-3 animate-fade-in">
-                        <div className="flex justify-between items-start gap-3">
-                            <div className="flex items-center gap-2">
-                                <div className="p-1.5 bg-indigo-100 dark:bg-indigo-800 rounded-lg text-indigo-600 dark:text-indigo-300">
-                                    <SparklesIcon className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-200">Resumen Inteligente</h4>
-                                    {!summary && <p className="text-xs text-indigo-600/80 dark:text-indigo-400">Analiza el historial completo en un clic.</p>}
-                                </div>
-                            </div>
-                            {!summary && (
-                                <button
-                                    onClick={handleGenerateSummary}
-                                    disabled={isSummarizing}
-                                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
-                                >
-                                    {isSummarizing ? 'Analizando...' : 'Generar Resumen'}
-                                </button>
-                            )}
-                        </div>
 
-                        {summary && (
-                            <div className="mt-3 pl-1">
-                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic border-l-2 border-indigo-300 pl-3">
-                                    "{summary}"
-                                </p>
-                                <div className="mt-2 flex justify-end">
-                                    <button onClick={() => setSummary(null)} className="text-xs text-indigo-500 hover:underline">Ocultar</button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
 
                     {/* Header del Expediente */}
                     <div className="flex flex-col sm:flex-row items-center gap-4 mb-4 pb-4 border-b border-gray-100 dark:border-slate-700 flex-shrink-0">
@@ -475,11 +444,11 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
 
                         {/* Score AI */}
                         {(() => {
-                            const score = calculateLeadScore(lead);
+                            const score = calculateLeadScore(lead, statuses);
                             const colorClass = getScoreColor(score);
                             const label = getScoreLabel(score);
                             return (
-                                <div className={`hidden sm:flex flex-col items-center px-3 py-1 rounded-lg border ${colorClass} ml-2 cursor-help`} title={getScoreBreakdown(lead)}>
+                                <div className={`hidden sm:flex flex-col items-center px-3 py-1 rounded-lg border ${colorClass} ml-2 cursor-help`} title={getScoreBreakdown(lead, statuses)}>
                                     <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Probabilidad</span>
                                     <div className="text-lg font-bold leading-none my-0.5">{score}%</div>
                                     <span className="text-[10px] opacity-75 whitespace-nowrap">{label}</span>
@@ -501,6 +470,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                     {/* Sistema de Pestañas */}
                     <div className="flex border-b border-gray-200 dark:border-slate-700 mb-4 sm:mb-6 overflow-x-auto scrollbar-hide -mx-2 px-2 sm:mx-0 sm:px-0 flex-shrink-0">
                         {[
+                            { id: 'summary', label: 'Resumen IA', icon: <SparklesIcon className="w-4 h-4" /> },
                             { id: 'info', label: 'Información', icon: <UserIcon className="w-4 h-4" /> },
                             { id: 'activity', label: 'Historial', icon: <ListBulletIcon className="w-4 h-4" /> },
                             { id: 'appointments', label: 'Agenda', icon: <CalendarIcon className="w-4 h-4" /> }
@@ -509,7 +479,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
                                 className={`
-                            flex-shrink-0 flex items-center gap-2 py-2.5 px-4 sm:px-5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
+                            flex-shrink-0 flex items-center gap-1.5 py-2 px-2 sm:px-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap
                             ${activeTab === tab.id
                                         ? 'border-brand-secondary text-brand-secondary bg-blue-50/50 dark:bg-blue-900/20 rounded-t-lg'
                                         : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-t-lg'
@@ -525,57 +495,104 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                     {/* Contenido de las Pestañas */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 sm:pr-2 pb-8">
 
+                        {/* TAB 0: RESUMEN IA */}
+                        {activeTab === 'summary' && (
+                            <div className="animate-fade-in space-y-6">
+                                <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-6 text-center">
+                                    {!summary ? (
+                                        <div className="py-8">
+                                            <div className="inline-flex p-3 bg-indigo-100 dark:bg-indigo-800 rounded-full text-indigo-600 dark:text-indigo-300 mb-4">
+                                                <SparklesIcon className="w-8 h-8" />
+                                            </div>
+                                            <h4 className="text-lg font-bold text-indigo-900 dark:text-indigo-200 mb-2">Resumen Inteligente de Lead</h4>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                                                Nuestra IA analizará todo el historial de seguimiento, llamadas y citas para generarte un resumen ejecutivo de la situación actual.
+                                            </p>
+                                            <Button
+                                                onClick={handleGenerateSummary}
+                                                disabled={isSummarizing}
+                                                leftIcon={<SparklesIcon className="w-4 h-4" />}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white border-none shadow-lg shadow-indigo-200 dark:shadow-none"
+                                            >
+                                                {isSummarizing ? 'Analizando Historial...' : 'Generar Resumen Ahora'}
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="text-left">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <SparklesIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                                                <h4 className="font-bold text-gray-800 dark:text-white">Análisis Generado</h4>
+                                            </div>
+                                            <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-indigo-100 dark:border-slate-600 shadow-sm relative">
+                                                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 rounded-l-xl"></div>
+                                                <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
+                                                    {summary}
+                                                </p>
+                                            </div>
+                                            <div className="mt-6 flex justify-center">
+                                                <Button size="sm" variant="ghost" onClick={() => setSummary(null)} className="text-gray-500">
+                                                    Generar Nuevo Análisis
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB 1: INFORMACIÓN GENERAL */}
                         {/* TAB 1: INFORMACIÓN GENERAL */}
                         {activeTab === 'info' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 animate-fade-in">
-                                <div className="space-y-4 sm:space-y-6">
-                                    <div className="bg-gray-50 dark:bg-slate-800 p-4 sm:p-5 rounded-xl border border-gray-200 dark:border-slate-700">
-                                        <h5 className="font-bold text-gray-800 dark:text-white mb-3 border-b border-gray-200 dark:border-slate-700 pb-2 text-sm sm:text-base">Datos de Contacto</h5>
-                                        <div className="space-y-2 text-sm">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 animate-fade-in content-start">
+                                <div className="space-y-3 sm:space-y-4">
+                                    <div className="bg-gray-50 dark:bg-slate-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-slate-700">
+                                        <h5 className="font-bold text-gray-800 dark:text-white mb-2 border-b border-gray-200 dark:border-slate-700 pb-1 text-xs sm:text-sm uppercase tracking-wide">Datos de Contacto</h5>
+                                        <div className="space-y-1.5 text-xs sm:text-sm">
                                             <div className="flex flex-col sm:grid sm:grid-cols-3 sm:gap-2">
-                                                <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal text-xs sm:text-sm">Email:</span>
+                                                <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal">Email:</span>
                                                 <span className="text-gray-900 dark:text-gray-200 sm:col-span-2 break-all">{lead.email || '-'}</span>
                                             </div>
                                             <div className="flex flex-col sm:grid sm:grid-cols-3 sm:gap-2">
-                                                <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal text-xs sm:text-sm">Teléfono:</span>
+                                                <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal">Teléfono:</span>
                                                 <span className="text-gray-900 dark:text-gray-200 sm:col-span-2">{lead.phone}</span>
                                             </div>
                                             <div className="flex flex-col sm:grid sm:grid-cols-3 sm:gap-2">
-                                                <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal text-xs sm:text-sm">Origen:</span>
+                                                <span className="text-gray-500 dark:text-gray-400 font-medium sm:font-normal">Origen:</span>
                                                 <span className="text-gray-900 dark:text-gray-200 sm:col-span-2">{sourceMap.get(lead.source_id)}</span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="bg-blue-50/50 dark:bg-blue-900/20 p-4 sm:p-5 rounded-xl border border-blue-100 dark:border-blue-800/50">
-                                        <h5 className="font-bold text-blue-900 dark:text-blue-300 mb-3 border-b border-blue-200 dark:border-blue-800 pb-2 text-sm sm:text-base">Interés Académico</h5>
-                                        <div className="text-center py-1">
-                                            <p className="text-xs text-blue-500 dark:text-blue-400 uppercase tracking-wide font-bold mb-1">Licenciatura</p>
-                                            <p className="text-base sm:text-lg font-bold text-brand-primary dark:text-blue-200">{licenciaturaMap.get(lead.program_id)}</p>
+                                    <div className="bg-blue-50/50 dark:bg-blue-900/20 p-3 sm:p-4 rounded-lg border border-blue-100 dark:border-blue-800/50">
+                                        <h5 className="font-bold text-blue-900 dark:text-blue-300 mb-2 border-b border-blue-200 dark:border-blue-800 pb-1 text-xs sm:text-sm uppercase tracking-wide">Interés Académico</h5>
+                                        <div className="text-center py-0.5">
+                                            <p className="text-[10px] text-blue-500 dark:text-blue-400 uppercase tracking-wide font-bold mb-0.5">Licenciatura</p>
+                                            <p className="text-sm sm:text-base font-bold text-brand-primary dark:text-blue-200">{licenciaturaMap.get(lead.program_id)}</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-6">
-                                    <div className="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm">
-                                        <h5 className="font-bold text-gray-800 dark:text-white mb-4 text-sm sm:text-base">Gestión de Asignación</h5>
-                                        <div className="space-y-4">
+                                <div className="space-y-3 sm:space-y-4">
+                                    <div className="bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm">
+                                        <h5 className="font-bold text-gray-800 dark:text-white mb-2 text-xs sm:text-sm uppercase tracking-wide">Gestión de Asignación</h5>
+                                        <div className="space-y-3">
                                             <Select
                                                 label="Asesor Responsable"
                                                 name="advisor_id"
                                                 value={lead.advisor_id}
                                                 onChange={handleDetailChange}
                                                 disabled={true}
-                                                className="bg-gray-100 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 cursor-not-allowed"
+                                                className="bg-gray-100 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 cursor-not-allowed text-xs sm:text-sm py-1.5"
                                                 options={advisors.map(a => ({ value: a.id, label: a.full_name }))}
                                             />
                                             <Button
                                                 variant="secondary"
                                                 onClick={() => setTransferModalOpen(true)}
-                                                className="w-full justify-center dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:hover:bg-slate-600"
+                                                className="w-full justify-center dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:hover:bg-slate-600 text-xs sm:text-sm py-1.5"
                                                 leftIcon={<TransferIcon className="w-4 h-4" />}
+                                                size="sm"
                                             >
-                                                Transferir Lead (Cambiar Asesor)
+                                                Transferir Lead
                                             </Button>
                                         </div>
                                     </div>

@@ -1,6 +1,13 @@
 import { Lead } from '../types';
 
-export const calculateLeadScore = (lead: Lead): number => {
+export const calculateLeadScore = (lead: Lead, statuses: any[]): number => {
+    // 0. Revisar Estado Definitivo ('won' o 'lost')
+    const currentStatus = statuses.find(s => s.id === lead.status_id);
+    if (currentStatus) {
+        if (currentStatus.category === 'won') return 100;
+        if (currentStatus.category === 'lost') return 0;
+    }
+
     let score = 0;
 
     // 1. Perfil Completo (+10)
@@ -69,8 +76,20 @@ export const calculateLeadScore = (lead: Lead): number => {
     return Math.max(0, Math.min(100, score));
 };
 
-export const getScoreBreakdown = (lead: Lead): string => {
+export const getScoreBreakdown = (lead: Lead, statuses: any[]): string => {
     let breakdown: string[] = [];
+
+    // 0. Revisar Estado Definitivo
+    const currentStatus = statuses.find(s => s.id === lead.status_id);
+    if (currentStatus) {
+        if (currentStatus.category === 'won') {
+            return `Puntuación: 100/100\n\n🎉 ¡Lead Inscrito! (Estado Ganado)`;
+        }
+        if (currentStatus.category === 'lost') {
+            return `Puntuación: 0/100\n\n⛔ Lead Perdido (Estado Baja/Archivo)`;
+        }
+    }
+
     let score = 0;
 
     // 1. Perfil Completo

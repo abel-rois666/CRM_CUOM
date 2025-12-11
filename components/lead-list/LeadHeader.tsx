@@ -55,8 +55,12 @@ const LeadHeader: React.FC<LeadHeaderProps> = ({
                         <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Exportar (Pagina)</span>
                     </Button>
                 )}
-                <Button onClick={onAddNew} leftIcon={<PlusIcon className="w-5 h-5" />} className="shadow-lg shadow-brand-secondary/20 hidden md:flex">
-                    Nuevo Lead
+                <Button
+                    onClick={onAddNew}
+                    className="shadow-lg shadow-brand-secondary/20 !rounded-full w-12 h-12 !p-0 flex items-center justify-center md:!rounded-xl md:w-auto md:!px-4 md:!py-2"
+                >
+                    <PlusIcon className="w-8 h-8 stroke-2 md:w-5 md:h-5 md:mr-2 md:stroke-[1.5]" />
+                    <span className="hidden md:inline">Nuevo Lead</span>
                 </Button>
             </div>
         </div>

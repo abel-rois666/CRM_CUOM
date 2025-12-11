@@ -174,10 +174,13 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                     </td>
                                     <td className="px-2 py-4 whitespace-nowrap text-center">
                                         {(() => {
-                                            const score = calculateLeadScore(lead);
+                                            const statusObj = statusMap.get(lead.status_id);
+                                            // Creamos un array sintético con el status actual para que calculateLeadScore lo encuentre
+                                            const statusesContext = statusObj ? [{ id: lead.status_id, ...statusObj }] : [];
+                                            const score = calculateLeadScore(lead, statusesContext);
                                             const colorClass = getScoreColor(score);
                                             return (
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${colorClass} cursor-help`} title={getScoreBreakdown(lead)}>
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${colorClass} cursor-help`} title={getScoreBreakdown(lead, statusesContext)}>
                                                     {score}%
                                                 </span>
                                             );

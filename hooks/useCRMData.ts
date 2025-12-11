@@ -277,7 +277,12 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     fetchMetrics();
   }, [fetchMetrics]);
 
-  // Helper para aplicar filtros y resetear a pág 1
+  // Helper para resetear a pág 1 al cambiar tamaño
+  const handleSetPageSize = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+  };
+
   const handleSetFilters = (newFilters: Partial<DataFilters>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
     setPage(1);
@@ -291,7 +296,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     page,
     pageSize,
     setPage,
-    setPageSize,
+    setPageSize: handleSetPageSize,
     filters,
     setFilters: handleSetFilters,
 

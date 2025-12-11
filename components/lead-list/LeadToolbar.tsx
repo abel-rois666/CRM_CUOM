@@ -9,6 +9,8 @@ import MagnifyingGlassIcon from '../icons/MagnifyingGlassIcon';
 
 export type ViewMode = 'list' | 'kanban' | 'calendar';
 
+export type CalendarViewType = 'month' | 'week' | 'day' | 'agenda';
+
 interface LeadToolbarProps {
     localSearchTerm: string;
     isSearching: boolean;
@@ -19,6 +21,7 @@ interface LeadToolbarProps {
     onViewModeChange: (mode: ViewMode) => void;
     activeCategoryTab: StatusCategory;
     onCategoryTabChange: (category: StatusCategory) => void;
+    currentCalendarView?: CalendarViewType;
 }
 
 const LeadToolbar: React.FC<LeadToolbarProps> = ({
@@ -30,28 +33,46 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
     viewMode,
     onViewModeChange,
     activeCategoryTab,
-    onCategoryTabChange
+    onCategoryTabChange,
+    currentCalendarView = 'month'
 }) => {
+    const getCalendarTitle = () => {
+        switch (currentCalendarView) {
+            case 'month': return 'Vista de Calendario Mensual';
+            case 'week': return 'Vista de Calendario Semanal';
+            case 'day': return 'Vista de Calendario por Día';
+            case 'agenda': return 'Vista de Agenda';
+            default: return 'Vista de Calendario';
+        }
+    };
+
     return (
         <div className="flex flex-col gap-4">
             <div className="bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-3 items-center">
                 <div className="relative flex-grow w-full sm:w-auto group">
+                    {viewMode !== 'calendar' && (
+                        <>
+                            {isSearching ? (
+                                <ArrowPathIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-brand-secondary animate-spin" />
+                            ) : (
+                                <MagnifyingGlassIcon className="absolute top-1/2 left-3 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            )}
 
-                    {isSearching ? (
-                        // Icono de carga (Spinner) - Se muestra si hay texto
-                        <ArrowPathIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-brand-secondary animate-spin" />
-                    ) : (
-                        // Icono de lupa - Se muestra si el campo está vacío
-                        <MagnifyingGlassIcon className="absolute top-1/2 left-1/45 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                                type="text"
+                                className="block w-full pl-11 pr-4 py-3 border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary transition-all text-sm"
+                                placeholder="Buscar en el servidor (Nombre, Email, Tel)..."
+                                value={localSearchTerm}
+                                onChange={onSearchChange}
+                            />
+                        </>
                     )}
-
-                    <input
-                        type="text"
-                        className="block w-full pl-11 pr-4 py-3 border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary transition-all text-sm"
-                        placeholder="Buscar en el servidor (Nombre, Email, Tel)..."
-                        value={localSearchTerm}
-                        onChange={onSearchChange}
-                    />
+                    {viewMode === 'calendar' && (
+                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 py-3 pl-2">
+                            <CalendarIcon className="w-5 h-5 text-brand-secondary" />
+                            <span className="text-sm font-medium">{getCalendarTitle()}</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center w-full sm:w-auto gap-3 justify-between sm:justify-end">
@@ -84,23 +105,26 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
             </div>
 
             {/* Tabs de Estado */}
-            <div className="border-b border-gray-200 dark:border-slate-700 overflow-x-auto scrollbar-hide">
-                <nav className="-mb-px flex space-x-8 px-2 min-w-max" aria-label="Tabs">
-                    {[
-                        { id: 'active', label: 'En Proceso (Activos)', color: 'border-brand-secondary text-brand-secondary dark:text-blue-400' },
-                        { id: 'won', label: 'Inscritos (Ganados)', color: 'border-green-500 text-green-600 dark:text-green-400' },
-                        { id: 'lost', label: 'Bajas / Archivo', color: 'border-red-500 text-red-600 dark:text-red-400' }
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => onCategoryTabChange(tab.id as StatusCategory)}
-                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-slate-600'}`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </nav>
-            </div>
+            {viewMode !== 'calendar' && (
+                <div className="border-b border-gray-200 dark:border-slate-700">
+                    <nav className="-mb-px flex w-full" aria-label="Tabs">
+                        {[
+                            { id: 'active', label: 'En Proceso', mobileLabel: 'Activos', color: 'border-brand-secondary text-brand-secondary dark:text-blue-400' },
+                            { id: 'won', label: 'Inscritos', mobileLabel: 'Inscritos', color: 'border-green-500 text-green-600 dark:text-green-400' },
+                            { id: 'lost', label: 'Bajas', mobileLabel: 'Bajas', color: 'border-red-500 text-red-600 dark:text-red-400' }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => onCategoryTabChange(tab.id as StatusCategory)}
+                                className={`flex-1 py-4 px-1 text-center border-b-2 font-medium text-xs sm:text-sm transition-colors ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-slate-600'}`}
+                            >
+                                <span className="hidden sm:inline">{tab.label}</span>
+                                <span className="sm:hidden">{tab.mobileLabel}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+            )}
         </div>
     );
 };

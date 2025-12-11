@@ -1,5 +1,6 @@
 // components/LeadList.tsx
 import React, { useState, useMemo, useEffect } from 'react';
+import { View, Views } from 'react-big-calendar';
 import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate, DashboardMetrics } from '../types';
 import { DataFilters } from '../hooks/useCRMData';
 import ConfirmationModal from './common/ConfirmationModal';
@@ -12,6 +13,7 @@ import BulkTransferModal from './BulkTransferModal';
 import { supabase } from '../lib/supabase';
 import BulkMessageModal from './BulkMessageModal';
 import { calculateLeadScore } from '../utils/leadScoring';
+import { useCalendarEvents } from '../hooks/useCalendarEvents';
 
 // Components Refactorizados
 import LeadHeader from './lead-list/LeadHeader';
@@ -84,6 +86,9 @@ const LeadList: React.FC<LeadListProps> = ({
 
     const [sortColumn, setSortColumn] = useState<SortableColumn>('registration_date');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+    const { events: calendarEvents, currentDate, setCurrentDate, loading: calendarLoading } = useCalendarEvents(new Date(), currentFilters.advisorId);
+    const [currentCalendarView, setCurrentCalendarView] = useState<View>(Views.MONTH);
 
     // Helpers Maps
     const advisorMap = React.useMemo(() => new Map(advisors.map(a => [a.id, a.full_name])), [advisors]);
@@ -227,8 +232,8 @@ const LeadList: React.FC<LeadListProps> = ({
                     valB = new Date(b.registration_date).getTime();
                     break;
                 case 'score':
-                    valA = calculateLeadScore(a);
-                    valB = calculateLeadScore(b);
+                    valA = calculateLeadScore(a, statuses);
+                    valB = calculateLeadScore(b, statuses);
                     break;
             }
             if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
@@ -405,6 +410,7 @@ const LeadList: React.FC<LeadListProps> = ({
                     onViewModeChange={setViewMode}
                     activeCategoryTab={activeCategoryTab}
                     onCategoryTabChange={(category) => { setActiveCategoryTab(category); setQuickFilter(null); }}
+                    currentCalendarView={currentCalendarView as any}
                 />
             </div>
 
@@ -482,9 +488,13 @@ const LeadList: React.FC<LeadListProps> = ({
                     />
                 ) : (
                     <CalendarView
-                        appointments={leads.flatMap(l => l.appointments || [])}
-                        leads={filteredLeads}
+                        events={calendarEvents}
+                        currentDate={currentDate}
+                        onDateChange={setCurrentDate}
+                        view={currentCalendarView}
+                        onViewChange={setCurrentCalendarView}
                         onEventClick={(lead) => onViewDetails(lead)}
+                        loading={calendarLoading}
                     />
                 )}
             </div>
