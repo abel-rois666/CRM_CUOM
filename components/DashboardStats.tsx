@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Lead, Status, Profile, DashboardMetrics } from '../types';
+import { Lead, Status, Profile, DashboardMetrics, QuickFilterType } from '../types';
 import CalendarIcon from './icons/CalendarIcon';
 import BellAlertIcon from './icons/BellAlertIcon';
 import ClockIcon from './icons/ClockIcon';
@@ -13,7 +13,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps
 } from 'recharts';
 
-export type QuickFilterType = 'appointments_today' | 'no_followup' | 'stale_followup' | null;
+
 
 interface DashboardStatsProps {
     leads: Lead[]; // Kept for compatibility if needed elsewhere, but mainly unused for stats now

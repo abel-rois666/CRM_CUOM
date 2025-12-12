@@ -4,7 +4,7 @@ import { View, Views } from 'react-big-calendar';
 import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate, DashboardMetrics, Source } from '../types';
 import { DataFilters } from '../hooks/useCRMData';
 import ConfirmationModal from './common/ConfirmationModal';
-import LeadListSkeleton from './LeadListSkeleton';
+import LeadListSkeleton, { LeadTableSkeleton, LeadKanbanSkeleton } from './LeadListSkeleton';
 import KanbanBoard from './KanbanBoard';
 import DashboardStats, { QuickFilterType } from './DashboardStats';
 import CalendarView from './CalendarView';
@@ -107,7 +107,9 @@ const LeadList: React.FC<LeadListProps> = ({
     const { leads: kanbanLeads, loading: kanbanLoading, updateLocalLead: updateKanbanLead } = useKanbanData({
         advisorId: currentFilters.advisorId,
         programId: currentFilters.programId,
-        searchTerm: currentFilters.searchTerm
+        searchTerm: currentFilters.searchTerm,
+        quickFilter: quickFilter, // [NEW] Pass quick filter
+        userId: currentUser?.id // [NEW] Pass user ID for RPC security
     }, viewMode === 'kanban');
 
     // [FIX] Sync external updates to Kanban state
@@ -186,8 +188,10 @@ const LeadList: React.FC<LeadListProps> = ({
         setQuickFilter(filter);
         if (filter !== null) {
             setActiveCategoryTab('active');
-            onFilterChange({ category: 'active', statusId: 'all' });
+            onFilterChange({ category: 'active', statusId: 'all', quickFilter: filter });
             onPageChange(1);
+        } else {
+            onFilterChange({ quickFilter: null });
         }
     };
 
@@ -199,37 +203,10 @@ const LeadList: React.FC<LeadListProps> = ({
             // [FIX] Ensure local updates respect the current category tab
             if (category !== activeCategoryTab) return false;
 
-            if (quickFilter) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const threeDaysAgo = new Date();
-                threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-                const sevenDaysAgo = new Date();
-                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                const regDate = new Date(lead.registration_date);
-
-                if (quickFilter === 'appointments_today') {
-                    const hasAppt = lead.appointments?.some(appt => {
-                        const apptDate = new Date(appt.date);
-                        apptDate.setHours(0, 0, 0, 0);
-                        return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
-                    });
-                    if (!hasAppt) return false;
-                }
-                if (quickFilter === 'no_followup') {
-                    const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
-                    if (!(hasNoFollowUps && regDate < threeDaysAgo)) return false;
-                }
-                if (quickFilter === 'stale_followup') {
-                    if (!lead.follow_ups || lead.follow_ups.length === 0) return false;
-                    const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                    const lastDate = new Date(lastFollowUp.date);
-                    if (!(lastDate < sevenDaysAgo)) return false;
-                }
-            }
+            // [REF] Server-side filtering handles quickFilter now.
             return true;
         });
-    }, [leads, activeCategoryTab, quickFilter, statusMap]);
+    }, [leads, activeCategoryTab, statusMap]);
 
     const filteredKanbanLeads = useMemo(() => {
         return kanbanLeads.filter(lead => {
@@ -238,34 +215,7 @@ const LeadList: React.FC<LeadListProps> = ({
 
             if (category !== activeCategoryTab) return false;
 
-            if (quickFilter) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const threeDaysAgo = new Date();
-                threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-                const sevenDaysAgo = new Date();
-                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                const regDate = new Date(lead.registration_date);
-
-                if (quickFilter === 'appointments_today') {
-                    const hasAppt = lead.appointments?.some(appt => {
-                        const apptDate = new Date(appt.date);
-                        apptDate.setHours(0, 0, 0, 0);
-                        return appt.status === 'scheduled' && apptDate.getTime() === today.getTime();
-                    });
-                    if (!hasAppt) return false;
-                }
-                if (quickFilter === 'no_followup') {
-                    const hasNoFollowUps = !lead.follow_ups || lead.follow_ups.length === 0;
-                    if (!(hasNoFollowUps && regDate < threeDaysAgo)) return false;
-                }
-                if (quickFilter === 'stale_followup') {
-                    if (!lead.follow_ups || lead.follow_ups.length === 0) return false;
-                    const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                    const lastDate = new Date(lastFollowUp.date);
-                    if (!(lastDate < sevenDaysAgo)) return false;
-                }
-            }
+            // [REF] Server-side filtering handles quickFilter now.
             return true;
         });
     }, [kanbanLeads, activeCategoryTab, quickFilter, statusMap]);
@@ -445,7 +395,7 @@ const LeadList: React.FC<LeadListProps> = ({
         return statuses.filter(s => (s.category || 'active') === activeCategoryTab);
     }, [statuses, activeCategoryTab]);
 
-    if (loading && leads.length === 0) return <LeadListSkeleton viewMode={viewMode} />;
+
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-8xl relative min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors duration-300">
@@ -517,59 +467,67 @@ const LeadList: React.FC<LeadListProps> = ({
             <div key={`${viewMode}-${activeCategoryTab}`} className="animate-fade-in">
                 {viewMode === 'list' ? (
                     <>
-                        <LeadTable
-                            leads={sortedLeads} // [FIX] No slicing, assuming server paging returns correct page
-                            selectedIds={selectedIds}
-                            onSelectAll={handleSelectAll}
-                            onSelectOne={handleSelectOne}
-                            sortColumn={sortColumn}
-                            sortDirection={sortDirection}
-                            onSort={handleSort}
-                            advisorMap={advisorMap}
-                            statusMap={statusMap}
-                            licenciaturaMap={licenciaturaMap}
-                            sourceMap={sourceMap}
-                            onViewDetails={onViewDetails}
-                            onOpenWhatsApp={onOpenWhatsApp}
-                            onOpenEmail={onOpenEmail}
-                            onEdit={onEdit}
-                            onDeleteClick={setLeadToDelete}
-                            localSearchTerm={localSearchTerm}
-                            activeFilterCount={activeFilterCount}
-                            onClearFilters={() => {
-                                setLocalSearchTerm('');
-                                onFilterChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' });
-                                setQuickFilter(null);
-                            }}
-                        />
+                        {/* [FIX] Show Table Skeleton only in content area */}
+                        {loading && leads.length === 0 ? (
+                            <LeadTableSkeleton />
+                        ) : (
+                            <>
+                                <LeadTable
+                                    leads={sortedLeads}
+                                    selectedIds={selectedIds}
+                                    onSelectAll={handleSelectAll}
+                                    onSelectOne={handleSelectOne}
+                                    sortColumn={sortColumn}
+                                    sortDirection={sortDirection}
+                                    onSort={handleSort}
+                                    advisorMap={advisorMap}
+                                    statusMap={statusMap}
+                                    licenciaturaMap={licenciaturaMap}
+                                    sourceMap={sourceMap}
+                                    onViewDetails={onViewDetails}
+                                    onOpenWhatsApp={onOpenWhatsApp}
+                                    onOpenEmail={onOpenEmail}
+                                    onEdit={onEdit}
+                                    onDeleteClick={setLeadToDelete}
+                                    localSearchTerm={localSearchTerm}
+                                    activeFilterCount={activeFilterCount}
+                                    loading={loading} // [NEW] Pass loading state
+                                    onClearFilters={() => {
+                                        setLocalSearchTerm('');
+                                        onFilterChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' });
+                                        setQuickFilter(null);
+                                    }}
+                                />
 
-                        <LeadPagination
-                            totalLeads={totalLeads} // [FIX] Use server total
-                            page={page}
-                            pageSize={pageSize}
-                            onPageChange={onPageChange}
-                            onPageSizeChange={onPageSizeChange}
-                        />
+                                <LeadPagination
+                                    totalLeads={totalLeads}
+                                    page={page}
+                                    pageSize={pageSize}
+                                    onPageChange={onPageChange}
+                                    onPageSizeChange={onPageSizeChange}
+                                />
+                            </>
+                        )}
                     </>
                 ) : viewMode === 'kanban' ? (
                     <div className="h-full">
-                        {kanbanLoading && kanbanLeads.length === 0 && (
-                            <div className="flex justify-center items-center h-40">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
-                            </div>
+                        {/* [FIX] Show Skeleton instead of Spinner for initial load */}
+                        {loading && leads.length === 0 ? (
+                            <LeadKanbanSkeleton />
+                        ) : (
+                            <KanbanBoard
+                                leads={filteredKanbanLeads}
+                                statuses={relevantStatuses}
+                                advisors={advisors}
+                                licenciaturas={licenciaturas}
+                                onEdit={onEdit}
+                                onDelete={(id) => setLeadToDelete(id)}
+                                onViewDetails={onViewDetails}
+                                onOpenWhatsApp={onOpenWhatsApp}
+                                onOpenEmail={onOpenEmail}
+                                onLeadMove={handleLeadMove}
+                            />
                         )}
-                        <KanbanBoard
-                            leads={filteredKanbanLeads}
-                            statuses={relevantStatuses}
-                            advisors={advisors}
-                            licenciaturas={licenciaturas}
-                            onEdit={onEdit}
-                            onDelete={(id) => setLeadToDelete(id)}
-                            onViewDetails={onViewDetails}
-                            onOpenWhatsApp={onOpenWhatsApp}
-                            onOpenEmail={onOpenEmail}
-                            onLeadMove={handleLeadMove}
-                        />
                     </div>
                 ) : (
                     <CalendarView

@@ -107,24 +107,35 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
             </div>
 
             {/* Tabs de Estado */}
+            {/* Tabs de Estado (Estilo Segmented Control / Pastilla) */}
             {viewMode !== 'calendar' && (
-                <div className="border-b border-gray-200 dark:border-slate-700">
-                    <nav className="-mb-px flex w-full" aria-label="Tabs">
+                <div className="bg-gray-200 dark:bg-slate-800 p-1.5 rounded-xl flex items-center justify-between overflow-x-auto no-scrollbar">
+                    <div className="flex w-full gap-4">
                         {[
-                            { id: 'active', label: 'En Proceso', mobileLabel: 'Activos', color: 'border-brand-secondary text-brand-secondary dark:text-blue-400' },
-                            { id: 'won', label: 'Inscritos', mobileLabel: 'Inscritos', color: 'border-green-500 text-green-600 dark:text-green-400' },
-                            { id: 'lost', label: 'Bajas', mobileLabel: 'Bajas', color: 'border-red-500 text-red-600 dark:text-red-400' }
-                        ].map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => onCategoryTabChange(tab.id as StatusCategory)}
-                                className={`flex-1 py-4 px-1 text-center border-b-2 font-medium text-xs sm:text-sm transition-colors ${activeCategoryTab === tab.id ? tab.color : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-slate-600'}`}
-                            >
-                                <span className="hidden sm:inline">{tab.label}</span>
-                                <span className="sm:hidden">{tab.mobileLabel}</span>
-                            </button>
-                        ))}
-                    </nav>
+                            { id: 'active', label: 'En Proceso', icon: '⚡', activeClass: 'text-brand-primary dark:text-blue-300' },
+                            { id: 'won', label: 'Inscritos', icon: '🎓', activeClass: 'text-green-600 dark:text-green-400' },
+                            { id: 'lost', label: 'Bajas', icon: '❌', activeClass: 'text-red-600 dark:text-red-400' }
+                        ].map(tab => {
+                            const isActive = activeCategoryTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => onCategoryTabChange(tab.id as StatusCategory)}
+                                    // [FIX] Removed sm:flex-none to allow full width distribution on desktop
+                                    className={`
+                                        flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap flex items-center justify-center
+                                        ${isActive
+                                            ? `bg-white dark:bg-slate-700 shadow-sm ${tab.activeClass} ring-1 ring-black/5 dark:ring-white/10`
+                                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-300/50 dark:hover:bg-slate-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                                        }
+                                    `}
+                                >
+                                    <span className="mr-2 opacity-80">{tab.icon}</span>
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
         </div>

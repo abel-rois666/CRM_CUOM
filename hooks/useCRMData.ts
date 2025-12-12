@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, DashboardMetrics } from '../types';
+import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, DashboardMetrics, QuickFilterType } from '../types';
 import { useToast } from '../context/ToastContext';
 
 // Interfaz para los filtros que se enviarán a la BD
@@ -14,6 +14,7 @@ export interface DataFilters {
   endDate: string;
   searchTerm: string;
   category?: string; // Nuevo filtro por categoría de estado
+  quickFilter?: QuickFilterType; // [NEW] Filtro rápido de dashboard
 }
 
 export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
@@ -33,7 +34,8 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     startDate: '',
     endDate: '',
     searchTerm: '',
-    category: 'active' // Por defecto mostramos leads activos
+    category: 'active', // Por defecto mostramos leads activos
+    quickFilter: null // [NEW] Sin filtro rápido inicial
   });
 
   // --- CATÁLOGOS ---
@@ -111,14 +113,31 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       lastFetchedToken.current = session.access_token;
 
       // Construcción de Query Dinámica
-      let query = supabase
-        .from('leads')
-        .select(`
-  *,
-  appointments(*, created_by(full_name)),
-  follow_ups(*, created_by(full_name)),
-  status_history(*, created_by(full_name))
-    `, { count: 'exact' }); // Pedimos el conteo total
+      let query: any;
+
+      if (filters.quickFilter) {
+        // [NEW] Server-side Quick Filter using RPC
+        query = supabase.rpc('get_quick_filter_leads', {
+          filter_type: filters.quickFilter,
+          requesting_user_id: session.user.id
+        })
+          .select(`
+            *,
+            appointments(*, created_by(full_name)),
+            follow_ups(*, created_by(full_name)),
+            status_history(*, created_by(full_name))
+          `, { count: 'exact' });
+      } else {
+        // Standard Query
+        query = supabase
+          .from('leads')
+          .select(`
+            *,
+            appointments(*, created_by(full_name)),
+            follow_ups(*, created_by(full_name)),
+            status_history(*, created_by(full_name))
+          `, { count: 'exact' });
+      }
 
       // --- FILTROS DE SEGURIDAD (ROL) ---
       if (userRole === 'advisor' && userId) {

@@ -115,7 +115,8 @@ export interface Notification {
   link?: string;
 }
 
-// --- Dashboard Metrics ---
+export type QuickFilterType = 'appointments_today' | 'no_followup' | 'stale_followup' | null;
+
 export interface DashboardMetrics {
   totalLeads: number;
   newLeadsToday: number;

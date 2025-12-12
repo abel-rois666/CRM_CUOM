@@ -40,7 +40,10 @@ interface LeadTableProps {
     // For Empty State
     localSearchTerm: string;
     activeFilterCount: number;
+    localSearchTerm: string;
+    activeFilterCount: number;
     onClearFilters: () => void;
+    loading?: boolean; // [NEW] Prop to control empty state visibility
 }
 
 type ColumnId = 'urgency' | 'score' | 'name' | 'advisor' | 'status' | 'program' | 'registro' | 'agenda' | 'actions' | 'email' | 'phone' | 'source' | 'last_activity';
@@ -88,7 +91,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
     onDeleteClick,
     localSearchTerm,
     activeFilterCount,
-    onClearFilters
+    onClearFilters,
+    loading = false
 }) => {
     // [NEW] Column Visibility State as Ordered Array
     const [columns, setColumns] = useState<ColumnConfig[]>(() => {
@@ -310,8 +314,21 @@ const LeadTable: React.FC<LeadTableProps> = ({
 
                 {isMenuOpen && (
                     <div className="absolute right-0 top-12 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 p-3 animate-fade-in-down ring-1 ring-black/5">
-                        <div className="flex justify-between items-center mb-3 px-1">
-                            <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Gestionar Columnas</h4>
+                        <div className="flex justify-between items-center mb-3 px-1 border-b border-gray-100 dark:border-slate-700 pb-2">
+                            <label className="flex items-center cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={columns.every(c => c.visible)}
+                                    onChange={(e) => {
+                                        const areAllVisible = columns.every(c => c.visible);
+                                        setColumns(prev => prev.map(c =>
+                                            c.id === 'name' ? c : { ...c, visible: !areAllVisible }
+                                        ));
+                                    }}
+                                    className="rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary mr-2 w-4 h-4 cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Todo</span>
+                            </label>
                             <button onClick={() => setColumns(defaultColumns)} className="text-[10px] text-brand-secondary hover:underline">Restaurar</button>
                         </div>
                         <div className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar">
@@ -414,7 +431,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                 </tr>
                             )
                         })}
-                        {leads.length === 0 && (
+                        {/* [MODIFIED] Only show empty state if NOT loading. If loading, showing nothing here (or a spinner) is better to avoid flash. */}
+                        {!loading && leads.length === 0 && (
                             <tr>
                                 <td colSpan={columns.filter(c => c.visible).length + 3} className="text-center py-20">
                                     <div className="flex flex-col items-center justify-center animate-fade-in">
@@ -434,6 +452,16 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                                 Limpiar búsqueda y filtros
                                             </Button>
                                         )}
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
+                        {/* [NEW] Optional: Subtle Spinner Overlay logic could go here if needed, but for now just hiding empty state is enough to fix the flash. */}
+                        {loading && leads.length === 0 && (
+                            <tr>
+                                <td colSpan={columns.filter(c => c.visible).length + 3} className="text-center py-20">
+                                    <div className="flex justify-center items-center">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
                                     </div>
                                 </td>
                             </tr>
