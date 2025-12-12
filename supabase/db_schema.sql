@@ -352,7 +352,14 @@ BEGIN
     AND DATE(a.date) = today
     AND s.category = 'active';
 
-    -- 3. Sin seguimiento reciente (Solo leads activos)
+    -- 3. Inscritos Hoy (Status 'won' hoy)
+    SELECT COUNT(*) INTO enrolled_today
+    FROM status_history h
+    JOIN statuses s ON h.status_id = s.id
+    WHERE s.category = 'won'
+    AND DATE(h.changed_at) = today;
+
+    -- 4. Sin seguimiento reciente (Solo leads activos)
     -- A. Nuevos (>3 días sin notas)
     SELECT COUNT(*) INTO no_follow_up
     FROM leads l
@@ -367,27 +374,27 @@ BEGIN
     JOIN statuses s ON l.status_id = s.id
     WHERE s.category = 'active'
     AND EXISTS (
-        SELECT 1 FROM follow_ups f 
-        WHERE f.lead_id = l.id 
+        SELECT 1 FROM follow_ups f
+        WHERE f.lead_id = l.id
         HAVING MAX(f.date) < seven_days_ago
     );
 
-    -- 4. Distribución por Estado
+    -- 5. Distribución por Estado
     SELECT json_agg(json_build_object('name', s.name, 'value', c.count, 'color', s.color))
     INTO status_stats
     FROM (
-        SELECT status_id, COUNT(*) as count 
-        FROM leads 
+        SELECT status_id, COUNT(*) as count
+        FROM leads
         GROUP BY status_id
     ) c
     JOIN statuses s ON c.status_id = s.id;
 
-    -- 5. Distribución por Asesor
+    -- 6. Distribución por Asesor
     SELECT json_agg(json_build_object('name', split_part(p.full_name, ' ', 1), 'fullName', p.full_name, 'value', c.count))
     INTO advisor_stats
     FROM (
-        SELECT advisor_id, COUNT(*) as count 
-        FROM leads 
+        SELECT advisor_id, COUNT(*) as count
+        FROM leads
         GROUP BY advisor_id
     ) c
     JOIN profiles p ON c.advisor_id = p.id;
@@ -396,11 +403,74 @@ BEGIN
     result := json_build_object(
         'totalLeads', COALESCE(total_leads, 0),
         'newLeadsToday', COALESCE(new_leads_today, 0),
+        'enrolledToday', COALESCE(enrolled_today, 0),
         'appointmentsToday', COALESCE(appointments_today, 0),
         'noFollowUp', COALESCE(no_follow_up, 0),
         'staleFollowUp', COALESCE(stale_follow_up, 0),
         'statusCallback', COALESCE(status_stats, '[]'::json),
         'advisorStats', COALESCE(advisor_stats, '[]'::json)
+    );
+
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 10. RPC: ALERTAS DIARIAS (POPUP)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION check_pending_alerts(requesting_user_id uuid)
+RETURNS json AS $$
+DECLARE
+    user_role text;
+    result json;
+    
+    -- Contadores
+    appointments_count int;
+    overdue_followups_count int;
+    untouched_leads_count int;
+    
+    -- Fechas
+    today date := CURRENT_DATE;
+    three_days_ago timestamp := NOW() - INTERVAL '3 days';
+    seven_days_ago timestamp := NOW() - INTERVAL '7 days';
+BEGIN
+    -- Obtener rol del usuario
+    SELECT role INTO user_role FROM profiles WHERE id = requesting_user_id;
+
+    -- 1. Citas de Hoy
+    SELECT COUNT(*) INTO appointments_count
+    FROM appointments a
+    JOIN leads l ON a.lead_id = l.id
+    WHERE DATE(a.date) = today
+    AND a.status = 'scheduled'
+    AND (user_role IN ('admin', 'coordinator') OR l.advisor_id = requesting_user_id);
+
+    -- 2. Seguimientos Vencidos (>7 días sin nota, lead activo)
+    SELECT COUNT(*) INTO overdue_followups_count
+    FROM leads l
+    JOIN statuses s ON l.status_id = s.id
+    WHERE s.category = 'active'
+    AND (user_role IN ('admin', 'coordinator') OR l.advisor_id = requesting_user_id)
+    AND EXISTS (
+        SELECT 1 FROM follow_ups f 
+        WHERE f.lead_id = l.id 
+        HAVING MAX(f.date) < seven_days_ago
+    );
+
+    -- 3. Leads Desatendidos (Nuevos > 3 días sin nota, lead activo)
+    SELECT COUNT(*) INTO untouched_leads_count
+    FROM leads l
+    JOIN statuses s ON l.status_id = s.id
+    WHERE s.category = 'active'
+    AND l.registration_date < three_days_ago
+    AND NOT EXISTS (SELECT 1 FROM follow_ups f WHERE f.lead_id = l.id)
+    AND (user_role IN ('admin', 'coordinator') OR l.advisor_id = requesting_user_id);
+
+    -- Construir JSON
+    result := json_build_object(
+        'appointmentsCount', appointments_count,
+        'overdueFollowupsCount', overdue_followups_count,
+        'untouchedLeadsCount', untouched_leads_count,
+        'hasAlerts', (appointments_count > 0 OR overdue_followups_count > 0 OR untouched_leads_count > 0)
     );
 
     RETURN result;

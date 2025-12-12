@@ -62,6 +62,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                 staleFollowUp: metrics.staleFollowUp,
                 totalLeads: metrics.totalLeads,
                 newLeadsToday: metrics.newLeadsToday,
+                enrolledToday: metrics.enrolledToday,
                 statusData: metrics.statusCallback.map(item => ({
                     ...item,
                     originalColor: item.color, // Keep original class for reference if needed
@@ -78,6 +79,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
             staleFollowUp: 0,
             totalLeads: 0,
             newLeadsToday: 0,
+            enrolledToday: 0,
             statusData: [],
             advisorData: []
         };
@@ -245,7 +247,8 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                     ) : (
                         <div className="space-y-8 animate-fade-in">
                             {/* Analytics View */}
-                            <div className="grid grid-cols-2 gap-6">
+                            {/* Analytics View */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-gradient-to-br from-brand-primary/5 to-brand-primary/10 dark:from-slate-700 dark:to-slate-800 p-6 rounded-2xl border border-brand-primary/10 dark:border-slate-600 flex flex-col justify-center items-center text-center">
                                     <p className="text-xs font-bold text-brand-primary dark:text-blue-300 uppercase tracking-widest mb-2">Total Leads</p>
                                     <p className="text-5xl font-black text-brand-primary dark:text-white tracking-tighter">{stats.totalLeads}</p>
@@ -253,6 +256,10 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                                 <div className="bg-gradient-to-br from-green-50 to-emerald-100/50 dark:from-green-900/20 dark:to-green-900/10 p-6 rounded-2xl border border-green-100 dark:border-green-800 flex flex-col justify-center items-center text-center">
                                     <p className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-widest mb-2">Nuevos Hoy</p>
                                     <p className="text-5xl font-black text-green-600 dark:text-green-400 tracking-tighter">+{stats.newLeadsToday}</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-purple-50 to-fuchsia-100/50 dark:from-purple-900/20 dark:to-purple-900/10 p-6 rounded-2xl border border-purple-100 dark:border-purple-800 flex flex-col justify-center items-center text-center">
+                                    <p className="text-xs font-bold text-purple-700 dark:text-purple-400 uppercase tracking-widest mb-2">Inscritos Hoy</p>
+                                    <p className="text-5xl font-black text-purple-600 dark:text-purple-400 tracking-tighter">+{stats.enrolledToday}</p>
                                 </div>
                             </div>
 

@@ -21,6 +21,7 @@ const LeadDetailModal = React.lazy(() => import('./components/LeadDetailModal'))
 const SettingsModal = React.lazy(() => import('./components/SettingsModal'));
 const ReportModal = React.lazy(() => import('./components/ReportModal'));
 const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'));
+const AlertsModal = React.lazy(() => import('./components/AlertsModal'));
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
@@ -621,6 +622,9 @@ const AppContent: React.FC = () => {
           onMessageSent={handleMessageSent} // CORRECCIÓN CLAVE
         />
       )}
+
+      {/* ALERTS MODAL (New) */}
+      <AlertsModal userProfile={profile} />
     </div>
   );
 };

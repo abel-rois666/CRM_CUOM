@@ -119,9 +119,17 @@ export interface Notification {
 export interface DashboardMetrics {
   totalLeads: number;
   newLeadsToday: number;
+  enrolledToday: number; // Added
   appointmentsToday: number;
   noFollowUp: number;
   staleFollowUp: number;
   statusCallback: { name: string; value: number; color: string }[];
   advisorStats: { name: string; value: number; fullName: string }[];
+}
+
+export interface AlertsSummary {
+  appointmentsCount: number;
+  overdueFollowupsCount: number;
+  untouchedLeadsCount: number;
+  hasAlerts: boolean;
 }
