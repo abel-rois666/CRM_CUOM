@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS public.organization_settings (
   company_name TEXT DEFAULT 'CUOM CRM',
   company_subtitle TEXT DEFAULT 'Administración',
   logo_url TEXT,
+  setup_completed BOOLEAN DEFAULT FALSE,
   updated_at TIMESTAMPTZ DEFAULT now(),
   updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL
 );
@@ -151,6 +152,15 @@ ALTER TABLE public.organization_settings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Read Org Settings" ON public.organization_settings FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Admin Update Org Settings" ON public.organization_settings FOR ALL TO authenticated USING ( public.is_role('admin') );
+
+CREATE TABLE IF NOT EXISTS public.system_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Read System Settings" ON public.system_settings FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admin Update System Settings" ON public.system_settings FOR ALL TO authenticated USING ( public.is_role('admin') );
 
 -- 4. TRIGGERS Y AUTOMATIZACIÓN (AQUÍ ESTÁ EL FIX DEL ERROR)
 -- ==============================================================================
@@ -332,6 +342,7 @@ DECLARE
     appointments_today INTEGER;
     no_follow_up INTEGER;
     stale_follow_up INTEGER;
+    enrolled_today INTEGER;
     
     status_stats JSON;
     advisor_stats JSON;

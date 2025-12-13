@@ -371,6 +371,15 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     removeLocalLead,
     removeManyLocalLeads,
     refetch: () => { fetchLeads(true); fetchMetrics(); },
-    refreshCatalogs: fetchCatalogs
+    refreshCatalogs: fetchCatalogs,
+    checkSetupStatus: async () => {
+      try {
+        const { data } = await supabase.from('organization_settings').select('setup_completed').limit(1).maybeSingle();
+        return !!data?.setup_completed;
+      } catch (error) {
+        console.error("Error checking setup status:", error);
+        return false;
+      }
+    }
   };
 };

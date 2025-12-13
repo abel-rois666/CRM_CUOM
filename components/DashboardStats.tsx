@@ -275,7 +275,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                                     <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Distribución por Estado</h4>
                                     <div className="h-64 w-full flex items-center justify-center">
                                         {stats.statusData.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
+                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                                 <PieChart>
                                                     <Pie data={stats.statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                                                         {stats.statusData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="none" />))}
@@ -302,7 +302,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                                     <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Leads por Asesor</h4>
                                     <div className="h-64 w-full">
                                         {stats.advisorData.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
+                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                                 <BarChart data={stats.advisorData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.2} />
                                                     <XAxis type="number" hide />

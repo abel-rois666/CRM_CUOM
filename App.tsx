@@ -22,6 +22,7 @@ const SettingsModal = React.lazy(() => import('./components/SettingsModal'));
 const ReportModal = React.lazy(() => import('./components/ReportModal'));
 const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'));
 const AlertsModal = React.lazy(() => import('./components/AlertsModal'));
+const SetupWizard = React.lazy(() => import('./components/SetupWizard'));
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
@@ -56,9 +57,10 @@ const AppContent: React.FC = () => {
     removeLocalLead,
     removeManyLocalLeads,
     refetch,
-    dashboardMetrics, // <--- New Destructuring
-    statusCategories, // [NEW]
-    refreshCatalogs, // [NEW]
+    dashboardMetrics,
+    statusCategories,
+    refreshCatalogs,
+    checkSetupStatus
   } = useCRMData(session, profile?.role, profile?.id);
 
   // Estados de UI
@@ -70,6 +72,26 @@ const AppContent: React.FC = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isBulkImportOpen, setBulkImportOpen] = useState(false);
   const [isAutomationChoiceOpen, setIsAutomationChoiceOpen] = useState(false);
+
+  // Estado Setup Wizard
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+
+  // [NEW] Check Setup Status on Load
+  React.useEffect(() => {
+    const initCheck = async () => {
+      if (profile?.role === 'admin') {
+        const completed = await checkSetupStatus();
+        if (!completed) setShowSetupWizard(true);
+      }
+      setCheckingSetup(false);
+    };
+    if (session && profile && !loadingData) {
+      initCheck();
+    } else if (!session) {
+      setCheckingSetup(false);
+    }
+  }, [session, profile, loadingData, checkSetupStatus]);
 
   const [detailInitialTab, setDetailInitialTab] = useState<'info' | 'activity' | 'appointments'>('info');
 
@@ -87,8 +109,19 @@ const AppContent: React.FC = () => {
     p.role === 'advisor' || p.role === 'moderator' || p.role === 'admin'
   );
 
-  if (authLoading) return <LeadListSkeleton />;
+  if (authLoading || checkingSetup) return <LeadListSkeleton />;
   if (!session) return <LoginPage />;
+
+  if (showSetupWizard) {
+    return (
+      <Suspense fallback={<LeadListSkeleton />}>
+        <SetupWizard
+          onComplete={() => { setShowSetupWizard(false); refetch(); }}
+          currentUser={profile}
+        />
+      </Suspense>
+    );
+  }
 
   // --- MANEJADORES DE UI ---
 
