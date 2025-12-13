@@ -1,12 +1,11 @@
-// components/LeadList.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Views } from 'react-big-calendar';
-import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate, DashboardMetrics, Source } from '../types';
+import { Lead, Profile, Status, Licenciatura, StatusCategory, WhatsAppTemplate, EmailTemplate, DashboardMetrics, Source, QuickFilterType, StatusCategoryMetadata } from '../types';
 import { DataFilters } from '../hooks/useCRMData';
 import ConfirmationModal from './common/ConfirmationModal';
 import LeadListSkeleton, { LeadTableSkeleton, LeadKanbanSkeleton } from './LeadListSkeleton';
 import KanbanBoard from './KanbanBoard';
-import DashboardStats, { QuickFilterType } from './DashboardStats';
+import DashboardStats from './DashboardStats';
 import CalendarView from './CalendarView';
 import FilterDrawer from './FilterDrawer';
 import BulkTransferModal from './BulkTransferModal';
@@ -15,8 +14,18 @@ import BulkMessageModal from './BulkMessageModal';
 import { calculateLeadScore } from '../utils/leadScoring';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
 import { useKanbanData } from '../hooks/useKanbanData';
+import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
+import EnvelopeIcon from './icons/EnvelopeIcon';
+import CheckCircleIcon from './icons/CheckCircleIcon';
+import ArrowRightIcon from './icons/ChevronRightIcon';
+import TagIcon from './icons/TagIcon';
+import TrashIcon from './icons/TrashIcon';
+import XMarkIcon from './icons/XIcon';
+import Modal from './common/Modal';
+import Button from './common/Button';
+import { Select } from './common/FormElements';
+import CategorySettingsModal from './CategorySettingsModal';
 
-// Componentes Refactorizados
 import LeadHeader from './lead-list/LeadHeader';
 import LeadToolbar, { ViewMode } from './lead-list/LeadToolbar';
 import LeadTable, { SortableColumn, SortDirection } from './lead-list/LeadTable';
@@ -36,7 +45,7 @@ interface LeadListProps {
     advisors: Profile[];
     statuses: Status[];
     licenciaturas: Licenciatura[];
-    sources: Source[]; // <--- NEW PROP
+    sources: Source[];
     whatsappTemplates: WhatsAppTemplate[];
     emailTemplates: EmailTemplate[];
     onAddNew: () => void;
@@ -53,7 +62,9 @@ interface LeadListProps {
     onLocalDeleteMany?: (ids: string[]) => void;
     currentUser?: Profile | null;
     metrics: DashboardMetrics | null;
-    lastUpdatedLead?: Lead | null; // [NEW] Prop to sync updates
+    lastUpdatedLead?: Lead | null;
+    statusCategories: StatusCategoryMetadata[]; // [NEW]
+    onRefreshCatalogs: () => void; // [NEW]
 }
 
 const LeadList: React.FC<LeadListProps> = ({
@@ -63,7 +74,9 @@ const LeadList: React.FC<LeadListProps> = ({
     onAddNew, onEdit, onDelete, onViewDetails,
     onOpenReports, onOpenImport, onOpenWhatsApp,
     onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany, currentUser, metrics,
-    lastUpdatedLead // [NEW]
+    lastUpdatedLead,
+    statusCategories = [], // Default empty array to prevent crashes
+    onRefreshCatalogs // [NEW]
 }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
 
@@ -79,6 +92,7 @@ const LeadList: React.FC<LeadListProps> = ({
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
     const [isBulkTransferOpen, setIsBulkTransferOpen] = useState(false);
+    const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false); // [NEW]
 
     // Debounce Local para Búsqueda
     const [localSearchTerm, setLocalSearchTerm] = useState<string>(currentFilters.searchTerm);
@@ -231,20 +245,20 @@ const LeadList: React.FC<LeadListProps> = ({
             }
             switch (sortColumn) {
                 case 'name':
-                    valA = `${a.first_name} ${a.paternal_last_name}`.toLowerCase();
-                    valB = `${b.first_name} ${b.paternal_last_name}`.toLowerCase();
+                    valA = (a.first_name + ' ' + a.paternal_last_name).toLowerCase();
+                    valB = (b.first_name + ' ' + b.paternal_last_name).toLowerCase();
                     break;
                 case 'advisor_id':
-                    valA = advisorMap.get(a.advisor_id)?.toLowerCase() || '';
-                    valB = advisorMap.get(b.advisor_id)?.toLowerCase() || '';
+                    valA = (advisorMap.get(a.advisor_id) || '').toLowerCase();
+                    valB = (advisorMap.get(b.advisor_id) || '').toLowerCase();
                     break;
                 case 'status_id':
-                    valA = statusMap.get(a.status_id)?.name.toLowerCase() || '';
-                    valB = statusMap.get(b.status_id)?.name.toLowerCase() || '';
+                    valA = (statusMap.get(a.status_id)?.name || '').toLowerCase();
+                    valB = (statusMap.get(b.status_id)?.name || '').toLowerCase();
                     break;
                 case 'program_id':
-                    valA = licenciaturaMap.get(a.program_id)?.toLowerCase() || '';
-                    valB = licenciaturaMap.get(b.program_id)?.toLowerCase() || '';
+                    valA = (licenciaturaMap.get(a.program_id) || '').toLowerCase();
+                    valB = (licenciaturaMap.get(b.program_id) || '').toLowerCase();
                     break;
                 case 'registration_date':
                     valA = new Date(a.registration_date).getTime();
@@ -304,8 +318,9 @@ const LeadList: React.FC<LeadListProps> = ({
     const escapeCsvField = (field: string | undefined | null): string => {
         if (field === null || field === undefined) return '""';
         const stringField = String(field);
+        const re = new RegExp('"', 'g');
         if (/[",\n]/.test(stringField)) {
-            return `"${stringField.replace(/"/g, '""')}"`;
+            return '"' + stringField.replace(re, '""') + '"';
         }
         return stringField;
     };
@@ -319,15 +334,15 @@ const LeadList: React.FC<LeadListProps> = ({
         let headers = ['Nombre Completo', 'Email', 'Teléfono', 'Asesor', 'Estado', 'Licenciatura', 'Fecha Registro'];
 
         for (let i = 1; i <= maxNotes; i++) {
-            headers.push(`Fecha Nota ${i}`, `Nota ${i}`);
+            headers.push('Fecha Nota ' + i, 'Nota ' + i);
         }
         for (let i = 1; i <= maxAppts; i++) {
-            headers.push(`Fecha Cita ${i}`, `Detalle Cita ${i}`);
+            headers.push('Fecha Cita ' + i, 'Detalle Cita ' + i);
         }
 
         const rows = dataToExport.map(lead => {
             const baseData = [
-                escapeCsvField(`${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name || ''}`.trim()),
+                escapeCsvField((lead.first_name + ' ' + lead.paternal_last_name + ' ' + (lead.maternal_last_name || '')).trim()),
                 escapeCsvField(lead.email),
                 escapeCsvField(lead.phone),
                 escapeCsvField(advisorMap.get(lead.advisor_id)),
@@ -361,7 +376,7 @@ const LeadList: React.FC<LeadListProps> = ({
             for (let i = 0; i < maxAppts; i++) {
                 if (i < sortedAppts.length) {
                     const appt = sortedAppts[i];
-                    const apptDetails = `${appt.title} (${appt.status}) - ${appt.details || ''}`;
+                    const apptDetails = `${appt.title} (${appt.status}) - ${appt.details || ''} `;
                     apptCols.push(
                         escapeCsvField(new Date(appt.date).toLocaleString()),
                         escapeCsvField(apptDetails)
@@ -374,7 +389,7 @@ const LeadList: React.FC<LeadListProps> = ({
         });
 
         const csvContent = [headers.join(','), ...rows].join('\n');
-        const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([`\uFEFF${csvContent} `], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -396,6 +411,15 @@ const LeadList: React.FC<LeadListProps> = ({
     }, [statuses, activeCategoryTab]);
 
 
+
+    // [FIX] Default categories fallback if DB is empty
+    const defaultCategories: StatusCategoryMetadata[] = [
+        { key: 'active', label: 'En Proceso', icon: '⚡', color: 'text-brand-primary dark:text-blue-300', order_index: 1 },
+        { key: 'won', label: 'Inscritos', icon: '🎓', color: 'text-green-600 dark:text-green-400', order_index: 2 },
+        { key: 'lost', label: 'Bajas', icon: '❌', color: 'text-red-600 dark:text-red-400', order_index: 3 }
+    ];
+
+    const effectiveCategories = statusCategories && statusCategories.length > 0 ? statusCategories : defaultCategories;
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-8xl relative min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors duration-300">
@@ -435,9 +459,11 @@ const LeadList: React.FC<LeadListProps> = ({
                     onCategoryTabChange={(category) => {
                         setActiveCategoryTab(category);
                         setQuickFilter(null);
-                        onFilterChange({ category, statusId: 'all' });
+                        onFilterChange({ category, statusId: 'all', quickFilter: null });
                     }}
                     currentCalendarView={currentCalendarView as any}
+                    statusCategories={effectiveCategories}
+                    onOpenSettings={() => setIsCategorySettingsOpen(true)}
                 />
             </div>
 
@@ -447,11 +473,11 @@ const LeadList: React.FC<LeadListProps> = ({
                     {Object.entries(currentFilters).map(([key, value]) => {
                         if (value === 'all' || !value || key === 'searchTerm' || key === 'category') return null;
                         let label = '';
-                        if (key === 'advisorId') label = `Asesor: ${advisorMap.get(value)}`;
-                        if (key === 'statusId') label = `Estado: ${statusMap.get(value)?.name}`;
-                        if (key === 'programId') label = `Programa: ${licenciaturaMap.get(value)}`;
-                        if (key === 'startDate') label = `Desde: ${value}`;
-                        if (key === 'endDate') label = `Hasta: ${value}`;
+                        if (key === 'advisorId') label = `Asesor: ${advisorMap.get(value)} `;
+                        if (key === 'statusId') label = `Estado: ${statusMap.get(value)?.name} `;
+                        if (key === 'programId') label = `Programa: ${licenciaturaMap.get(value)} `;
+                        if (key === 'startDate') label = `Desde: ${value} `;
+                        if (key === 'endDate') label = `Hasta: ${value} `;
                         return (
                             <span key={key} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 ring-1 ring-blue-700/10 animate-fade-in">
                                 {label}
@@ -464,7 +490,7 @@ const LeadList: React.FC<LeadListProps> = ({
                 </div>
             )}
 
-            <div key={`${viewMode}-${activeCategoryTab}`} className="animate-fade-in">
+            <div key={`${viewMode} -${activeCategoryTab} `} className="animate-fade-in">
                 {viewMode === 'list' ? (
                     <>
                         {/* [FIX] Show Table Skeleton only in content area */}
@@ -558,6 +584,7 @@ const LeadList: React.FC<LeadListProps> = ({
                 licenciaturas={licenciaturas}
             />
 
+            {/* Modal de Confirmación de Eliminación Individual */}
             <ConfirmationModal
                 isOpen={!!leadToDelete}
                 onClose={() => setLeadToDelete(null)}
@@ -568,6 +595,83 @@ const LeadList: React.FC<LeadListProps> = ({
                 cancelButtonText="Cancelar"
                 confirmButtonVariant="danger"
             />
+
+            {/* Modal de Confirmación de Eliminación BULK */}
+            <ConfirmationModal
+                isOpen={isBulkDeleteOpen}
+                onClose={() => setIsBulkDeleteOpen(false)}
+                onConfirm={async () => {
+                    setProcessingBulk(true);
+                    try {
+                        const ids = Array.from(selectedIds);
+                        const { error } = await supabase.from('leads').delete().in('id', ids);
+                        if (error) throw error;
+
+                        if (onLocalDeleteMany) onLocalDeleteMany(ids);
+                        setSelectedIds(new Set());
+                        setIsBulkDeleteOpen(false);
+                        alert(`Se eliminaron ${ids.length} prospectos correctamente.`);
+                    } catch (err: any) {
+                        alert("Error al eliminar masivamente: " + err.message);
+                    } finally {
+                        setProcessingBulk(false);
+                    }
+                }}
+                title={`Eliminar ${selectedIds.size} Leads`}
+                message={`¿Estás seguro de que deseas eliminar ${selectedIds.size} prospectos seleccionados ? ESTA ACCIÓN ES IRREVERSIBLE.`}
+                confirmButtonText={processingBulk ? "Eliminando..." : "Eliminar Todos"}
+                cancelButtonText="Cancelar"
+                confirmButtonVariant="danger"
+            />
+
+            {/* Modal de Cambio de Estado BULK */}
+            <Modal
+                isOpen={isBulkStatusOpen}
+                onClose={() => setIsBulkStatusOpen(false)}
+                title={`Cambiar Estado a ${selectedIds.size} Leads`}
+                size="md"
+            >
+                <div className="p-4">
+                    <p className="text-sm text-gray-500 mb-4">Selecciona el nuevo estado para los prospectos seleccionados.</p>
+                    <Select
+                        label="Nuevo Estado"
+                        value={bulkTargetStatus}
+                        onChange={(e) => setBulkTargetStatus(e.target.value)}
+                        options={statuses.map(s => ({ value: s.id, label: s.name }))}
+                    />
+                    <div className="flex justify-end gap-3 mt-6">
+                        <Button variant="ghost" onClick={() => setIsBulkStatusOpen(false)}>Cancelar</Button>
+                        <Button
+                            variant="primary"
+                            disabled={!bulkTargetStatus || processingBulk}
+                            onClick={async () => {
+                                setProcessingBulk(true);
+                                try {
+                                    const ids = Array.from(selectedIds);
+                                    const { error } = await supabase.from('leads').update({ status_id: bulkTargetStatus }).in('id', ids);
+                                    if (error) throw error;
+
+                                    // Actualizar localmente si es posible, si no Refresh
+                                    if (onRefresh) onRefresh();
+
+                                    // Feedback visual rápido
+                                    ids.forEach(id => onUpdateLead(id, { status_id: bulkTargetStatus }));
+
+                                    setSelectedIds(new Set());
+                                    setIsBulkStatusOpen(false);
+                                } catch (err: any) {
+                                    alert("Error al actualizar estados: " + err.message);
+                                } finally {
+                                    setProcessingBulk(false);
+                                }
+                            }}
+                        >
+                            {processingBulk ? "Guardando..." : "Aplicar Cambio"}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
 
             <BulkTransferModal
                 isOpen={isBulkTransferOpen}
@@ -591,6 +695,46 @@ const LeadList: React.FC<LeadListProps> = ({
                     setIsBulkMessageOpen(false);
                 }}
                 currentUser={currentUser || null}
+            />
+
+            {/* BARRA FLOTANTE DE ACCIONES MASIVAS */}
+            {selectedIds.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white dark:bg-slate-800 shadow-2xl rounded-full px-6 py-3 z-50 flex items-center gap-4 border border-gray-200 dark:border-slate-700 animate-slide-up">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                        {selectedIds.size} seleccionados
+                    </span>
+                    <div className="h-4 w-px bg-gray-300 dark:bg-slate-600 mx-2"></div>
+
+                    <button onClick={() => setIsBulkStatusOpen(true)} className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 font-medium transition-colors">
+                        <TagIcon className="w-4 h-4" /> <span className="hidden sm:inline">Estado</span>
+                    </button>
+
+                    <button onClick={() => { setBulkMessageMode('whatsapp'); setIsBulkMessageOpen(true); }} className="flex items-center gap-2 text-sm text-gray-600 hover:text-green-600 dark:text-gray-300 dark:hover:text-green-400 font-medium transition-colors">
+                        <ChatBubbleLeftRightIcon className="w-4 h-4" /> <span className="hidden sm:inline">WhatsApp</span>
+                    </button>
+
+                    <button onClick={() => { setBulkMessageMode('email'); setIsBulkMessageOpen(true); }} className="flex items-center gap-2 text-sm text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400 font-medium transition-colors">
+                        <EnvelopeIcon className="w-4 h-4" /> <span className="hidden sm:inline">Email</span>
+                    </button>
+
+                    <div className="h-4 w-px bg-gray-300 dark:bg-slate-600 mx-2"></div>
+
+                    <button onClick={() => setIsBulkDeleteOpen(true)} className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 font-medium transition-colors">
+                        <TrashIcon className="w-4 h-4" /> <span className="hidden sm:inline">Eliminar</span>
+                    </button>
+
+                    <button onClick={() => setSelectedIds(new Set())} className="ml-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-400 transition-colors" title="Cancelar selección">
+                        <XMarkIcon className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
+            {/* NEW: Category Settings Modal */}
+            <CategorySettingsModal
+                isOpen={isCategorySettingsOpen}
+                onClose={() => setIsCategorySettingsOpen(false)}
+                categories={effectiveCategories}
+                onUpdate={onRefreshCatalogs}
             />
         </div>
     );

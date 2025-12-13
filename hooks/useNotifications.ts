@@ -12,45 +12,63 @@ export const useNotifications = (userId: string | undefined) => {
   useEffect(() => {
     if (!userId) return;
 
-    // 1. Carga inicial
-    const fetchNotifications = async () => {
-      // Usamos 'as any' aquí también para evitar problemas de lectura si el tipo falla
+    let mounted = true;
+
+    const init = async () => {
+      // 1. Check System Settings
+      let enabled = true;
+      const { data: settings } = await (supabase as any).from('system_settings').select('value').eq('key', 'notifications_enabled').single();
+      if (settings) {
+        try {
+          enabled = JSON.parse(settings.value);
+        } catch (e) { console.error(e); }
+      }
+
+      if (!enabled && mounted) {
+        return; // Notifications disabled globally
+      }
+
+      // 2. Carga inicial
       const { data } = await (supabase.from('notifications') as any)
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (data) {
+      if (data && mounted) {
         setNotifications(data as Notification[]);
         setUnreadCount(data.filter((n: any) => !n.is_read).length);
       }
+
+      // 3. Suscripción Realtime
+      const channel = supabase
+        .channel('public:notifications')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const newNotif = payload.new as Notification;
+            setNotifications(prev => [newNotif, ...prev]);
+            setUnreadCount(prev => prev + 1);
+            info(`🔔 ${newNotif.title}`);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     };
 
-    fetchNotifications();
-
-    // 2. Suscripción Realtime
-    const channel = supabase
-      .channel('public:notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const newNotif = payload.new as Notification;
-          setNotifications(prev => [newNotif, ...prev]);
-          setUnreadCount(prev => prev + 1);
-          info(`🔔 ${newNotif.title}`);
-        }
-      )
-      .subscribe();
+    init();
 
     return () => {
-      supabase.removeChannel(channel);
+      mounted = false;
     };
   }, [userId, info]);
 

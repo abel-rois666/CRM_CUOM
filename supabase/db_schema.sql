@@ -484,3 +484,26 @@ CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_id ON public.follow_ups(lead_id);
 CREATE INDEX IF NOT EXISTS idx_status_history_lead_id ON public.status_history(lead_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_status_date ON public.appointments(status, date);
 CREATE INDEX IF NOT EXISTS idx_leads_registration_date ON public.leads(registration_date);
+
+-- 11. TABLA CONFIGURACIÓN DE CATEGORÍAS (Para editar nombres/iconos)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.status_categories (
+  key TEXT PRIMARY KEY CHECK (key IN ('active', 'won', 'lost')),
+  label TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  color TEXT NOT NULL,
+  order_index INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.status_categories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Read Categories" ON public.status_categories FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admin Update Categories" ON public.status_categories FOR UPDATE TO authenticated USING ( public.is_role('admin') );
+
+-- Insert default values
+INSERT INTO public.status_categories (key, label, icon, color, order_index)
+VALUES 
+  ('active', 'En Proceso', '⚡', 'text-brand-primary dark:text-blue-300', 1),
+  ('won', 'Inscritos', '🎓', 'text-green-600 dark:text-green-400', 2),
+  ('lost', 'Bajas', '❌', 'text-red-600 dark:text-red-400', 3)
+ON CONFLICT (key) DO NOTHING;

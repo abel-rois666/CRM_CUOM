@@ -18,6 +18,14 @@ export interface Status {
   category: StatusCategory;
 }
 
+export interface StatusCategoryMetadata {
+  key: StatusCategory;
+  label: string;
+  icon: string;
+  color: string;
+  order_index: number;
+}
+
 export interface Source {
   id: string;
   name: string;

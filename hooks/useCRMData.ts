@@ -47,6 +47,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   const [licenciaturas, setLicenciaturas] = useState<Licenciatura[]>([]);
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  const [statusCategories, setStatusCategories] = useState<any[]>([]); // [NEW] Metadata de categorías
 
   // --- ESTADOS DE CARGA ---
   const [loadingData, setLoadingData] = useState(true); // Carga inicial de catálogos
@@ -78,6 +79,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
         supabase.from('licenciaturas').select('*'),
         supabase.from('whatsapp_templates').select('*'),
         supabase.from('email_templates').select('*'),
+        supabase.from('status_categories').select('*').order('order_index'), // [NEW] Fetch categories
       ]);
 
       const getData = <T>(index: number, fallback: T[] = []): T[] => {
@@ -91,6 +93,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       setLicenciaturas(getData<Licenciatura>(3));
       setWhatsappTemplates(getData<WhatsAppTemplate>(4));
       setEmailTemplates(getData<EmailTemplate>(5));
+      setStatusCategories(getData<any>(6)); // [NEW] Set categories
 
       setCatalogsLoaded(true);
     } catch (error) {
@@ -358,6 +361,8 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     setLicenciaturas,
     setWhatsappTemplates,
     setEmailTemplates,
+    statusCategories, // [NEW]
+    setStatusCategories,
 
     dashboardMetrics, // <--- EXPOSED
 

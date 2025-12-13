@@ -1271,6 +1271,12 @@ const PersonalizationSettings: React.FC = () => {
     const [name, setName] = useState(settings.company_name);
     const [subtitle, setSubtitle] = useState(settings.company_subtitle);
     const [logoUrl, setLogoUrl] = useState(settings.logo_url || '');
+
+    // New General Settings State
+    const [timezone, setTimezone] = useState('America/Mexico_City');
+    const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+    const [seedingLoading, setSeedingLoading] = useState(false);
+
     const [saving, setSaving] = useState(false);
     const { success, error } = useToast();
 
@@ -1281,6 +1287,27 @@ const PersonalizationSettings: React.FC = () => {
         setLogoUrl(settings.logo_url || '');
     }, [settings]);
 
+    // Fetch System Settings
+    useEffect(() => {
+        const fetchSystemSettings = async () => {
+            const { data, error } = await (supabase as any).from('system_settings').select('key, value');
+            if (!error && data) {
+                const tz = data.find((s: any) => s.key === 'timezone');
+                const notif = data.find((s: any) => s.key === 'notifications_enabled');
+                if (tz) setTimezone(tz.value?.replace(/^"|"$/g, '')); // Remove quotes if present but don't parse
+                if (notif) {
+                    try {
+                        setNotificationsEnabled(JSON.parse(notif.value));
+                    } catch (e) {
+                        // Fallback if not valid JSON
+                        setNotificationsEnabled(notif.value === 'true');
+                    }
+                }
+            }
+        };
+        fetchSystemSettings();
+    }, []);
+
     const handleSave = async () => {
         setSaving(true);
         try {
@@ -1289,7 +1316,17 @@ const PersonalizationSettings: React.FC = () => {
                 company_subtitle: subtitle,
                 logo_url: logoUrl
             });
-            success("Configuración actualizada.");
+
+            // 2. Save System Settings
+            const updates = [
+                { key: 'timezone', value: JSON.stringify(timezone) },
+                { key: 'notifications_enabled', value: JSON.stringify(notificationsEnabled) }
+            ];
+
+            const { error: sysError } = await (supabase as any).from('system_settings').upsert(updates);
+            if (sysError) throw sysError;
+
+            success("Configuración actualizada correctamente.");
         } catch (err) {
             error("Error al guardar.");
             console.error(err);
@@ -1326,6 +1363,30 @@ const PersonalizationSettings: React.FC = () => {
             error("Error al subir imagen. Verifica bucket 'assets'.");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleSeedData = async () => {
+        if (!confirm("Esto cargará datos de prueba. Si ya existen, se omitirán para evitar duplicados. ¿Continuar?")) return;
+
+        setSeedingLoading(true);
+        try {
+            const { seedSampleData } = await import('../utils/seedData');
+            const results = await seedSampleData();
+
+            if (results.errors.length > 0) {
+                console.warn("Seeding warnings:", results.errors);
+                info(`Carga completada con advertencias. Licenciaturas: ${results.licenciaturas}, Leads: ${results.leads}`);
+            } else {
+                success(`¡Datos cargados! Licenciaturas: ${results.licenciaturas}, Status: ${results.statuses}, Leads: ${results.leads}`);
+            }
+            // Optional: trigger a global refresh if possible, or tell user to reload
+            setTimeout(() => window.location.reload(), 2000);
+        } catch (err) {
+            console.error(err);
+            error("Error al cargar datos de muestra.");
+        } finally {
+            setSeedingLoading(false);
         }
     };
 
@@ -1382,11 +1443,76 @@ const PersonalizationSettings: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
-                <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm mb-1">Nota Importante</h4>
-                <p className="text-xs text-blue-700 dark:text-blue-400">
-                    Estos cambios afectarán la cabecera de la aplicación para todos los usuarios.
-                </p>
+            {/* General Settings Section */}
+            <div>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Configuración General</h3>
+                <div className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800 shadow-sm space-y-6">
+
+                    {/* Timezone */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Select
+                            label="Zona Horaria"
+                            value={timezone}
+                            onChange={e => setTimezone(e.target.value)}
+                            options={[
+                                { value: 'America/Mexico_City', label: 'Ciudad de México (central)' },
+                                { value: 'America/Tijuana', label: 'Tijuana (Pacifico)' },
+                                { value: 'America/Monterrey', label: 'Monterrey' },
+                                { value: 'America/Cancun', label: 'Cancún (Sureste)' },
+                                { value: 'UTC', label: 'UTC' }
+                            ]}
+                        />
+
+                        <div className="flex items-center justify-between p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-900/50">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-900 dark:text-white">Recordatorios de Pendientes</label>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Notificar a asesores al iniciar sesión.</p>
+                            </div>
+                            <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                                <input
+                                    type="checkbox"
+                                    name="toggle"
+                                    id="toggle-notif"
+                                    checked={notificationsEnabled}
+                                    onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                                    className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 right-6 checked:border-green-400 border-gray-300"
+                                    style={{ right: notificationsEnabled ? '0' : '50%' }}
+                                />
+                                <label
+                                    htmlFor="toggle-notif"
+                                    className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${notificationsEnabled ? 'bg-green-400' : 'bg-gray-300'}`}
+                                ></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Seed Data */}
+                    <div className="border-t border-gray-100 dark:border-slate-700 pt-4">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Datos de Muestra</h4>
+                        <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50">
+                            <p className="text-xs text-blue-700 dark:text-blue-300 max-w-[70%]">
+                                Carga catálogos iniciales (Licenciaturas, Estados, Orígenes, Plantillas, Emails) y 3 leads de prueba. Útil para iniciar.
+                            </p>
+                            <Button
+                                onClick={handleSeedData}
+                                disabled={seedingLoading}
+                                size="sm"
+                                variant="secondary"
+                                leftIcon={<ArrowUpTrayIcon className="w-4 h-4" />}
+                            >
+                                {seedingLoading ? 'Cargando...' : 'Cargar Datos'}
+                            </Button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
+                    <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm mb-1">Nota Importante</h4>
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                        Estos cambios afectarán la cabecera de la aplicación para todos los usuarios.
+                    </p>
+                </div>
             </div>
         </div>
     );

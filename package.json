@@ -18,11 +18,14 @@
     "eslint-config-next": "^16.0.8",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
     "next": "^16.0.8",
     "papaparse": "5.4.1",
     "react": "^19.2.1",
     "react-big-calendar": "^1.19.4",
     "react-dom": "^19.2.1",
+    "react-email-editor": "^1.7.11",
+    "react-quill-new": "^3.3.0",
     "recharts": "^3.4.1"
   },
   "devDependencies": {

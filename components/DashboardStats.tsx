@@ -8,6 +8,8 @@ import ChartBarIcon from './icons/ChartBarIcon';
 import ListBulletIcon from './icons/ListBulletIcon';
 import CheckCircleIcon from './icons/CheckCircleIcon';
 import InformationCircleIcon from './icons/InformationCircleIcon';
+import SparklesIcon from './icons/SparklesIcon';
+import AdvisorEvaluation from './AdvisorEvaluation';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
     BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps
@@ -51,7 +53,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuses, advisors, activeFilter, onFilterChange }) => {
     const [isExpanded, setIsExpanded] = useState(true);
-    const [activeTab, setActiveTab] = useState<'agenda' | 'analytics'>('agenda');
+    const [activeTab, setActiveTab] = useState<'agenda' | 'analytics' | 'evaluation'>('agenda');
 
     // Use memoized stats from props or defaults
     const stats = useMemo(() => {
@@ -125,35 +127,38 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
 
     return (
         <div className="mb-8 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-md">
-            <div className="bg-white dark:bg-slate-800 px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center transition-colors">
-                <div className="flex space-x-1 bg-gray-100/50 dark:bg-slate-700/50 p-1 rounded-xl">
+            <div className="bg-white dark:bg-slate-800 px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center transition-colors gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full sm:w-auto bg-gray-100/50 dark:bg-slate-700/50 p-1 rounded-xl">
                     <button
                         onClick={() => setActiveTab('agenda')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'agenda' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'agenda' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
-                        <div className="flex items-center gap-2">
-                            <ListBulletIcon className="w-4 h-4" />
-                            Indicadores de Atención
-                        </div>
+                        <ListBulletIcon className="w-4 h-4" />
+                        Indicadores de Atención
                     </button>
                     <button
                         onClick={() => setActiveTab('analytics')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'analytics' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'analytics' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
-                        <div className="flex items-center gap-2">
-                            <ChartBarIcon className="w-4 h-4" />
-                            Métricas Globales
-                        </div>
+                        <ChartBarIcon className="w-4 h-4" />
+                        Métricas Globales
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('evaluation')}
+                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'evaluation' ? 'bg-white dark:bg-slate-600 text-brand-primary dark:text-blue-300 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-brand-primary dark:hover:text-blue-300'}`}
+                    >
+                        <SparklesIcon className="w-4 h-4" />
+                        Evaluación Asesores
                     </button>
                 </div>
-                <button className="text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 p-2 rounded-full transition-colors" onClick={() => setIsExpanded(!isExpanded)}>
+                <button className="text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 p-2 rounded-full transition-colors self-end sm:self-auto" onClick={() => setIsExpanded(!isExpanded)}>
                     <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
             </div>
 
             {isExpanded && (
                 <div className="p-6 animate-fade-in bg-gray-50/30 dark:bg-slate-900/30">
-                    {activeTab === 'agenda' ? (
+                    {activeTab === 'agenda' && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
                             {/* Card 1: Agenda */}
@@ -244,7 +249,9 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                                 </div>
                             </div>
                         </div>
-                    ) : (
+                    )}
+
+                    {activeTab === 'analytics' && (
                         <div className="space-y-8 animate-fade-in">
                             {/* Analytics View */}
                             {/* Analytics View */}
@@ -319,6 +326,12 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'evaluation' && (
+                        <div className="animate-fade-in">
+                            <AdvisorEvaluation advisors={advisors} statuses={statuses} />
                         </div>
                     )}
                 </div>

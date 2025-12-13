@@ -25,25 +25,25 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, userProfile, onLogout }
   return (
     <header className="bg-brand-primary border-b border-white/10 sticky top-0 z-40 shadow-md transition-all duration-300">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between min-h-16 py-2">
 
           {/* Logo y Título */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
             <img
               src={settings.logo_url || logoCuom}
               alt="Logo Empresa"
-              className="w-9 h-9 rounded-full shadow-sm ring-2 ring-white/20 object-cover bg-white"
+              className="w-10 h-10 sm:w-9 sm:h-9 rounded-full shadow-sm ring-2 ring-white/20 object-cover bg-white flex-shrink-0"
             />
-            <div className="flex flex-col">
-              <h1 className="text-lg font-bold text-white tracking-tight leading-none">{settings.company_name}</h1>
-              <span className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">
+            <div className="hidden sm:flex flex-col min-w-0">
+              <h1 className="text-sm sm:text-lg font-bold text-white tracking-tight leading-tight whitespace-normal break-words">{settings.company_name}</h1>
+              <span className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider truncate">
                 {settings.company_subtitle}
               </span>
             </div>
           </div>
 
           {/* Acciones de Usuario */}
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
 
             {/* 1. Centro de Notificaciones */}
             <div className="border-r border-white/10 pr-2 sm:pr-4 mr-2 flex items-center gap-1">

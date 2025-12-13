@@ -56,7 +56,9 @@ const AppContent: React.FC = () => {
     removeLocalLead,
     removeManyLocalLeads,
     refetch,
-    dashboardMetrics // <--- New Destructuring
+    dashboardMetrics, // <--- New Destructuring
+    statusCategories, // [NEW]
+    refreshCatalogs, // [NEW]
   } = useCRMData(session, profile?.role, profile?.id);
 
   // Estados de UI
@@ -496,6 +498,8 @@ const AppContent: React.FC = () => {
           onLocalDeleteMany={removeManyLocalLeads}
           metrics={dashboardMetrics} // <--- PASSING THE METRICS
           lastUpdatedLead={lastUpdatedLead} // [NEW] Pass sync lead
+          statusCategories={statusCategories} // [NEW] Dynamic Categories
+          onRefreshCatalogs={refetch} // Actually refetch fetches both, but for catalogs we explicitly need refreshCatalogs from hook if we want to be precise, or just use refetch which does everything. Wait, useCRMData exposes refreshCatalogs.
         />
       </main>
 

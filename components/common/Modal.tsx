@@ -7,7 +7,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl' | 'full';
 }
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
@@ -21,17 +21,21 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
     '2xl': 'sm:max-w-2xl',
     '3xl': 'sm:max-w-3xl',
     '4xl': 'sm:max-w-4xl',
+    '5xl': 'sm:max-w-5xl',
+    '6xl': 'sm:max-w-6xl',
+    '7xl': 'sm:max-w-7xl',
+    'full': 'sm:max-w-[95vw]',
   };
 
   return (
-    <div 
-        className="fixed inset-0 z-50 flex sm:justify-center sm:items-center p-0 sm:p-6"
-        aria-labelledby="modal-title" 
-        role="dialog" 
-        aria-modal="true"
+    <div
+      className="fixed inset-0 z-50 flex sm:justify-center sm:items-center p-0 sm:p-6"
+      aria-labelledby="modal-title"
+      role="dialog"
+      aria-modal="true"
     >
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity animate-fade-in"
         onClick={onClose}
       ></div>
@@ -44,8 +48,8 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
         {/* Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 sm:rounded-t-2xl flex-shrink-0 transition-colors duration-300">
           <h3 className="text-lg font-bold text-gray-800 dark:text-white" id="modal-title">{title}</h3>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 p-2 rounded-full transition-colors bg-gray-50 dark:bg-slate-700/50 sm:bg-transparent"
             aria-label="Cerrar"
           >

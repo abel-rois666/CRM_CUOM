@@ -126,3 +126,62 @@ export const generateLeadSummary = async (lead: Lead, statusName: string, progra
         return "Error al generar resumen.";
     }
 };
+
+export const generateAdvisorEvaluation = async (
+    advisorName: string,
+    metrics: {
+        totalLeads: number;
+        enrolled: number;
+        active: number;
+        lost: number;
+        interactions: number;
+        overdue: number;
+        conversionRate: string;
+        interactionRatio: string;
+    }
+): Promise<string> => {
+    if (!API_KEY) throw new Error('Falta API Key');
+
+    const systemPrompt = `
+    Eres un gerente de ventas experto evaluando el desempeño de un asesor educativo.
+    
+    Datos del Asesor: ${advisorName}
+    - Total Leads Asignados: ${metrics.totalLeads}
+    - Inscritos (Cierres): ${metrics.enrolled}
+    - Tasa de Conversión: ${metrics.conversionRate}%
+    - Leads Activos (En seguimiento): ${metrics.active}
+    - Leads Perdidos (Bajas): ${metrics.lost}
+    - Interacciones Totales: ${metrics.interactions} (Promedio ${metrics.interactionRatio} por lead)
+    - Tareas/Citas Vencidas: ${metrics.overdue}
+
+    Objetivo: Generar un feedback constructivo y directo (máximo 4 líneas).
+    Consideraciones:
+    - Si la conversión es > 15%, felicita.
+    - Si hay muchos leads activos pero pocos cierres, sugiere técnicas de cierre.
+    - Si hay muchos atrasos (${metrics.overdue} > 5), sé firme sobre la gestión del tiempo.
+    - Si hay pocas interacciones, motiva a contactar más.
+
+    Formato de respuesta: Un párrafo breve de análisis y una recomendación accionable. Usa emojis.
+    `;
+
+    try {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                "model": "meta-llama/llama-3.3-70b-instruct:free",
+                "messages": [{ "role": "system", "content": systemPrompt }]
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message || 'Error en OpenRouter');
+        return data.choices[0]?.message?.content || "No se pudo generar la evaluación.";
+    } catch (error) {
+        console.error('Error generating evaluation:', error);
+        return "Error al con la IA. Verifica tu conexión o API Key.";
+    }
+};

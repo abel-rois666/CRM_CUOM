@@ -1,6 +1,7 @@
 import React from 'react';
-import { StatusCategory } from '../../types';
+import { StatusCategory, StatusCategoryMetadata } from '../../types';
 import ListBulletIcon from '../icons/ListBulletIcon';
+import CogIcon from '../icons/CogIcon'; // [NEW]
 import Squares2x2Icon from '../icons/Squares2x2Icon';
 import CalendarIcon from '../icons/CalendarIcon';
 import FunnelIcon from '../icons/FunnelIcon';
@@ -22,6 +23,8 @@ interface LeadToolbarProps {
     activeCategoryTab: StatusCategory;
     onCategoryTabChange: (category: StatusCategory) => void;
     currentCalendarView?: CalendarViewType;
+    statusCategories?: StatusCategoryMetadata[]; // [NEW]
+    onOpenSettings?: () => void; // [NEW]
 }
 
 const LeadToolbar: React.FC<LeadToolbarProps> = ({
@@ -34,8 +37,12 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
     onViewModeChange,
     activeCategoryTab,
     onCategoryTabChange,
-    currentCalendarView = 'month'
+    currentCalendarView = 'month',
+    statusCategories = [], // Default empty
+    onOpenSettings
 }) => {
+    // ... (getCalendarTitle keeps same)
+
     const getCalendarTitle = () => {
         switch (currentCalendarView) {
             case 'month': return 'Vista de Calendario Mensual';
@@ -48,6 +55,7 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
 
     return (
         <div className="flex flex-col gap-4">
+            {/* ... (Search and View Mode buttons keep same) */}
             <div className="bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-3 items-center">
                 <div className="relative flex-grow w-full sm:w-auto group">
                     {viewMode !== 'calendar' && (
@@ -107,35 +115,46 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
             </div>
 
             {/* Tabs de Estado */}
-            {/* Tabs de Estado (Estilo Segmented Control / Pastilla) */}
             {viewMode !== 'calendar' && (
-                <div className="bg-gray-200 dark:bg-slate-800 p-1.5 rounded-xl flex items-center justify-between overflow-x-auto no-scrollbar">
-                    <div className="flex w-full gap-4">
-                        {[
-                            { id: 'active', label: 'En Proceso', icon: '⚡', activeClass: 'text-brand-primary dark:text-blue-300' },
-                            { id: 'won', label: 'Inscritos', icon: '🎓', activeClass: 'text-green-600 dark:text-green-400' },
-                            { id: 'lost', label: 'Bajas', icon: '❌', activeClass: 'text-red-600 dark:text-red-400' }
-                        ].map(tab => {
-                            const isActive = activeCategoryTab === tab.id;
+                <div className="bg-gray-200 dark:bg-slate-800 p-1.5 rounded-xl flex items-center justify-between gap-2">
+                    <div className="grid grid-cols-3 flex-1 sm:flex sm:flex-1 gap-2 sm:gap-4">
+                        {(statusCategories.length > 0 ? statusCategories : [
+                            { key: 'active', label: 'En Proceso', icon: '⚡', color: 'text-brand-primary' },
+                            { key: 'won', label: 'Inscritos', icon: '🎓', color: 'text-green-600' },
+                            { key: 'lost', label: 'Bajas', icon: '❌', color: 'text-red-600' }
+                        ]).map((tab: any) => { // Use 'any' or intersection to handle fallback
+                            const isActive = activeCategoryTab === tab.key;
                             return (
                                 <button
-                                    key={tab.id}
-                                    onClick={() => onCategoryTabChange(tab.id as StatusCategory)}
-                                    // [FIX] Removed sm:flex-none to allow full width distribution on desktop
+                                    key={tab.key}
+                                    onClick={() => onCategoryTabChange(tab.key as StatusCategory)}
+                                    // Modified for grid on mobile, flex on desktop
                                     className={`
-                                        flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap flex items-center justify-center
+                                        w-full sm:w-auto sm:flex-1 px-2 sm:px-4 py-2 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 
+                                        flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2
                                         ${isActive
-                                            ? `bg-white dark:bg-slate-700 shadow-sm ${tab.activeClass} ring-1 ring-black/5 dark:ring-white/10`
+                                            ? `bg-white dark:bg-slate-700 shadow-sm ${tab.color} ring-1 ring-black/5 dark:ring-white/10`
                                             : 'text-gray-500 dark:text-gray-400 hover:bg-gray-300/50 dark:hover:bg-slate-700/50 hover:text-gray-700 dark:hover:text-gray-300'
                                         }
                                     `}
                                 >
-                                    <span className="mr-2 opacity-80">{tab.icon}</span>
-                                    {tab.label}
+                                    <span className="opacity-80 text-lg sm:text-base">{tab.icon}</span>
+                                    <span className="truncate max-w-full">{tab.label}</span>
                                 </button>
                             );
                         })}
                     </div>
+
+                    {/* Botón de Configuración */}
+                    {onOpenSettings && (
+                        <button
+                            onClick={onOpenSettings}
+                            className="bg-white dark:bg-slate-700 p-2 rounded-lg text-gray-500 hover:text-brand-secondary dark:text-gray-400 dark:hover:text-blue-300 transition-colors shadow-sm ml-2 border border-gray-200 dark:border-slate-600"
+                            title="Personalizar Categorías"
+                        >
+                            <CogIcon className="w-5 h-5" />
+                        </button>
+                    )}
                 </div>
             )}
         </div>
