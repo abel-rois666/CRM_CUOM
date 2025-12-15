@@ -562,7 +562,7 @@ const LeadList: React.FC<LeadListProps> = ({
                         onDateChange={setCurrentDate}
                         view={currentCalendarView}
                         onViewChange={setCurrentCalendarView}
-                        onEventClick={(lead) => onViewDetails(lead)}
+                        onEventClick={(lead, tab) => onViewDetails(lead, tab)}
                         loading={calendarLoading}
                     />
                 )}

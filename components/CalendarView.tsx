@@ -5,6 +5,8 @@ import { format, parse, startOfWeek, getDay, addMonths, startOfMonth, endOfMonth
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Appointment, Lead } from '../types';
+import Modal from './common/Modal'; // [NEW]
+import Button from './common/Button'; // [NEW]
 
 const locales = {
   'es': es,
@@ -20,7 +22,7 @@ const localizer = dateFnsLocalizer({
 
 interface CalendarViewProps {
   events: any[];
-  onEventClick: (lead: any) => void;
+  onEventClick: (lead: any, tab?: 'appointments') => void;
   currentDate: Date;
   onDateChange: (date: Date) => void;
   view: View;
@@ -37,6 +39,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   onViewChange,
   loading
 }) => {
+  // [NEW] Custom Show More State
+  const [showMoreModal, setShowMoreModal] = useState<{ isOpen: boolean; events: any[]; date: Date | null }>({
+    isOpen: false,
+    events: [],
+    date: null
+  });
+
+  const handleShowMore = (events: any[], date: Date) => {
+    setShowMoreModal({ isOpen: true, events, date });
+  };
+
+  const handleEventClickInternal = (event: any) => {
+    // [FIX] Always open "appointments" tab because the new Table view supports history.
+    if (event.resource) {
+      onEventClick(event.resource, 'appointments');
+    }
+    setShowMoreModal(prev => ({ ...prev, isOpen: false })); // Close modal if open
+  };
+
   const eventStyleGetter = (event: any) => {
     let backgroundColor = '#0077FF';
     if (event.status === 'completed') backgroundColor = '#10b981';
@@ -45,13 +66,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     return {
       style: {
         backgroundColor,
-        borderRadius: '6px',
+        borderRadius: '4px',
         opacity: 0.9,
         color: 'white',
         border: '0px',
-        display: 'block',
         fontSize: '0.75rem',
-        fontWeight: '500'
+        fontWeight: '500',
+        height: '22px', // [FIX] Reverted to compact height
+        display: 'flex', // Flex to center vertically
+        alignItems: 'center',
+        paddingLeft: '4px',
+        marginBottom: '2px',
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis'
       }
     };
   };
@@ -76,19 +104,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   /* Custom Agenda View */
   const CustomAgenda = ({ events }: any) => {
     return (
-      <div className="overflow-y-auto h-full p-2">
+      <div className="overflow-y-auto h-full">
         <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-700 dark:text-gray-300 sticky top-0">
+          <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-slate-700 dark:text-gray-300 sticky top-0 z-50">
             <tr>
-              <th scope="col" className="px-6 py-3">Fecha</th>
-              <th scope="col" className="px-6 py-3">Hora</th>
-              <th scope="col" className="px-6 py-3">Evento</th>
+              <th scope="col" className="px-6 py-3 w-[12%]">Fecha</th>
+              <th scope="col" className="px-6 py-3 w-[15%]">Hora</th>
+              <th scope="col" className="px-6 py-3 w-[28%]">Evento</th>
+              <th scope="col" className="px-6 py-3 w-[45%]">Detalles</th>
             </tr>
           </thead>
           <tbody>
             {events.length === 0 ? (
               <tr className="bg-white dark:bg-slate-800 border-b dark:border-slate-700">
-                <td colSpan={3} className="px-6 py-4 text-center">
+                <td colSpan={4} className="px-6 py-4 text-center">
                   No hay citas en este rango.
                 </td>
               </tr>
@@ -98,7 +127,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 const statusColorClass = statusColors[event.status] || 'bg-gray-100 text-gray-800';
 
                 return (
-                  <tr key={event.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700">
+                  <tr
+                    key={event.id}
+                    className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                    onClick={() => handleEventClickInternal(event)}
+                  >
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                       {format(event.start, 'EEE dd MMM', { locale: es })}
                     </td>
@@ -110,6 +143,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                         <span className="font-medium">{event.title}</span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full w-fit ${statusColorClass}`}>{statusLabel}</span>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-500 dark:text-gray-400">
+                      {event.details || '-'}
                     </td>
                   </tr>
                 );
@@ -163,12 +199,45 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const onNavigate = (newDate: Date) => onDateChange(newDate);
 
   const visibleEvents = useMemo(() => {
-    if (view === 'agenda') return events;
-    return events.filter(e => e.status !== 'canceled');
-  }, [events, view]);
+    // [FIX] Show all events including canceled ones as requested
+    return events;
+  }, [events]);
 
   return (
-    <div className="h-[calc(100vh-240px)] bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300">
+    <div className="h-[650px] md:h-[500px] bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300">
+      <style>{`
+        .rbc-month-row {
+          overflow: hidden; /* Ensure no spillover */
+        }
+        .rbc-row-content {
+          z-index: 4;
+        }
+        /* Optional: Force limit visible events if RBC calculation is off */
+        .rbc-event {
+          max-width: 100%;
+        }
+        @media (max-width: 768px) {
+          .rbc-event {
+            font-size: 0.65rem !important;
+            height: 20px !important;
+            line-height: 20px !important;
+          }
+          .rbc-header {
+            font-size: 0.75rem;
+          }
+        }
+        /* [FIX] Dark mode visibility for "Show More" link */
+        .dark .rbc-show-more {
+          background-color: transparent !important;
+          color: #93c5fd !important; /* Light blue (Tailwind blue-300) */
+          font-weight: 600;
+          opacity: 1;
+        }
+        .dark .rbc-show-more:hover {
+          color: #bfdbfe !important; /* Lighter blue on hover */
+          text-decoration: underline;
+        }
+      `}</style>
       <Calendar
         localizer={localizer}
         events={visibleEvents}
@@ -194,7 +263,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           date: "Fecha",
           time: "Hora", // Updated label to reflect that we are showing date here too
           event: "Evento",
-          noEventsInRange: "Sin citas en este rango."
+          noEventsInRange: "Sin citas en este rango.",
+          showMore: (total) => `+${total} más` // [NEW] Translated
         }}
         eventPropGetter={eventStyleGetter}
         components={{
@@ -203,9 +273,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           }
         }}
         formats={formats}
-        onSelectEvent={(event) => {
-          if (event.resource) onEventClick(event.resource);
-        }}
+        onSelectEvent={(event) => handleEventClickInternal(event)}
+        onShowMore={handleShowMore}
         className="text-gray-700 dark:text-gray-200 font-sans"
 
         // CUSTOM VIEWS
@@ -216,6 +285,49 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           agenda: CustomAgenda as any // Casting for RBC type compatibility
         }}
       />
+
+      {/* [NEW] Custom Show More Modal */}
+      <Modal
+        isOpen={showMoreModal.isOpen}
+        onClose={() => setShowMoreModal({ ...showMoreModal, isOpen: false })}
+        title={showMoreModal.date ? format(showMoreModal.date, 'EEEE d, MMMM', { locale: es }) : 'Eventos'}
+        size="md"
+      >
+        <div className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+          {showMoreModal.events.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">No hay eventos.</p>
+          ) : (
+            <div className="space-y-2">
+              {showMoreModal.events.map((event: any) => {
+                const statusLabel = statusLabels[event.status] || event.status;
+                const statusColorClass = statusColors[event.status] || 'bg-gray-100 text-gray-800';
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => handleEventClickInternal(event)}
+                    className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors shadow-sm"
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-gray-800 dark:text-white text-sm">{event.title}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {format(event.start, 'HH:mm')} - {format(event.end, 'HH:mm')}
+                      </span>
+                    </div>
+                    <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${statusColorClass}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button variant="secondary" onClick={() => setShowMoreModal({ ...showMoreModal, isOpen: false })}>
+            Cerrar
+          </Button>
+        </div>
+      </Modal>
 
       <style>{`
         /* Toolbar Styles & Fixes */

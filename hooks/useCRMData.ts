@@ -120,10 +120,12 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
 
       if (filters.quickFilter) {
         // [NEW] Server-side Quick Filter using RPC
-        query = supabase.rpc('get_quick_filter_leads', {
+        const rpcParams = {
           filter_type: filters.quickFilter,
           requesting_user_id: session.user.id
-        })
+        };
+        // @ts-ignore - Supabase types mismatch for RPC
+        query = (supabase.rpc('get_quick_filter_leads', rpcParams) as any)
           .select(`
             *,
             appointments(*, created_by(full_name)),
@@ -374,11 +376,11 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     refreshCatalogs: fetchCatalogs,
     checkSetupStatus: async () => {
       try {
-        const { data } = await supabase.from('organization_settings').select('setup_completed').limit(1).maybeSingle();
-        return !!data?.setup_completed;
+        const { data } = await supabase.from('organization_settings').select('setup_completed').limit(1).maybeSingle() as any;
+        return data ? !!data.setup_completed : false;
       } catch (error) {
-        console.error("Error checking setup status:", error);
-        return false;
+        console.error("Error checking setup status (offline/error), defaulting to true:", error);
+        return true; // Default to TRUE to prevent blocking user if offline
       }
     }
   };

@@ -8,6 +8,7 @@ import RocketLaunchIcon from './icons/RocketLaunchIcon';
 import BuildingOfficeIcon from './icons/BuildingOfficeIcon';
 import Cog6ToothIcon from './icons/Cog6ToothIcon';
 import { useCRMData } from '../hooks/useCRMData';
+import { TIMEZONE_OPTIONS } from '../utils/constants';
 
 interface SetupWizardProps {
     onComplete: () => void;
@@ -76,15 +77,15 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
         setSeeding(true);
         try {
             // 1. Catálogos
-            await supabase.from('licenciaturas').insert([{ name: 'Administración' }, { name: 'Derecho' }, { name: 'Psicología' }, { name: 'Ingeniería en Sistemas' }]).select();
-            await supabase.from('sources').insert([{ name: 'Redes Sociales' }, { name: 'Google Ads' }, { name: 'Feria Vocacional' }, { name: 'Recomendación' }]).select();
+            await (supabase as any).from('licenciaturas').insert([{ name: 'Administración' }, { name: 'Derecho' }, { name: 'Psicología' }, { name: 'Ingeniería en Sistemas' }]).select();
+            await (supabase as any).from('sources').insert([{ name: 'Redes Sociales' }, { name: 'Google Ads' }, { name: 'Feria Vocacional' }, { name: 'Recomendación' }]).select();
 
             // 2. Leads de Prueba
-            const { data: statusData } = await supabase.from('statuses').select('id, name').limit(1);
+            const { data: statusData } = await (supabase as any).from('statuses').select('id, name').limit(1);
             const activeStatus = statusData?.[0]?.id;
 
             if (activeStatus) {
-                await supabase.from('leads').insert([
+                await (supabase as any).from('leads').insert([
                     { first_name: 'Juan', paternal_last_name: 'Pérez', email: 'juan.demo@example.com', phone: '5512345678', status_id: activeStatus, advisor_id: currentUser.id },
                     { first_name: 'María', paternal_last_name: 'González', email: 'maria.demo@example.com', phone: '5587654321', status_id: activeStatus, advisor_id: currentUser.id },
                     { first_name: 'Carlos', paternal_last_name: 'López', email: 'carlos.demo@example.com', phone: '5555555555', status_id: activeStatus, advisor_id: currentUser.id }
@@ -106,11 +107,11 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
         setLoading(true);
         try {
             // 1. Identificar fila existente para actualizar (Singleton Pattern)
-            const { data: existingRow } = await supabase.from('organization_settings').select('id').limit(1).maybeSingle();
+            const { data: existingRow } = await (supabase as any).from('organization_settings').select('id').limit(1).maybeSingle();
 
             if (existingRow?.id) {
                 // Actualizar existente
-                await supabase.from('organization_settings').update({
+                await (supabase as any).from('organization_settings').update({
                     company_name: companyName,
                     company_subtitle: subtitle,
                     logo_url: logoUrl,
@@ -118,7 +119,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
                 }).eq('id', existingRow.id);
             } else {
                 // Insertar nueva si está vacía
-                await supabase.from('organization_settings').insert({
+                await (supabase as any).from('organization_settings').insert({
                     company_name: companyName,
                     company_subtitle: subtitle,
                     logo_url: logoUrl,
@@ -127,7 +128,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
             }
 
             // 2. Guardar System Settings (Timezone)
-            await supabase.from('system_settings').upsert([
+            await (supabase as any).from('system_settings').upsert([
                 { key: 'timezone', value: timezone },
                 { key: 'notifications_enabled', value: JSON.stringify(notificationsEnabled) }
             ], { onConflict: 'key' });
@@ -200,15 +201,11 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
                                 onChange={(e) => setTimezone(e.target.value)}
                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none transition-all"
                             >
-                                <option value="America/Mexico_City" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Ciudad de México, Centro (GMT-6)</option>
-                                <option value="America/Cancun" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Cancún, Quintana Roo (GMT-5)</option>
-                                <option value="America/Tijuana" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Tijuana, Baja California (GMT-7)</option>
-                                <option value="America/Chihuahua" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Chihuahua, Pacífico (GMT-6)</option>
-                                <option value="America/Hermosillo" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Hermosillo, Sonora (GMT-7)</option>
-                                <option value="America/Mazatlan" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Mazatlán, Sinaloa (GMT-6)</option>
-                                <option value="America/Bogota" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Bogotá (GMT-5)</option>
-                                <option value="America/Santiago" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Santiago (GMT-3)</option>
-                                <option value="Europe/Madrid" className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">Madrid (GMT+1)</option>
+                                {TIMEZONE_OPTIONS.map(tz => (
+                                    <option key={tz.value} value={tz.value} className="text-gray-900 dark:text-white bg-white dark:bg-slate-800">
+                                        {tz.label}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                         <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">

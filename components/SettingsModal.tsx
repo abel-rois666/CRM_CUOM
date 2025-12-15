@@ -22,6 +22,7 @@ import EnvelopeIcon from './icons/EnvelopeIcon';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
 import CameraIcon from './icons/CameraIcon';
+import { TIMEZONE_OPTIONS } from '../utils/constants';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -523,10 +524,33 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: Source[]) => void }> = ({ sources, onSourcesUpdate }) => {
     const [name, setName] = useState('');
     const [sourceToDelete, setSourceToDelete] = useState<Source | null>(null);
+    const [sourceToEdit, setSourceToEdit] = useState<Source | null>(null);
     const { success, error: toastError } = useToast();
 
-    const handleAdd = async () => {
-        if (name.trim()) {
+    // Renamed from handleAdd since it now handles both add and edit
+    const handleSave = async () => {
+        if (!name.trim()) return;
+
+        if (sourceToEdit) {
+            // Update Logic
+            const { data, error } = await (supabase as any)
+                .from('sources')
+                .update({ name: name.trim() })
+                .eq('id', sourceToEdit.id)
+                .select()
+                .single();
+
+            if (error) {
+                console.error(error);
+                toastError("Error al actualizar origen");
+            } else {
+                onSourcesUpdate(sources.map(s => s.id === sourceToEdit.id ? data : s));
+                success("Origen actualizado");
+                setSourceToEdit(null);
+                setName('');
+            }
+        } else {
+            // Create Logic (original handleAdd)
             const { data, error } = await (supabase as any).from('sources').insert({ name: name.trim() }).select().single();
             if (error) {
                 console.error(error);
@@ -537,6 +561,16 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
             success("Origen creado");
             setName('');
         }
+    };
+
+    const handleEditClick = (source: Source) => {
+        setSourceToEdit(source);
+        setName(source.name);
+    };
+
+    const handleCancelEdit = () => {
+        setSourceToEdit(null);
+        setName('');
     };
 
     const handleVerifyAndDelete = async (source: Source) => {
@@ -577,20 +611,43 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
         <div className="space-y-4">
             <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Orígenes</h3>
             <div className="space-y-4">
-                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Añadir Nuevo Origen</h4>
-                <div className="flex gap-2 items-end">
-                    <Input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre del Origen" />
-                    <Button onClick={handleAdd} leftIcon={<PlusIcon className="w-4 h-4" />}>Añadir</Button>
+                <div className={`p-5 border rounded-xl transition-colors ${sourceToEdit ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'border-gray-100 dark:border-slate-700'}`}>
+                    <h4 className={`font-semibold mb-3 ${sourceToEdit ? 'text-blue-800 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                        {sourceToEdit ? `Editando: ${sourceToEdit.name}` : 'Añadir Nuevo Origen'}
+                    </h4>
+                    <div className="flex gap-2 items-end">
+                        <Input
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            placeholder="Nombre del Origen (Ej: Facebook, Google)"
+                        />
+                        {sourceToEdit && (
+                            <Button variant="ghost" onClick={handleCancelEdit}>Cancelar</Button>
+                        )}
+                        <Button
+                            onClick={handleSave}
+                            leftIcon={!sourceToEdit ? <PlusIcon className="w-4 h-4" /> : undefined}
+                            className={sourceToEdit ? "shadow-blue-200" : ""}
+                        >
+                            {sourceToEdit ? 'Actualizar' : 'Añadir'}
+                        </Button>
+                    </div>
                 </div>
+
                 <hr className="my-4 border-gray-200 dark:border-slate-700" />
                 <h4 className="font-semibold text-gray-700 dark:text-gray-300">Orígenes Actuales</h4>
-                <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                     {sources.map(source => (
-                        <li key={source.id} className="flex justify-between items-center bg-gray-50 dark:bg-slate-800 p-2 rounded-md">
-                            <span className="text-gray-800 dark:text-gray-200">{source.name}</span>
-                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(source)}>
-                                <TrashIcon className="w-4 h-4 text-red-500" />
-                            </Button>
+                        <li key={source.id} className="flex justify-between items-center bg-gray-50 dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700 hover:border-brand-secondary/30 transition-colors">
+                            <span className="font-medium text-gray-700 dark:text-gray-200">{source.name}</span>
+                            <div className="flex gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => handleEditClick(source)} title="Editar Nombre">
+                                    <EditIcon className="w-4 h-4 text-blue-500" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(source)} title="Eliminar">
+                                    <TrashIcon className="w-4 h-4 text-red-500" />
+                                </Button>
+                            </div>
                         </li>
                     ))}
                 </ul>
@@ -613,7 +670,7 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
             </div>
         </div>
     );
-}
+};
 
 // COMPONENTE ACTUALIZADO PARA LICENCIATURAS (OFERTA ACADÉMICA)
 const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void }> = ({ licenciaturas, onLicenciaturasUpdate }) => {
@@ -1278,7 +1335,7 @@ const PersonalizationSettings: React.FC = () => {
     const [seedingLoading, setSeedingLoading] = useState(false);
 
     const [saving, setSaving] = useState(false);
-    const { success, error } = useToast();
+    const { success, error, info } = useToast();
 
     // Sync state with settings when loaded
     useEffect(() => {
@@ -1436,6 +1493,12 @@ const PersonalizationSettings: React.FC = () => {
                     </div>
                 </div>
 
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
+                    <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm mb-1">Nota Importante</h4>
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                        Estos cambios afectarán la cabecera de la aplicación para todos los usuarios.
+                    </p>
+                </div>
                 <div className="pt-2 flex justify-end">
                     <Button onClick={handleSave} disabled={saving}>
                         {saving ? 'Guardando...' : 'Guardar Cambios'}
@@ -1454,13 +1517,7 @@ const PersonalizationSettings: React.FC = () => {
                             label="Zona Horaria"
                             value={timezone}
                             onChange={e => setTimezone(e.target.value)}
-                            options={[
-                                { value: 'America/Mexico_City', label: 'Ciudad de México (central)' },
-                                { value: 'America/Tijuana', label: 'Tijuana (Pacifico)' },
-                                { value: 'America/Monterrey', label: 'Monterrey' },
-                                { value: 'America/Cancun', label: 'Cancún (Sureste)' },
-                                { value: 'UTC', label: 'UTC' }
-                            ]}
+                            options={TIMEZONE_OPTIONS}
                         />
 
                         <div className="flex items-center justify-between p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-900/50">
@@ -1507,12 +1564,7 @@ const PersonalizationSettings: React.FC = () => {
 
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
-                    <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm mb-1">Nota Importante</h4>
-                    <p className="text-xs text-blue-700 dark:text-blue-400">
-                        Estos cambios afectarán la cabecera de la aplicación para todos los usuarios.
-                    </p>
-                </div>
+
             </div>
         </div>
     );

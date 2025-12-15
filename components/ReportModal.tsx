@@ -6,10 +6,12 @@ import Button from './common/Button';
 import { Input } from './common/FormElements';
 import PrinterIcon from './icons/PrinterIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
+import SparklesIcon from './icons/SparklesIcon';
+
 // Imports de Recharts
 import {
     PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, TooltipProps
+    BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 
 // --- UTILIDADES DE COLOR (Fix Tailwind v4 para PDF) ---
@@ -38,18 +40,15 @@ function oklabToRgb(L: number, a: number, b: number) {
 function normalizeColor(c: string) {
     if (!c || c === 'rgba(0, 0, 0, 0)' || c === 'transparent') return c;
 
-    // Detectar oklab
     const oklab = c.match(/oklab\(\s*([\d.]+)%?\s+([-+]?[\d.]+)\s+([-+]?[\d.]+)(?:\s*\/\s*([\d.]+))?\s*\)/i);
     if (oklab) {
         let L = parseFloat(oklab[1]);
-        // Ajuste de seguridad: si L > 1 asumimos que es 0-100, si no 0-1
         if (L > 1) L = L / 100;
         const a = parseFloat(oklab[2]);
         const b = parseFloat(oklab[3]);
         return oklabToRgb(L, a, b);
     }
 
-    // Detectar oklch
     const oklch = c.match(/oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)(?:deg)?(?:\s*\/\s*([\d.]+))?\s*\)/i);
     if (oklch) {
         let L = parseFloat(oklch[1]);
@@ -102,6 +101,8 @@ interface BreakdownData {
 interface ReportData {
     startDate: string;
     endDate: string;
+    enrolledCount: number;
+    conversionRate: number;
     newLeads: ReportSectionData;
     updatedLeads: ReportSectionData;
     leadsByAdvisor: BreakdownData;
@@ -120,13 +121,11 @@ const tailwindColorMap: { [key: string]: string } = {
     'bg-rose-500': '#f43f5e'
 };
 
-// --- Tooltips Personalizados ---
-
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         return (
-            <div className="bg-white dark:bg-slate-800 p-2 border border-gray-200 dark:border-slate-700 shadow-lg rounded-lg text-xs z-50">
+            <div className="bg-white dark:bg-slate-800 p-2 border border-gray-200 dark:border-slate-700 shadow-lg rounded-lg text-xs z-50 opacity-100">
                 <p className="font-bold text-gray-800 dark:text-white">{data.name}</p>
                 <p className="text-gray-600 dark:text-gray-300">
                     <span className="font-semibold text-brand-secondary">{data.value || data.count || data.rate?.toFixed(1)}</span>
@@ -141,15 +140,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return null;
 };
 
-// --- Gráficas ---
+// --- Components Gráficos ---
 
 const StatusPieChart: React.FC<{ data: StatusBreakdown[], isExporting?: boolean }> = ({ data, isExporting }) => {
     const filteredData = data.filter(d => d.count > 0);
-    if (filteredData.length === 0) return null;
+    if (filteredData.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-48 w-full text-gray-400 dark:text-gray-500 text-sm italic">
+                No hay datos para mostrar
+            </div>
+        );
+    }
 
     const total = filteredData.reduce((sum, item) => sum + item.count, 0);
-
-    // Preparamos datos para Recharts
     const chartData = filteredData.map(item => ({
         name: item.name,
         value: item.count,
@@ -157,8 +160,11 @@ const StatusPieChart: React.FC<{ data: StatusBreakdown[], isExporting?: boolean 
     }));
 
     return (
-        <div className="mt-4 flex flex-col md:flex-row items-center gap-6">
-            <div className="w-40 h-40 flex-shrink-0 relative">
+        <div className="flex flex-col items-center">
+            <div className="w-40 h-40 relative my-4">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className={`text-xl font-bold ${isExporting ? 'text-black' : 'text-gray-700 dark:text-white'}`}>{total}</span>
+                </div>
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <PieChart>
                         <Pie
@@ -176,108 +182,61 @@ const StatusPieChart: React.FC<{ data: StatusBreakdown[], isExporting?: boolean 
                                 <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                         </Pie>
-                        {/* Tooltip ELIMINADO intencionalmente para evitar solapamiento con el texto central */}
+                        {!isExporting && <RechartsTooltip content={<CustomTooltip />} wrapperStyle={{ outline: 'none', zIndex: 100 }} />}
                     </PieChart>
                 </ResponsiveContainer>
-
-                {/* Texto central con el total */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className={`text-xl font-bold ${isExporting ? 'text-black' : 'text-gray-700 dark:text-white'}`}>{total}</span>
-                </div>
             </div>
 
-            <ul className="space-y-2 flex-1 w-full">
+            <div className={`w-full grid ${isExporting ? 'grid-cols-1' : 'grid-cols-2'} gap-2 text-xs leading-tight`} style={isExporting ? { overflow: 'visible' } : undefined}>
                 {filteredData.map(item => (
-                    <li key={item.name} className="flex items-center justify-between text-sm group">
-                        <div className="flex items-center gap-2">
-                            <span
-                                className={`w-3 h-3 rounded-full ${isExporting ? 'bg-gray-600' : ''}`}
-                                style={{ backgroundColor: !isExporting ? tailwindColorMap[item.color] : undefined }}
-                            ></span>
-                            <span className={`font-medium ${isExporting ? 'text-black' : 'text-gray-700 dark:text-gray-300'} truncate max-w-[150px]`}>{item.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`font-bold ${isExporting ? 'text-black' : 'text-gray-900 dark:text-white'}`}>{item.count}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${isExporting ? 'text-black border border-gray-400' : 'text-gray-500 bg-gray-100 dark:bg-slate-700 dark:text-gray-300'}`}>
-                                {((item.count / total) * 100).toFixed(1)}%
-                            </span>
-                        </div>
-                    </li>
+                    <div key={item.name} className="flex items-start gap-2">
+                        <span
+                            className={`w-2 h-2 rounded-full flex-shrink-0`}
+                            style={{ backgroundColor: isExporting ? '#666' : tailwindColorMap[item.color] }}
+                        ></span>
+                        <span className={`${isExporting ? 'whitespace-normal break-words min-w-full' : 'truncate min-w-0'} flex-1 ${isExporting ? 'text-black' : 'text-gray-600 dark:text-gray-300'}`}>{item.name} ({item.count})</span>
+                    </div>
                 ))}
-            </ul>
+            </div>
         </div>
     );
 };
 
-const BreakdownBarChart: React.FC<{ data: BreakdownItem[], isExporting?: boolean }> = ({ data, isExporting }) => {
-    const filteredData = data.filter(d => d.count > 0).sort((a, b) => b.count - a.count);
-    if (filteredData.length === 0) return null;
+const SimpleBarChart: React.FC<{ data: any[], dataKey: string, color: string, isExporting?: boolean, formatter?: (val: number) => string }> = ({ data, dataKey, color, isExporting, formatter }) => {
+    const sortedData = [...data].sort((a, b) => b[dataKey] - a[dataKey]).slice(0, 10);
+    if (sortedData.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-48 w-full text-gray-400 dark:text-gray-500 text-sm italic">
+                No hay datos para mostrar
+            </div>
+        );
+    }
 
     return (
-        <div className="mt-4 h-64 w-full">
+        <div className="h-64 w-full mt-4">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart
-                    data={filteredData}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                >
+                <BarChart data={sortedData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" hide />
                     <YAxis
                         dataKey="name"
                         type="category"
-                        width={100}
-                        tick={{ fontSize: 11, fill: isExporting ? '#000' : '#64748b' }}
+                        width={90}
+                        tick={{ fontSize: 10, fill: isExporting ? '#000' : '#64748b' }}
                         interval={0}
                     />
-                    {!isExporting && <RechartsTooltip content={<CustomTooltip />} />}
+                    {!isExporting && <RechartsTooltip content={<CustomTooltip />} wrapperStyle={{ outline: 'none', opacity: 1 }} />}
                     <Bar
-                        dataKey="count"
-                        fill={isExporting ? '#1f2937' : '#3b82f6'} // Azul normal o Gris oscuro export
+                        dataKey={dataKey}
+                        fill={color}
                         radius={[0, 4, 4, 0]}
-                        barSize={20}
-                        isAnimationActive={!isExporting}
-                        label={{ position: 'right', fill: isExporting ? '#000' : '#64748b', fontSize: 11 }}
-                    />
-                </BarChart>
-            </ResponsiveContainer>
-        </div>
-    );
-};
-
-const ConversionRateBarChart: React.FC<{ data: ConversionBreakdownItem[], isExporting?: boolean }> = ({ data, isExporting }) => {
-    const sortedData = [...data].sort((a, b) => b.rate - a.rate);
-    if (sortedData.length === 0) return null;
-
-    return (
-        <div className="mt-4 h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                    data={sortedData}
-                    layout="vertical"
-                    margin={{ top: 5, right: 40, left: 40, bottom: 5 }}
-                >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                    <XAxis type="number" domain={[0, 100]} hide />
-                    <YAxis
-                        dataKey="name"
-                        type="category"
-                        width={100}
-                        tick={{ fontSize: 11, fill: isExporting ? '#000' : '#64748b' }}
-                        interval={0}
-                    />
-                    {!isExporting && <RechartsTooltip content={<CustomTooltip />} />}
-                    <Bar
-                        dataKey="rate"
-                        fill={isExporting ? '#1f2937' : '#10b981'} // Verde o Gris oscuro
-                        radius={[0, 4, 4, 0]}
-                        barSize={20}
+                        barSize={15}
                         isAnimationActive={!isExporting}
                         label={{
                             position: 'right',
-                            formatter: (val: number) => `${val.toFixed(1)}%`,
-                            fill: isExporting ? '#000' : '#059669',
-                            fontSize: 11
+                            formatter: formatter || ((val: number) => val.toString()),
+                            fill: isExporting ? '#000' : '#64748b',
+                            fontSize: 10
                         }}
                     />
                 </BarChart>
@@ -286,78 +245,27 @@ const ConversionRateBarChart: React.FC<{ data: ConversionBreakdownItem[], isExpo
     );
 };
 
-const ReportSection: React.FC<{ title: string; data: ReportSectionData; icon?: React.ReactNode; isExporting?: boolean }> = ({ title, data, icon, isExporting }) => (
-    <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all'}`}>
-        <div className={`flex justify-between items-start mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100 dark:border-slate-700'} pb-4`}>
-            <div>
-                <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800 dark:text-white'}`}>{title}</h4>
-                <p className={`text-xs mt-1 uppercase tracking-wider font-bold ${isExporting ? 'text-black' : 'text-gray-500 dark:text-gray-400'}`}>Resumen del Periodo</p>
+const SummaryCard: React.FC<{ title: string; value: string | number; subtitle?: string; icon: React.ReactNode; colorClass: string; isExporting?: boolean }> = ({ title, value, subtitle, icon, colorClass, isExporting }) => (
+    <div className={`p-6 pb-10 rounded-xl border flex flex-col justify-between min-h-[160px] ${isExporting ? 'bg-white border-black' : `bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700 shadow-sm`}`}>
+        <div>
+            <div className="flex items-start justify-between mb-4">
+                <h4 className={`text-xs font-bold uppercase tracking-wider ${isExporting ? 'text-black' : 'text-gray-500 dark:text-gray-400'}`}>{title}</h4>
+                <div className={`${isExporting ? 'text-black' : colorClass} p-1.5 rounded-lg bg-opacity-10`}>{icon}</div>
             </div>
-            {icon && !isExporting && <div className="text-brand-secondary bg-brand-secondary/5 dark:bg-blue-900/20 p-2 rounded-lg">{icon}</div>}
+            <span className={`text-4xl font-black ${isExporting ? 'text-black' : 'text-gray-900 dark:text-white'}`}>{value}</span>
         </div>
-
-        <div className="flex items-baseline gap-2 mb-2">
-            <span className={`text-4xl font-black ${isExporting ? 'text-black' : 'text-brand-primary dark:text-blue-400'}`}>{data.total}</span>
-            <span className={`text-sm font-bold ${isExporting ? 'text-black' : 'text-gray-600 dark:text-gray-400'}`}>leads totales</span>
-        </div>
-
-        {data.breakdown.filter(s => s.count > 0).length > 0 ? (
-            <StatusPieChart data={data.breakdown} isExporting={isExporting} />
-        ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400 py-8 text-center italic bg-gray-50 dark:bg-slate-900/50 rounded-xl mt-4 font-medium">Sin datos para mostrar.</p>
-        )}
+        {subtitle && <div className="mt-4"><span className={`text-sm ${isExporting ? 'text-black' : 'text-gray-500'}`}>{subtitle}</span></div>}
     </div>
 );
 
-const BreakdownReportSection: React.FC<{ title: string; data: BreakdownData; totalLabel: string; isExporting?: boolean }> = ({ title, data, totalLabel, isExporting }) => (
-    <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all'}`}>
-        <div className={`mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100 dark:border-slate-700'} pb-4`}>
-            <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800 dark:text-white'}`}>{title}</h4>
+const ChartSection: React.FC<{ title: string; children: React.ReactNode; isExporting?: boolean }> = ({ title, children, isExporting }) => (
+    <div className={`rounded-2xl border break-inside-avoid flex flex-col ${isExporting ? 'bg-white border-black border-2 h-auto min-h-[500px] p-5 pb-32' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm h-full p-5'}`}>
+        <h4 className={`text-base font-bold mb-4 ${isExporting ? 'text-black' : 'text-gray-800 dark:text-white'}`}>{title}</h4>
+        <div className={`w-full ${isExporting ? '' : 'flex-1 min-h-0 overflow-hidden'}`}>
+            {children}
         </div>
-
-        <div className="flex items-baseline gap-2">
-            <span className={`text-4xl font-black ${isExporting ? 'text-black' : 'text-brand-primary dark:text-blue-400'}`}>{data.total}</span>
-            <span className={`text-sm font-bold ${isExporting ? 'text-black' : 'text-gray-600 dark:text-gray-400'}`}>{totalLabel}</span>
-        </div>
-
-        {data.breakdown.filter(s => s.count > 0).length > 0 ? (
-            <BreakdownBarChart data={data.breakdown} isExporting={isExporting} />
-        ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400 py-8 text-center italic bg-gray-50 dark:bg-slate-900/50 rounded-xl mt-4 font-medium">Sin datos para mostrar.</p>
-        )}
     </div>
 );
-
-const ConversionReportSection: React.FC<{ title: string; data: ConversionBreakdownItem[]; isExporting?: boolean }> = ({ title, data, isExporting }) => {
-    const totalConversions = data.reduce((sum, item) => sum + item.convertedCount, 0);
-    const totalLeadsForConversion = data.reduce((sum, item) => sum + item.totalLeads, 0);
-    const overallRate = totalLeadsForConversion > 0 ? (totalConversions / totalLeadsForConversion) * 100 : 0;
-
-    return (
-        <div className={`p-6 rounded-2xl border break-inside-avoid ${isExporting ? 'bg-white border-black border-2 mb-6' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all'}`}>
-            <div className={`mb-4 border-b ${isExporting ? 'border-black' : 'border-gray-100 dark:border-slate-700'} pb-4`}>
-                <h4 className={`text-lg font-black ${isExporting ? 'text-black' : 'text-gray-800 dark:text-white'}`}>{title}</h4>
-            </div>
-
-            <div className={`flex justify-between items-end p-4 rounded-xl border mb-6 ${isExporting ? 'bg-white border-black' : 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'}`}>
-                <div>
-                    <p className={`text-xs font-bold uppercase tracking-wide mb-1 ${isExporting ? 'text-black' : 'text-green-800 dark:text-green-300'}`}>Tasa Global</p>
-                    <span className={`text-4xl font-black ${isExporting ? 'text-black' : 'text-green-600 dark:text-green-400'}`}>{overallRate.toFixed(1)}%</span>
-                </div>
-                <div className="text-right">
-                    <p className={`text-sm font-bold ${isExporting ? 'text-black' : 'text-green-900 dark:text-green-100'}`}>{totalConversions} inscritos</p>
-                    <p className={`text-xs font-medium ${isExporting ? 'text-black' : 'text-green-700 dark:text-green-300'}`}>de {totalLeadsForConversion} leads</p>
-                </div>
-            </div>
-
-            {data.length > 0 ? (
-                <ConversionRateBarChart data={data} isExporting={isExporting} />
-            ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400 py-8 text-center italic bg-gray-50 dark:bg-slate-900/50 rounded-xl font-medium">Sin datos de conversión.</p>
-            )}
-        </div>
-    );
-};
 
 const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statuses, advisors, sources }) => {
     const today = new Date().toISOString().split('T')[0];
@@ -367,16 +275,14 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
     const [isExporting, setIsExporting] = useState(false);
     const reportContentRef = useRef<HTMLDivElement>(null);
 
-    // --- BLOQUEO TOTAL DE INTERACCIÓN (SCROLL Y CLICS) ---
     useEffect(() => {
         if (isExporting) {
-            document.body.style.overflow = 'hidden'; // Bloquea scroll
-            document.body.style.pointerEvents = 'none'; // Bloquea clics en toda la app
+            document.body.style.overflow = 'hidden';
+            document.body.style.pointerEvents = 'none';
         } else {
             document.body.style.overflow = 'unset';
             document.body.style.pointerEvents = 'unset';
         }
-        // Cleanup al desmontar
         return () => {
             document.body.style.overflow = 'unset';
             document.body.style.pointerEvents = 'unset';
@@ -387,7 +293,6 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
         if (!startDate || !endDate) { alert("Por favor, selecciona un periodo."); return; }
         const start = new Date(startDate + 'T00:00:00Z');
         const end = new Date(endDate + 'T23:59:59Z');
-        if (start > end) { alert("La fecha de inicio no puede ser posterior a la fecha de fin."); return; }
 
         const getStatusBreakdown = (leadsForBreakdown: Lead[]): StatusBreakdown[] => {
             const statusMap = new Map<string, StatusBreakdown>(statuses.map(s => [s.id, { name: s.name, color: s.color, count: 0 }]));
@@ -436,22 +341,42 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             breakdown: Array.from(leadsBySourceMap.entries()).map(([id, count]) => ({ name: String(sourceMap.get(id) || 'Desconocido'), count }))
         };
 
-        const inscritoStatusId = statuses.find(s => s.name === 'Inscrito (a)')?.id;
+        const inscritoStatusId = statuses.find(s => s.category === 'won')?.id;
+        let enrolledCount = 0;
         const conversionsByAdvisor = new Map<string, number>();
+
         if (inscritoStatusId) {
-            newLeads.forEach(lead => {
-                if ((lead.status_history || []).some(c => c.new_status_id === inscritoStatusId)) {
+            leads.forEach(lead => {
+                const hasWonInPeriod = (lead.status_history || []).some(change => {
+                    const d = new Date(change.date);
+                    return d >= start && d <= end && change.new_status_id === inscritoStatusId;
+                });
+
+                if (hasWonInPeriod) {
+                    enrolledCount++;
                     conversionsByAdvisor.set(lead.advisor_id, (conversionsByAdvisor.get(lead.advisor_id) || 0) + 1);
                 }
             });
         }
+
         const conversionBreakdown: ConversionBreakdownItem[] = advisors.map(advisor => {
             const convertedCount = conversionsByAdvisor.get(advisor.id) || 0;
             const totalLeads = leadsByAdvisorMap.get(advisor.id) || 0;
             return { name: advisor.full_name, convertedCount, totalLeads, rate: totalLeads > 0 ? (convertedCount / totalLeads) * 100 : 0 };
         }).filter(item => item.totalLeads > 0 || item.convertedCount > 0);
 
-        setReport({ startDate, endDate, newLeads: newLeadsReport, updatedLeads: updatedLeadsReport, leadsByAdvisor: leadsByAdvisorReport, leadsBySource: leadsBySourceReport, conversionByAdvisor: conversionBreakdown });
+        const conversionRate = newLeads.length > 0 ? (enrolledCount / newLeads.length) * 100 : 0;
+
+        setReport({
+            startDate, endDate,
+            enrolledCount,
+            conversionRate,
+            newLeads: newLeadsReport,
+            updatedLeads: updatedLeadsReport,
+            leadsByAdvisor: leadsByAdvisorReport,
+            leadsBySource: leadsBySourceReport,
+            conversionByAdvisor: conversionBreakdown
+        });
     };
 
     const handleExportPDF = async () => {
@@ -465,11 +390,9 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
                 const content = reportContentRef.current;
                 if (!content) return;
 
-                // 1. CLONAR
                 const clone = content.cloneNode(true) as HTMLElement;
 
-                // 2. PREPARAR CLON 
-                clone.style.width = '1100px';
+                clone.style.width = '1200px';
                 clone.style.padding = '40px';
                 clone.style.backgroundColor = '#ffffff';
                 clone.style.position = 'absolute';
@@ -478,60 +401,41 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
                 // @ts-ignore
                 clone.style.printColorAdjust = 'exact';
 
-                // 3. INSERTAR EN DOM 
-                document.body.appendChild(clone);
-
-                // 4. CORRECCIÓN DE RECHARTS (Warnings width -1)
                 const originalCharts = content.querySelectorAll('.recharts-responsive-container');
                 const cloneCharts = clone.querySelectorAll('.recharts-responsive-container');
 
                 cloneCharts.forEach((cloneChart, index) => {
                     const original = originalCharts[index];
                     if (original) {
-                        const rect = original.getBoundingClientRect();
-                        (cloneChart as HTMLElement).style.width = `${rect.width || 500}px`;
-                        (cloneChart as HTMLElement).style.height = `${rect.height || 300}px`;
+                        (cloneChart as HTMLElement).style.width = '100%';
+                        (cloneChart as HTMLElement).style.height = '250px';
                     }
                 });
 
-                // 5. SANITIZACIÓN DE COLORES (El arreglo para 'oklab')
                 const allElements = clone.querySelectorAll('*');
                 Array.from(allElements).forEach((el) => {
                     const element = el as HTMLElement;
                     const computed = window.getComputedStyle(element);
-
-                    // Aplanamos los estilos a inline usando el convertidor seguro
                     if (computed.color) element.style.color = normalizeColor(computed.color);
-                    if (computed.backgroundColor && computed.backgroundColor !== 'rgba(0, 0, 0, 0)') {
-                        element.style.backgroundColor = normalizeColor(computed.backgroundColor);
-                    }
+                    if (computed.backgroundColor && computed.backgroundColor !== 'rgba(0, 0, 0, 0)') element.style.backgroundColor = normalizeColor(computed.backgroundColor);
                     if (computed.borderColor) element.style.borderColor = normalizeColor(computed.borderColor);
-
-                    // SVG Fills/Strokes
                     if (computed.fill && computed.fill !== 'none') element.style.fill = normalizeColor(computed.fill);
                     if (computed.stroke && computed.stroke !== 'none') element.style.stroke = normalizeColor(computed.stroke);
-
-                    // Limpieza de animaciones
-                    element.style.transition = 'none';
-                    element.style.animation = 'none';
-                    element.classList.remove('animate-fade-in', 'animate-spin');
                 });
 
-                // 6. CAPTURA
+                document.body.appendChild(clone);
+
                 const canvas = await html2canvas(clone, {
                     scale: 2,
                     useCORS: true,
                     backgroundColor: '#ffffff',
-                    logging: false,
-                    windowWidth: 1200,
+                    windowWidth: 1000,
                 });
 
-                // 7. LIMPIEZA Y GUARDADO
                 document.body.removeChild(clone);
 
                 const imgData = canvas.toDataURL('image/png');
                 const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = pdf.internal.pageSize.getHeight();
                 const imgProps = pdf.getImageProperties(imgData);
@@ -542,23 +446,17 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
 
                 pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
                 heightLeft -= pdfHeight;
-
                 while (heightLeft > 0) {
                     position = heightLeft - imgHeight;
                     pdf.addPage();
                     pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
                     heightLeft -= pdfHeight;
                 }
-
-                pdf.save(`reporte_crm_${report.startDate}.pdf`);
+                pdf.save(`reporte_cuom_${report.startDate}.pdf`);
 
             } catch (error) {
-                console.error("Error crítico exportando PDF:", error);
-                const strayClone = document.body.lastElementChild;
-                if (strayClone && (strayClone as HTMLElement).style?.left === '-9999px') {
-                    document.body.removeChild(strayClone);
-                }
-                alert("No se pudo generar el PDF. Hubo un error de compatibilidad.");
+                console.error("Error PDF:", error);
+                alert("Error al generar PDF.");
             } finally {
                 setIsExporting(false);
             }
@@ -566,70 +464,96 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={() => { setReport(null); onClose(); }} title="Inteligencia de Negocio" size="4xl">
-
-            {/* --- OVERLAY DE CARGA (BLOQUEO DE PANTALLA) --- */}
+        <Modal isOpen={isOpen} onClose={() => { setReport(null); onClose(); }} title="Análisis de Rendimiento" size="4xl">
             {isExporting && (
-                <div className="fixed inset-0 z-[100] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center transition-all animate-fade-in cursor-wait select-none">
+                <div className="fixed inset-0 z-[100] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center transition-all animate-fade-in select-none">
                     <div className="relative">
                         <div className="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
                         <div className="w-16 h-16 border-4 border-brand-secondary rounded-full animate-spin absolute top-0 left-0 border-t-transparent"></div>
                     </div>
                     <h3 className="mt-6 text-xl font-bold text-gray-800">Generando Reporte PDF...</h3>
-                    <p className="text-gray-500 mt-2 text-sm">Por favor espera, renderizando gráficas de alta calidad.</p>
                 </div>
             )}
 
-            <div className={`space-y-8 ${isExporting ? 'pointer-events-none select-none' : ''}`}>
-                <div className="bg-gray-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-4 items-end">
-                    <div className="w-full sm:w-auto flex-1">
-                        <Input label="Fecha Inicio" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <div className={`space-y-6 ${isExporting ? 'pointer-events-none' : ''}`}>
+                <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-4 items-end">
+                    <div className="w-full sm:flex-1">
+                        <Input label="Desde" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
                     </div>
-                    <div className="w-full sm:w-auto flex-1">
-                        <Input label="Fecha Fin" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                    <div className="w-full sm:flex-1">
+                        <Input label="Hasta" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
                     </div>
-                    <Button onClick={handleGenerateReport} className="shadow-lg shadow-brand-secondary/20 w-full sm:w-auto">
+                    <Button onClick={handleGenerateReport} className="w-full sm:w-auto shadow-md">
                         <ChartBarIcon className="w-5 h-5 mr-2" />
-                        Generar Análisis
+                        Generar
                     </Button>
                 </div>
 
                 {report && (
                     <>
-                        {/* Contenedor del reporte - Referenciado para captura */}
-                        <div className={`animate-fade-in ${isExporting ? 'bg-white' : 'bg-transparent'}`} ref={reportContentRef}>
-                            <div className="text-center mb-8 pt-4">
-                                <h2 className={`text-3xl font-black tracking-tight ${isExporting ? 'text-black' : 'text-gray-900 dark:text-white'}`}>Reporte Ejecutivo</h2>
-                                <p className={`font-medium mt-1 text-lg ${isExporting ? 'text-black' : 'text-gray-600'}`}>
-                                    {new Date(report.startDate).toLocaleDateString()} — {new Date(report.endDate).toLocaleDateString()}
+                        <div ref={reportContentRef} className={`animate-fade-in ${isExporting ? 'bg-white p-0' : ''}`}>
+                            <div className="mb-6 border-b border-gray-100 dark:border-slate-700 pb-4">
+                                <h2 className={`text-2xl font-black ${isExporting ? 'text-black' : 'text-gray-900 dark:text-white'}`}>Reporte de Admisiones</h2>
+                                <p className={`text-sm ${isExporting ? 'text-black' : 'text-gray-500'}`}>
+                                    Periodo: {new Date(report.startDate).toLocaleDateString()} - {new Date(report.endDate).toLocaleDateString()}
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="md:col-span-2">
-                                    <ReportSection title="Nuevos Leads (Captación)" data={report.newLeads} icon={<ChartBarIcon className="w-6 h-6" />} isExporting={isExporting} />
-                                </div>
-
-                                <ReportSection title="Movimiento de Cartera (Actividad)" data={report.updatedLeads} isExporting={isExporting} />
-                                <ConversionReportSection title="Efectividad de Cierre (Inscritos)" data={report.conversionByAdvisor} isExporting={isExporting} />
-
-                                <BreakdownReportSection title="Carga por Asesor" data={report.leadsByAdvisor} totalLabel="Leads Asignados" isExporting={isExporting} />
-                                <BreakdownReportSection title="Rendimiento por Canal" data={report.leadsBySource} totalLabel="Leads Generados" isExporting={isExporting} />
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <SummaryCard
+                                    title="Leads Totales"
+                                    value={report.newLeads.total}
+                                    subtitle="Captados en periodo"
+                                    icon={<ChartBarIcon className="w-5 h-5" />}
+                                    colorClass="text-blue-500 bg-blue-100"
+                                    isExporting={isExporting}
+                                />
+                                <SummaryCard
+                                    title="Inscritos"
+                                    value={report.enrolledCount}
+                                    subtitle="Cierres exitosos"
+                                    icon={<SparklesIcon className="w-5 h-5" />}
+                                    colorClass="text-purple-500 bg-purple-100"
+                                    isExporting={isExporting}
+                                />
+                                <SummaryCard
+                                    title="Conversión"
+                                    value={`${report.conversionRate.toFixed(1)}%`}
+                                    subtitle="Tasa de cierre"
+                                    icon={<div className="w-5 h-5 font-bold">%</div>}
+                                    colorClass="text-green-500 bg-green-100"
+                                    isExporting={isExporting}
+                                />
                             </div>
 
-                            <div className={`mt-8 pt-4 border-t border-gray-200 text-center ${isExporting ? 'text-black' : 'text-gray-400'}`}>
-                                <p className="text-xs">Generado por CUOM CRM • {new Date().toLocaleString()}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <ChartSection title="Estatus de Nuevos Leads" isExporting={isExporting}>
+                                    <StatusPieChart data={report.newLeads.breakdown} isExporting={isExporting} />
+                                </ChartSection>
+
+                                <ChartSection title="Carga por Asesor" isExporting={isExporting}>
+                                    <SimpleBarChart data={report.leadsByAdvisor.breakdown} dataKey="count" color={isExporting ? '#333' : '#3b82f6'} isExporting={isExporting} />
+                                </ChartSection>
+
+                                <ChartSection title="Rendimiento por Canal" isExporting={isExporting}>
+                                    <SimpleBarChart data={report.leadsBySource.breakdown} dataKey="count" color={isExporting ? '#333' : '#8b5cf6'} isExporting={isExporting} />
+                                </ChartSection>
+
+                                <ChartSection title="Efectividad de Cierre" isExporting={isExporting}>
+                                    <SimpleBarChart
+                                        data={report.conversionByAdvisor}
+                                        dataKey="rate"
+                                        color={isExporting ? '#333' : '#10b981'}
+                                        isExporting={isExporting}
+                                        formatter={(val) => `${val.toFixed(1)}%`}
+                                    />
+                                </ChartSection>
                             </div>
                         </div>
 
-                        <div className="pt-6 border-t border-gray-100 flex justify-end">
-                            <Button
-                                onClick={handleExportPDF}
-                                variant="secondary"
-                                leftIcon={<PrinterIcon className="w-5 h-5" />}
-                                disabled={isExporting}
-                            >
-                                {isExporting ? 'Generando PDF...' : 'Descargar PDF'}
+                        <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-slate-700">
+                            <Button onClick={handleExportPDF} variant="secondary" disabled={isExporting} leftIcon={<PrinterIcon className="w-4 h-4" />}>
+                                {isExporting ? 'Generando...' : 'Descargar PDF'}
                             </Button>
                         </div>
                     </>

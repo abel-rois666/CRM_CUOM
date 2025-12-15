@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { CalendarEvent } from '../types'; // Verify if CalendarEvent exists or define local
+// import { CalendarEvent } from '../types'; // Removed to avoid conflict with local interface
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 
 export interface CalendarEvent {
@@ -64,16 +64,25 @@ export const useCalendarEvents = (initialDate: Date = new Date(), advisorIdFilte
             const mappedEvents: CalendarEvent[] = (data || []).map((appt: any) => {
                 const lead = appt.leads; // Relationship object
                 const leadName = lead ? `${lead.first_name} ${lead.paternal_last_name}`.trim() : 'Desconocido';
-                const duration = appt.duration || 60;
+                const duration = appt.duration || 30; // [FIX] Reduced default duration to 30 mins to avoid midnight crossing visual bugs
                 const startDate = new Date(appt.date);
-                const endDate = new Date(startDate.getTime() + duration * 60000);
+                // [FIX] Clamp end date to the same day to prevent spanning multiple days in calendar
+                const entryDuration = appt.duration || 30;
+                let endDate = new Date(startDate.getTime() + entryDuration * 60000);
+
+                const endOfDay = new Date(startDate);
+                endOfDay.setHours(23, 59, 59, 999);
+
+                if (endDate > endOfDay) {
+                    endDate = endOfDay;
+                }
 
                 // Check client-side filter for advisor if needed (if DB filter complex)
                 // For now assuming DB filter works or returns all for us to filter
 
                 return {
                     id: appt.id,
-                    title: `${appt.title} - ${leadName}`,
+                    title: appt.title,
                     start: startDate,
                     end: endDate,
                     status: appt.status,

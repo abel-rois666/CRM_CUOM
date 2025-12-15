@@ -409,10 +409,10 @@ const AppContent: React.FC = () => {
     };
 
     if (appointmentIdToEdit) {
-      const { data, error } = await supabase.from('appointments').update(payload as any).eq('id', appointmentIdToEdit).select().single();
+      const { data, error } = await supabase.from('appointments').update(payload as any).eq('id', appointmentIdToEdit).select('*').single();
       if (error) { toastError("Error actualizando."); return; } savedAppointment = data; success("Cita actualizada.");
     } else {
-      const { data, error } = await supabase.from('appointments').insert({ ...payload, lead_id: leadId, status: 'scheduled' } as any).select().single();
+      const { data, error } = await supabase.from('appointments').insert({ ...payload, lead_id: leadId, status: 'scheduled' } as any).select('*').single();
       if (error) { toastError("Error creando cita."); return; } savedAppointment = data; success("Cita programada.");
     }
 
@@ -420,7 +420,17 @@ const AppContent: React.FC = () => {
 
     const l = leads.find(l => l.id === leadId);
     if (l && savedAppointment) {
-      const apptWithProfile = { ...savedAppointment, created_by: profile };
+      // [FIX] Merge with old appointment to preserve status if missing, though select('*') should have it.
+      // Also preserve created_by if we don't want to overwrite it visually (though payload updated it).
+      const oldAppt = l.appointments?.find(a => a.id === savedAppointment.id) || {} as any;
+
+      const apptWithProfile = {
+        ...oldAppt, // Keep old props (like status if not returned)
+        ...savedAppointment, // Overwrite with new DB data
+        status: savedAppointment.status || oldAppt.status || 'scheduled', // [FIX] Robust fallback
+        created_by: profile // Ensure profile object is present for UI
+      };
+
       let newApps = l.appointments || [];
 
       if (appointmentIdToEdit) {
@@ -434,9 +444,17 @@ const AppContent: React.FC = () => {
     }
 
     if (selectedLead?.id === leadId && savedAppointment) {
-      const apptWithProfile = { ...savedAppointment, created_by: profile };
       setSelectedLead(prev => {
         if (!prev) return null;
+
+        const oldAppt = prev.appointments?.find(a => a.id === savedAppointment.id) || {} as any;
+        const apptWithProfile = {
+          ...oldAppt,
+          ...savedAppointment,
+          status: savedAppointment.status || oldAppt.status || 'scheduled', // [FIX] Robust fallback
+          created_by: profile
+        };
+
         let newApps = prev.appointments || [];
         if (appointmentIdToEdit) newApps = newApps.map(a => a.id === appointmentIdToEdit ? apptWithProfile : a);
         else newApps = [...newApps, apptWithProfile];
@@ -469,21 +487,44 @@ const AppContent: React.FC = () => {
   };
 
   const handleDeleteAppointment = async (leadId: string, appointmentId: string) => {
-    const { error } = await supabase.from('appointments').delete().eq('id', appointmentId);
+    // [LOGGING] Find appointment details to annotate 'deleted' status
+    const l = leads.find(l => l.id === leadId);
+    const apptToDelete = l?.appointments?.find(a => a.id === appointmentId);
+    const originalDetails = apptToDelete?.details || '';
+
+    // [SOFT DELETE] Update status to 'canceled' instead of deleting
+    const { data, error } = await supabase
+      .from('appointments')
+      .update({
+        status: 'canceled',
+        details: `${originalDetails} [Eliminada por usuario]`
+      } as any)
+      .eq('id', appointmentId)
+      .select()
+      .single();
+
     if (error) { toastError("Error eliminando."); return; }
 
-    const l = leads.find(l => l.id === leadId);
+    const profilePart = { created_by: profile };
+    const updatedAppt = { ...data, ...profilePart };
+
     if (l) {
-      const newApps = (l.appointments || []).filter(a => a.id !== appointmentId);
+      // Update local state: Replace the appointment with the canceled version
+      const newApps = (l.appointments || []).map(a => a.id === appointmentId ? { ...a, ...updatedAppt } : a);
       const up = { ...l, appointments: newApps };
       updateLocalLead(up);
     }
 
     if (selectedLead?.id === leadId) {
-      setSelectedLead(prev => prev ? ({ ...prev, appointments: (prev.appointments || []).filter(a => a.id !== appointmentId) }) : null);
+      // [LOGGING] Update selectedLead too
+      setSelectedLead(prev => {
+        if (!prev) return null;
+        const newApps = (prev.appointments || []).map(a => a.id === appointmentId ? { ...a, ...updatedAppt } : a);
+        return { ...prev, appointments: newApps };
+      });
     }
 
-    success("Eliminada.");
+    success("Cita eliminada (movida a historial).");
   };
 
   return (

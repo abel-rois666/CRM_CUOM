@@ -6,6 +6,8 @@ import Modal from './common/Modal';
 import Button from './common/Button';
 import { Select, TextArea, Input } from './common/FormElements';
 import CalendarIcon from './icons/CalendarIcon';
+import CheckCircleIcon from './icons/CheckCircleIcon';
+import EditIcon from './icons/EditIcon'; // Used as PencilIcon
 import PlusIcon from './icons/PlusIcon';
 import TrashIcon from './icons/TrashIcon';
 import ConfirmationModal from './common/ConfirmationModal';
@@ -25,6 +27,8 @@ import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChevronRightIcon from './icons/ChevronRightIcon';
+
+const PencilIcon = EditIcon; // Alias for code compatibility
 
 interface LeadDetailModalProps {
     isOpen: boolean;
@@ -284,6 +288,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
     const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary'>(initialTab);
 
     const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
+    const [editingAppointment, setEditingAppointment] = useState<any>(null); // [NEW] Track which appointment is being edited
+    const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null); // [NEW] Confirm delete
     const [isFollowUpModalOpen, setFollowUpModalOpen] = useState(false);
     const [isTransferModalOpen, setTransferModalOpen] = useState(false);
     const [isCancelConfirmOpen, setCancelConfirmOpen] = useState(false);
@@ -743,48 +749,106 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                         )}
 
                         {/* TAB 3: AGENDA Y CITAS (WIDGET PRINCIPAL) */}
+                        {/* TAB 3: AGENDA Y CITAS (WIDGET PRINCIPAL) */}
                         {activeTab === 'appointments' && (
                             <div className="animate-fade-in space-y-6">
-                                {/* Próxima Cita */}
-                                <div className={`rounded-xl p-6 border-2 ${activeAppointment ? (isUrgentAppointment ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900' : 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900') : 'bg-gray-50 dark:bg-slate-800 border-dashed border-gray-200 dark:border-slate-700'}`}>
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h5 className="font-bold text-gray-700 dark:text-gray-200 text-sm uppercase tracking-wide flex items-center gap-2">
-                                            {activeAppointment ? 'Próxima Cita Programada' : 'Sin Citas Pendientes'}
-                                            {isUrgentAppointment && <BellAlertIcon className="w-5 h-5 text-red-500 animate-bounce" />}
-                                        </h5>
-                                        {activeAppointment && (
-                                            <button onClick={() => setAppointmentModalOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                                                Editar Cita
-                                            </button>
-                                        )}
-                                    </div>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-bold text-gray-800 dark:text-white text-base">Agenda de Citas</h3>
+                                    <Button size="sm" onClick={() => { setEditingAppointment(null); setAppointmentModalOpen(true); }} leftIcon={<PlusIcon className="w-4 h-4" />}>
+                                        Programar Nueva Cita
+                                    </Button>
+                                </div>
 
-                                    {activeAppointment ? (
-                                        <div className="space-y-4">
-                                            <div className="flex flex-col sm:flex-row sm:items-baseline gap-2">
-                                                <p className="font-black text-gray-900 dark:text-white text-4xl">{new Date(activeAppointment.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                                <p className="text-lg text-gray-600 dark:text-gray-300 font-medium">{new Date(activeAppointment.date).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-                                            </div>
-                                            <p className="text-sm text-gray-600 dark:text-gray-300 bg-white/50 dark:bg-black/20 p-3 rounded-lg border border-black/5 dark:border-white/5">{activeAppointment.details}</p>
+                                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+                                    <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                                        <thead className="bg-gray-50 dark:bg-slate-700/50">
+                                            <tr>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fecha</th>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Hora</th>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Título / Detalles</th>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
+                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
+                                            {lead.appointments && lead.appointments.length > 0 ? (
+                                                [...lead.appointments]
+                                                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                                    .map((appt) => {
+                                                        const apptDate = new Date(appt.date);
+                                                        const isCompleted = appt.status === 'completed';
+                                                        const isCanceled = appt.status === 'canceled';
+                                                        const statusLabel = isCompleted ? 'Completada' : (isCanceled ? 'Cancelada' : 'Agendada');
+                                                        const statusColor = isCompleted ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                                                            (isCanceled ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                                                                'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300');
 
-                                            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                                                <Button className="flex-1 justify-center" onClick={() => onUpdateAppointmentStatus(lead.id, activeAppointment.id, 'completed')}>
-                                                    Marcar como Completada
-                                                </Button>
-                                                <Button variant="ghost" className="flex-1 justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => setCancelConfirmOpen(true)}>
-                                                    Cancelar Cita
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8">
-                                            <CalendarIcon className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                                            <p className="text-gray-500 dark:text-gray-400 mb-4">Agenda una cita para avanzar en el proceso.</p>
-                                            <Button onClick={() => setAppointmentModalOpen(true)}>
-                                                Programar Nueva Cita
-                                            </Button>
-                                        </div>
-                                    )}
+                                                        return (
+                                                            <tr key={appt.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
+                                                                    {apptDate.toLocaleDateString()}
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
+                                                                    {apptDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                                                    <div className="font-medium text-gray-900 dark:text-gray-200">{appt.title}</div>
+                                                                    <div className="text-xs truncate max-w-xs">{appt.details || '-'}</div>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}`}>
+                                                                        {statusLabel}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                                    <div className="flex justify-end gap-2">
+                                                                        {appt.status === 'scheduled' && (
+                                                                            <button
+                                                                                onClick={() => onUpdateAppointmentStatus(lead.id, appt.id, 'completed')}
+                                                                                className="text-green-600 hover:text-green-900 dark:hover:text-green-400"
+                                                                                title="Marcar completada"
+                                                                            >
+                                                                                <CheckCircleIcon className="w-5 h-5" />
+                                                                            </button>
+                                                                        )}
+
+                                                                        {appt.status !== 'canceled' && appt.status !== 'completed' && (appt.status === 'scheduled' || isAdmin) && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setEditingAppointment(appt);
+                                                                                    setAppointmentModalOpen(true);
+                                                                                }}
+                                                                                className="text-indigo-600 hover:text-indigo-900 dark:hover:text-indigo-400"
+                                                                                title="Editar"
+                                                                            >
+                                                                                <PencilIcon className="w-5 h-5" />
+                                                                            </button>
+                                                                        )}
+
+                                                                        {appt.status !== 'canceled' && appt.status !== 'completed' && (
+                                                                            <button
+                                                                                onClick={() => setAppointmentToDelete(appt.id)}
+                                                                                className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                                                                title="Eliminar"
+                                                                            >
+                                                                                <TrashIcon className="w-5 h-5" />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                                        <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-slate-600" />
+                                                        <p>No hay citas registradas.</p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}
@@ -819,20 +883,39 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                 confirmButtonVariant="danger"
             />
 
+
+
+            {/* Modal de Confirmación para eliminar cita */}
+            <ConfirmationModal
+                isOpen={!!appointmentToDelete}
+                onClose={() => setAppointmentToDelete(null)}
+                onConfirm={() => {
+                    if (appointmentToDelete) {
+                        onDeleteAppointment(lead.id, appointmentToDelete);
+                        setAppointmentToDelete(null);
+                    }
+                }}
+                title="Eliminar Cita"
+                message="¿Estás seguro de que deseas eliminar esta cita? Se registrará en el historial como eliminada."
+                confirmButtonText="Eliminar"
+                cancelButtonText="Cancelar"
+                confirmButtonVariant="danger"
+            />
+
             {
                 isAppointmentModalOpen && (
                     <AppointmentFormModal
                         isOpen={isAppointmentModalOpen}
-                        onClose={() => setAppointmentModalOpen(false)}
+                        onClose={() => { setEditingAppointment(null); setAppointmentModalOpen(false); }}
                         lead={lead}
-                        appointment={activeAppointment}
+                        appointment={editingAppointment || undefined} // [FIX] Use editingAppointment
                         existingAppointments={lead.appointments || []}
                         canDelete={isAdmin}
-                        onSave={(data) => onSaveAppointment(lead.id, data, activeAppointment?.id)}
+                        onSave={(data) => onSaveAppointment(lead.id, data, editingAppointment?.id)}
                         onDelete={() => {
-                            if (activeAppointment) {
-                                onDeleteAppointment(lead.id, activeAppointment.id);
+                            if (editingAppointment) {
                                 setAppointmentModalOpen(false);
+                                setAppointmentToDelete(editingAppointment.id);
                             }
                         }}
                     />
