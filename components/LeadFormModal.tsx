@@ -1,11 +1,14 @@
 // components/LeadFormModal.tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useForm, SubmitHandler } from 'react-hook-form'; // [NEW] Hook Form
+import { zodResolver } from '@hookform/resolvers/zod'; // [NEW] Resolver
 import { Lead, Profile, Status, Source, Licenciatura } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import { Input, Select } from './common/FormElements';
 import { supabase } from '../lib/supabase';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
+import { leadSchema, LeadFormData } from '../utils/schemas'; // [NEW] Schema
 
 interface LeadFormModalProps {
   isOpen: boolean;
@@ -19,78 +22,92 @@ interface LeadFormModalProps {
   currentUser: Profile | null;
 }
 
-const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, leadToEdit, advisors, statuses, sources, licenciaturas, currentUser }) => {
-  const [formData, setFormData] = useState({
-    first_name: '',
-    paternal_last_name: '',
-    maternal_last_name: '',
-    email: '',
-    phone: '',
-    program_id: '',
-    status_id: '',
-    advisor_id: '',
-    source_id: '',
-  });
-
-  const [errors, setErrors] = useState<{ email?: string; phone?: string }>({});
+const LeadFormModal: React.FC<LeadFormModalProps> = ({
+  isOpen, onClose, onSave, leadToEdit, advisors, statuses, sources, licenciaturas, currentUser
+}) => {
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Referencia para el temporizador de búsqueda (Debounce)
+  // Hook Form Initialization
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isValid }
+  } = useForm<LeadFormData>({
+    resolver: zodResolver(leadSchema),
+    mode: 'onChange', // Validate on change for immediate feedback
+    defaultValues: {
+      first_name: '',
+      paternal_last_name: '',
+      maternal_last_name: '',
+      email: '',
+      phone: '',
+      program_id: '',
+      status_id: '',
+      advisor_id: '',
+      source_id: '',
+    }
+  });
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize Form State
   useEffect(() => {
-    setErrors({});
     setDuplicateWarning(null);
 
-    if (leadToEdit) {
-      setFormData({
-        first_name: leadToEdit.first_name,
-        paternal_last_name: leadToEdit.paternal_last_name,
-        maternal_last_name: leadToEdit.maternal_last_name || '',
-        email: leadToEdit.email || '',
-        phone: leadToEdit.phone,
-        program_id: leadToEdit.program_id,
-        status_id: leadToEdit.status_id,
-        advisor_id: leadToEdit.advisor_id,
-        source_id: leadToEdit.source_id,
-      });
-    } else {
-      // VALORES POR DEFECTO PARA NUEVOS LEADS
+    if (isOpen) {
+      if (leadToEdit) {
+        reset({
+          first_name: leadToEdit.first_name,
+          paternal_last_name: leadToEdit.paternal_last_name,
+          maternal_last_name: leadToEdit.maternal_last_name || '',
+          email: leadToEdit.email || '',
+          phone: leadToEdit.phone,
+          program_id: leadToEdit.program_id,
+          status_id: leadToEdit.status_id,
+          advisor_id: leadToEdit.advisor_id,
+          source_id: leadToEdit.source_id,
+        });
+      } else {
+        const defaultStatus = statuses.find(s => s.name === 'Sin Contactar') || statuses.find(s => s.category === 'active');
+        const defaultStatusId = defaultStatus ? defaultStatus.id : (statuses[0]?.id || '');
+        const defaultAdvisorId = currentUser?.role === 'advisor' ? currentUser.id : '';
 
-      // Estado Inicial: Mantenemos un default lógico (generalmente 'Sin Contactar'), 
-      // pero si quieres que también sea elegible obligatoriamente, cámbialo a ''.
-      const defaultStatus = statuses.find(s => s.name === 'Sin Contactar') || statuses.find(s => s.category === 'active');
-      const defaultStatusId = defaultStatus ? defaultStatus.id : (statuses[0]?.id || '');
-
-      // CAMBIO IMPORTANTE: Iniciamos estos campos vacíos para forzar selección y mostrar placeholder
-      // El asesor se pre-selecciona solo si es un 'advisor' creando su propio lead, si es admin queda vacío.
-      const defaultAdvisorId = currentUser?.role === 'advisor' ? currentUser.id : '';
-
-      setFormData({
-        first_name: '',
-        paternal_last_name: '',
-        maternal_last_name: '',
-        email: '',
-        phone: '',
-        program_id: '', // Vacío para mostrar "Seleccionar Licenciatura..."
-        status_id: defaultStatusId,
-        advisor_id: defaultAdvisorId, // Vacío si es admin
-        source_id: '', // Vacío para mostrar "Seleccionar origen..."
-      });
+        reset({
+          first_name: '',
+          paternal_last_name: '',
+          maternal_last_name: '',
+          email: '',
+          phone: '',
+          program_id: '',
+          status_id: defaultStatusId,
+          advisor_id: defaultAdvisorId,
+          source_id: '',
+        });
+      }
     }
-  }, [leadToEdit, isOpen, advisors, statuses, sources, licenciaturas, currentUser]);
+  }, [isOpen, leadToEdit, statuses, currentUser, reset]);
 
+  // Utility to Title Case
   const toTitleCase = (str: string) => {
     return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
   };
 
-  const validateEmailFormat = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  // Watch fields for duplicate check
+  const watchedEmail = watch('email');
+  const watchedPhone = watch('phone');
 
-  // Verificación de duplicados en el servidor
+  // Duplicate Check API logic
   const checkDuplicate = useCallback(async (field: 'email' | 'phone', value: string) => {
     if (!value || leadToEdit) return;
+
+    // Don't check invalid formats (let Zod handle that first)
+    if (field === 'phone' && value.length !== 10) return;
+    if (field === 'email' && !value.includes('@')) return;
 
     setIsChecking(true);
     const { data, error } = await (supabase.rpc as any)('check_duplicate_lead', {
@@ -98,7 +115,6 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
       check_phone: field === 'phone' ? value : null
     });
 
-    // Cast data safely because inference might fail
     const results = data as { id: string; advisor_name: string }[] | null;
 
     if (!error && results && results.length > 0) {
@@ -114,43 +130,26 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
     setIsChecking(false);
   }, [leadToEdit]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    const finalValue = name === 'email' ? value.toLowerCase() : value;
-
-    setFormData(prev => ({ ...prev, [name]: finalValue }));
-
-    if (name === 'email') {
-      if (value && !validateEmailFormat(value)) {
-        setErrors(prev => ({ ...prev, email: 'Formato inválido' }));
-      } else {
-        setErrors(prev => ({ ...prev, email: undefined }));
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => checkDuplicate('email', finalValue), 800);
-      }
+  // Trigger Duplicate Check on debounce
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (watchedEmail) {
+      timerRef.current = setTimeout(() => checkDuplicate('email', watchedEmail), 800);
     }
+    // Cleanup on unmount or change
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [watchedEmail, checkDuplicate]);
 
-    if (name === 'phone') {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => checkDuplicate('phone', finalValue), 800);
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (watchedPhone) {
+      timerRef.current = setTimeout(() => checkDuplicate('phone', watchedPhone), 800);
     }
-  };
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [watchedPhone, checkDuplicate]);
 
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    if (['first_name', 'paternal_last_name', 'maternal_last_name'].includes(name)) {
-      setFormData(prev => ({ ...prev, [name]: toTitleCase(value.trim()) }));
-    }
-  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (formData.email && !validateEmailFormat(formData.email)) {
-      setErrors(prev => ({ ...prev, email: 'Email inválido' }));
-      return;
-    }
-
+  const onSubmit: SubmitHandler<LeadFormData> = async (data) => {
     if (duplicateWarning && !leadToEdit) {
       if (!confirm(`${duplicateWarning}\n¿Deseas registrarlo de todos modos?`)) return;
     }
@@ -158,38 +157,26 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
     setIsSubmitting(true);
 
     const leadPayload = {
-      ...formData,
-      first_name: toTitleCase(formData.first_name.trim()),
-      paternal_last_name: toTitleCase(formData.paternal_last_name.trim()),
-      maternal_last_name: formData.maternal_last_name ? toTitleCase(formData.maternal_last_name.trim()) : undefined,
-      email: formData.email.trim() || undefined,
+      ...data,
+      first_name: toTitleCase(data.first_name.trim()),
+      paternal_last_name: toTitleCase(data.paternal_last_name.trim()),
+      maternal_last_name: data.maternal_last_name ? toTitleCase(data.maternal_last_name.trim()) : undefined,
+      email: data.email?.trim() || undefined,
     };
 
     await new Promise(r => setTimeout(r, 500));
-
     onSave(leadPayload, leadToEdit?.id);
     setIsSubmitting(false);
     onClose();
   };
 
-  const formIsInvalid =
-    !formData.first_name ||
-    !formData.paternal_last_name ||
-    !formData.phone ||
-    !formData.advisor_id ||
-    !formData.status_id ||
-    !formData.source_id ||
-    !formData.program_id ||
-    !!errors.email;
-
   const availableAdvisors = currentUser?.role === 'admin' || currentUser?.role === 'moderator'
     ? advisors
     : advisors.filter(a => a.id === currentUser?.id);
 
-  // CAMBIO: Aumentamos size a "2xl" para que los campos tengan más espacio
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={leadToEdit ? 'Editar Lead' : 'Nuevo Lead'} size="2xl">
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
         {duplicateWarning && (
           <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-md animate-fade-in">
@@ -208,42 +195,46 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
           <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Datos Personales</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
             <Input
-              name="first_name"
               label="Nombre(s)"
-              value={formData.first_name}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              required
+              {...register('first_name')}
+              error={errors.first_name?.message}
               placeholder="Ej. María"
+              // Keep TitleCase behavior on Blur
+              onBlur={(e) => {
+                setValue('first_name', toTitleCase(e.target.value.trim()));
+              }}
             />
             <Input
-              name="paternal_last_name"
               label="Apellido Paterno"
-              value={formData.paternal_last_name}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              required
+              {...register('paternal_last_name')}
+              error={errors.paternal_last_name?.message}
               placeholder="Ej. López"
+              onBlur={(e) => {
+                setValue('paternal_last_name', toTitleCase(e.target.value.trim()));
+              }}
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <Input
-              name="maternal_last_name"
               label="Apellido Materno"
-              value={formData.maternal_last_name}
-              onChange={handleChange}
-              onBlur={handleBlur}
+              {...register('maternal_last_name')}
+              error={errors.maternal_last_name?.message}
               placeholder="Opcional"
+              onBlur={(e) => {
+                setValue('maternal_last_name', toTitleCase(e.target.value.trim()));
+              }}
             />
             <Select
-              name="program_id"
               label="Licenciatura de Interés"
-              value={formData.program_id}
-              onChange={handleChange}
-              required
-              // Agregamos el placeholder explícito
-              placeholder="-- Seleccionar Licenciatura --"
+              {...register('program_id')}
+              // Convert error to string safely or rely on helper logic if Select accepts string
+              // Assuming Select props: name, value undefined (handled by register), onChange (handled), error (string)
+              // To hook Select properly with register, we need to pass the props spread.
+              // Note: Our custom Select component might need 'error' prop.
+              // If 'register' returns ref, name, onChange, onBlur.
+              error={errors.program_id?.message}
               options={licenciaturas.map(l => ({ value: l.id, label: l.name }))}
+              placeholder="-- Seleccionar Licenciatura --"
             />
           </div>
         </div>
@@ -253,25 +244,22 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="relative">
               <Input
-                name="phone"
-                type="tel"
                 label="Teléfono / WhatsApp"
-                value={formData.phone}
-                onChange={handleChange}
-                required
+                type="tel"
+                {...register('phone')}
+                error={errors.phone?.message}
                 placeholder="10 dígitos"
+                maxLength={10} // HTML Constraint
                 className={duplicateWarning?.includes('teléfono') ? 'border-amber-400 ring-1 ring-amber-400' : ''}
               />
               {isChecking && <span className="absolute right-3 top-9 text-xs text-gray-400">Verificando...</span>}
             </div>
             <div className="relative">
               <Input
-                name="email"
-                type="email"
                 label="Correo Electrónico"
-                value={formData.email}
-                onChange={handleChange}
-                error={errors.email}
+                type="email"
+                {...register('email')}
+                error={errors.email?.message}
                 placeholder="correo@ejemplo.com"
                 className={duplicateWarning?.includes('correo') ? 'border-amber-400 ring-1 ring-amber-400' : ''}
               />
@@ -279,40 +267,33 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, 
           </div>
         </div>
 
-        {/* Ajuste de Grid para la última fila: Espacio más amplio */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <Select
-            name="source_id"
             label="Origen"
-            value={formData.source_id}
-            onChange={handleChange}
-            required
-            placeholder="-- Seleccionar --"
+            {...register('source_id')}
+            error={errors.source_id?.message}
             options={sources.map(s => ({ value: s.id, label: s.name }))}
+            placeholder="-- Seleccionar --"
           />
           <Select
-            name="status_id"
             label="Estado Inicial"
-            value={formData.status_id}
-            onChange={handleChange}
-            required
+            {...register('status_id')}
+            error={errors.status_id?.message}
             options={statuses.map(s => ({ value: s.id, label: s.name }))}
           />
           <Select
-            name="advisor_id"
             label="Asignar a"
-            value={formData.advisor_id}
-            onChange={handleChange}
-            required
+            {...register('advisor_id')}
+            error={errors.advisor_id?.message}
             disabled={currentUser?.role === 'advisor'}
-            placeholder="-- Seleccionar --"
             options={availableAdvisors.map(a => ({ value: a.id, label: a.full_name }))}
+            placeholder="-- Seleccionar --"
           />
         </div>
 
         <div className="pt-6 flex justify-end space-x-3 border-t border-gray-100 dark:border-slate-700">
           <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
-          <Button type="submit" disabled={formIsInvalid || isSubmitting} className="shadow-lg shadow-brand-secondary/20 min-w-[140px]">
+          <Button type="submit" disabled={!isValid || isSubmitting} className="shadow-lg shadow-brand-secondary/20 min-w-[140px]">
             {isSubmitting ? 'Guardando...' : (leadToEdit ? 'Actualizar Lead' : 'Crear Lead')}
           </Button>
         </div>

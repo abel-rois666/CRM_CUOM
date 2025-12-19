@@ -681,47 +681,67 @@ const LeadList: React.FC<LeadListProps> = ({
                     if (onRefresh) onRefresh();
                     setIsBulkTransferOpen(false);
                 }}
+                currentUser={currentUser} // [FIX] Passing current user
             />
 
             <BulkMessageModal
                 isOpen={isBulkMessageOpen}
                 onClose={() => setIsBulkMessageOpen(false)}
                 mode={bulkMessageMode}
-                leads={leads.filter(l => selectedIds.has(l.id))}
+                leads={Array.from(selectedIds).map(id => leads.find(l => l.id === id)).filter(Boolean) as Lead[]}
                 whatsappTemplates={whatsappTemplates}
                 emailTemplates={emailTemplates}
+                licenciaturas={licenciaturas} // [FIX] Pass catalog
                 onComplete={() => {
-                    setSelectedIds(new Set());
                     setIsBulkMessageOpen(false);
+                    setSelectedIds(new Set());
+                    if (onRefresh) onRefresh();
                 }}
                 currentUser={currentUser || null}
             />
 
             {/* BARRA FLOTANTE DE ACCIONES MASIVAS */}
+            {/* BARRA FLOTANTE DE ACCIONES MASIVAS */}
             {selectedIds.size > 0 && (
-                <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white dark:bg-slate-800 shadow-2xl rounded-full px-6 py-3 z-50 flex items-center gap-4 border border-gray-200 dark:border-slate-700 animate-slide-up">
+                <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white dark:bg-slate-800 shadow-2xl rounded-full px-6 py-3 z-[60] flex items-center gap-4 border border-gray-200 dark:border-slate-700 animate-slide-up">
                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
                         {selectedIds.size} seleccionados
                     </span>
                     <div className="h-4 w-px bg-gray-300 dark:bg-slate-600 mx-2"></div>
 
-                    <button onClick={() => setIsBulkStatusOpen(true)} className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 font-medium transition-colors">
-                        <TagIcon className="w-4 h-4" /> <span className="hidden sm:inline">Estado</span>
-                    </button>
+                    {/* Show Status/Delete ONLY if not messaging */}
+                    {!isBulkMessageOpen && (
+                        <>
+                            <button onClick={() => setIsBulkStatusOpen(true)} className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 font-medium transition-colors">
+                                <TagIcon className="w-4 h-4" /> <span className="hidden sm:inline">Estado</span>
+                            </button>
+                            <div className="h-4 w-px bg-gray-300 dark:bg-slate-600 mx-2"></div>
+                        </>
+                    )}
 
-                    <button onClick={() => { setBulkMessageMode('whatsapp'); setIsBulkMessageOpen(true); }} className="flex items-center gap-2 text-sm text-gray-600 hover:text-green-600 dark:text-gray-300 dark:hover:text-green-400 font-medium transition-colors">
+                    <button
+                        onClick={() => { setBulkMessageMode('whatsapp'); setIsBulkMessageOpen(true); }}
+                        className={`flex items-center gap-2 text-sm font-medium transition-colors ${isBulkMessageOpen && bulkMessageMode === 'whatsapp' ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full' : 'text-gray-600 hover:text-green-600 dark:text-gray-300 dark:hover:text-green-400'}`}
+                    >
                         <ChatBubbleLeftRightIcon className="w-4 h-4" /> <span className="hidden sm:inline">WhatsApp</span>
                     </button>
 
-                    <button onClick={() => { setBulkMessageMode('email'); setIsBulkMessageOpen(true); }} className="flex items-center gap-2 text-sm text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400 font-medium transition-colors">
+                    <button
+                        onClick={() => { setBulkMessageMode('email'); setIsBulkMessageOpen(true); }}
+                        className={`flex items-center gap-2 text-sm font-medium transition-colors ${isBulkMessageOpen && bulkMessageMode === 'email' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1 rounded-full' : 'text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400'}`}
+                    >
                         <EnvelopeIcon className="w-4 h-4" /> <span className="hidden sm:inline">Email</span>
                     </button>
 
-                    <div className="h-4 w-px bg-gray-300 dark:bg-slate-600 mx-2"></div>
+                    {!isBulkMessageOpen && (
+                        <>
+                            <div className="h-4 w-px bg-gray-300 dark:bg-slate-600 mx-2"></div>
 
-                    <button onClick={() => setIsBulkDeleteOpen(true)} className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 font-medium transition-colors">
-                        <TrashIcon className="w-4 h-4" /> <span className="hidden sm:inline">Eliminar</span>
-                    </button>
+                            <button onClick={() => setIsBulkDeleteOpen(true)} className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 font-medium transition-colors">
+                                <TrashIcon className="w-4 h-4" /> <span className="hidden sm:inline">Eliminar</span>
+                            </button>
+                        </>
+                    )}
 
                     <button onClick={() => setSelectedIds(new Set())} className="ml-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-400 transition-colors" title="Cancelar selección">
                         <XMarkIcon className="w-4 h-4" />

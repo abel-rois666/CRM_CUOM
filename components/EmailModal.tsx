@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
-import { Select, Input, TextArea } from './common/FormElements';
-import { Lead, EmailTemplate, Licenciatura } from '../types';
+import { Select, Input } from './common/FormElements';
+import { Lead, EmailTemplate, Licenciatura, Profile } from '../types';
+import EmailTemplateEditor, { EmailTemplateEditorHandle } from './common/EmailTemplateEditor';
+import { supabase } from '../lib/supabase';
 import EnvelopeIcon from './icons/EnvelopeIcon';
+import PaperAirplaneIcon from './icons/PaperAirplaneIcon';
 import { generateMessage } from '../utils/aiAssistant';
 import SparklesIcon from './icons/SparklesIcon';
 
@@ -15,14 +18,22 @@ interface EmailModalProps {
   licenciaturas: Licenciatura[]; // [NEW] Para resolver IDs
   initialTemplateId?: string;
   onMessageSent: (leadId: string, note: string) => void;
+  currentUser?: Profile | null;
 }
 
-const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, templates, licenciaturas, initialTemplateId, onMessageSent }) => {
+const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, templates, licenciaturas, initialTemplateId, onMessageSent, currentUser }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
-  const [extraInstructions, setExtraInstructions] = useState(''); // [NEW]
-  const [isGenerating, setIsGenerating] = useState(false); // [NEW]
+
+  // Editor State
+  const editorRef = React.useRef<EmailTemplateEditorHandle>(null);
+  const [initialHtml, setInitialHtml] = useState<string>(''); // For syncing editor content
+  const [initialDesign, setInitialDesign] = useState<any>(null); // [NEW] For Pro designs
+  const [editorMode, setEditorMode] = useState<'basic' | 'pro'>('basic'); // Track mode for AI injection
+
+  const [extraInstructions, setExtraInstructions] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -31,13 +42,21 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
         if (template) {
           setSelectedTemplateId(template.id);
           setSubject(template.subject);
-          setBody(template.body);
+          setInitialHtml(template.body);
+
+          if (template.design_json) {
+            setInitialDesign(template.design_json);
+            setEditorMode('pro');
+          } else {
+            setInitialDesign(null);
+            setEditorMode('basic');
+          }
           return;
         }
       }
       setSelectedTemplateId('');
       setSubject('');
-      setBody('');
+      setInitialHtml('');
       setExtraInstructions('');
     }
   }, [isOpen, initialTemplateId, templates]);
@@ -62,9 +81,40 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
       const text = await generateMessage(lead, context, 'email', extraInstructions);
 
       // Intentar separar asunto si la IA lo da, pero por ahora solo body es seguro.
-      // Podemos inferir asunto si está vacío.
       if (!subject) setSubject(`Información sobre ${programName}`);
-      setBody(text);
+
+      // Inject AI text into editor
+      if (editorRef.current) {
+        if (editorMode === 'pro') {
+          // Create a valid Unlayer design with the AI text
+          const design = {
+            "body": {
+              "rows": [
+                {
+                  "cells": [1],
+                  "columns": [
+                    {
+                      "contents": [
+                        {
+                          "type": "text",
+                          "values": {
+                            "text": text
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          };
+          // @ts-ignore
+          editorRef.current.loadDesign(design);
+        } else {
+          editorRef.current.setHtml(text);
+        }
+        setInitialHtml(text);
+      }
 
     } catch (error) {
       console.error(error);
@@ -77,13 +127,38 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
     setSelectedTemplateId(templateId);
-    const template = templates.find(t => t.id === templateId);
-    if (template) {
-      setSubject(template.subject);
-      setBody(template.body);
-    } else {
+
+    if (templateId === 'blank') {
       setSubject('');
-      setBody('');
+      setInitialHtml('');
+      setEditorMode('basic');
+      if (editorRef.current) {
+        editorRef.current.setHtml('');
+      }
+      return;
+    }
+
+    const template = templates.find(t => t.id === templateId);
+
+    if (editorRef.current) {
+      if (template) {
+        setSubject(template.subject);
+        if (template.design_json) {
+          // Auto switch to Pro if design exists
+          setInitialDesign(template.design_json);
+          setEditorMode('pro');
+        } else {
+          editorRef.current.setHtml(template.body);
+          setInitialDesign(null);
+          setEditorMode('basic');
+        }
+        // Update initialHtml for Basic sync
+        setInitialHtml(template.body);
+      } else {
+        setSubject('');
+        editorRef.current.setHtml('');
+        setInitialHtml('');
+      }
     }
   };
 
@@ -92,96 +167,154 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
     return doc.body.textContent || "";
   };
 
-  const handleOpenMailClient = () => {
-    if (!lead.email) return;
+  const handleOpenMailClient = async () => {
+    if (!lead.email || !editorRef.current) return;
+    const { html } = await editorRef.current.getValues();
 
-    // 1. Abrir Correo
-    const plainBody = stripHtml(body);
+    // 1. Abrir Correo (Solo texto plano aproximado)
+    const plainBody = stripHtml(html);
     const mailtoLink = `mailto:${lead.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
     window.open(mailtoLink, '_blank');
 
     // 2. Avisar al padre para registrar nota
-    onMessageSent(lead.id, `✉️ Correo enviado: ${subject}`);
-
+    onMessageSent(lead.id, `✉️ Correo enviado (Externo): ${subject}`);
     onClose();
+  };
+
+  const handleSendViaApi = async () => {
+    if (!lead.email || !editorRef.current) return;
+
+    setIsSending(true);
+    try {
+      const { html } = await editorRef.current.getValues();
+
+      // Process Placeholders in Subject/Body (same as bulk)
+      const processText = (txt: string) => txt.replace(/{nombre}/g, lead.first_name).replace(/{apellido}/g, lead.paternal_last_name);
+
+      const finalSubject = processText(subject);
+      const finalHtml = processText(html);
+
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: [{ name: `${lead.first_name} ${lead.paternal_last_name}`, email: lead.email }],
+          subject: finalSubject,
+          html_content: finalHtml
+        }
+      });
+
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+
+      // Register Follow Up
+      await (supabase as any).from('follow_ups').insert({
+        lead_id: lead.id,
+        notes: `✉️ Correo enviado (Sistema): ${finalSubject}`,
+        date: new Date().toISOString(),
+        // @ts-ignore
+        created_by: currentUser?.id
+      });
+
+      onMessageSent(lead.id, `✉️ Correo enviado: ${finalSubject}`);
+      alert("Correo enviado exitosamente.");
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      alert("Error al enviar el correo: " + err.message);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   if (!lead) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Redactar Correo" size="lg">
-      <div className="space-y-5">
-        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center gap-3">
-          <div className="bg-blue-100 p-2 rounded-full text-blue-600">
-            <EnvelopeIcon className="w-5 h-5" />
+    <Modal isOpen={isOpen} onClose={onClose} title="Redactar Correo" size="5xl">
+      <div className="space-y-3 h-[85vh] flex flex-col">
+        {/* Row 1: Recipient + Template */}
+        <div className="grid grid-cols-12 gap-3 items-center">
+          <div className="col-span-12 md:col-span-5 bg-blue-50 px-3 py-2 rounded-lg border border-blue-100 flex items-center gap-2">
+            <div className="bg-blue-100 p-1.5 rounded-full text-blue-600 shrink-0">
+              <EnvelopeIcon className="w-4 h-4" />
+            </div>
+            <div className="truncate">
+              <p className="text-xs font-bold text-blue-900 truncate">Para: {lead.first_name} {lead.paternal_last_name}</p>
+              <p className="text-[10px] text-blue-700 font-mono truncate">{lead.email || 'Sin email'}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-bold text-blue-900">Para: {lead.first_name} {lead.paternal_last_name}</p>
-            <p className="text-xs text-blue-700 font-mono">{lead.email || 'Sin email registrado'}</p>
+          <div className="col-span-12 md:col-span-7">
+            <Select
+              value={selectedTemplateId}
+              onChange={handleTemplateChange}
+              placeholder="-- Plantilla --"
+              options={[
+                { value: 'blank', label: '✨ + Redactar desde cero' },
+                ...templates.map(t => ({ value: t.id, label: t.name }))
+              ]}
+              className="h-10 text-sm"
+            />
           </div>
         </div>
 
-        <Select
-          label="Plantilla"
-          value={selectedTemplateId}
-          onChange={handleTemplateChange}
-          placeholder="-- Selecciona una plantilla --"
-          options={templates.map(t => ({ value: t.id, label: t.name }))}
-        />
-
-        <Input
-          label="Asunto"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Asunto del correo..."
-        />
-
-        <div className="space-y-4">
-          {/* Instrucciones Extra y Botón IA */}
-          <div className="flex items-end gap-2">
+        {/* Row 2: Subject + Extra + AI */}
+        <div className="flex flex-col md:flex-row gap-2">
+          <div className="w-full md:w-1/3">
+            <Input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Asunto..."
+              className="h-10 text-sm"
+            />
+          </div>
+          <div className="flex-grow flex gap-2">
             <div className="flex-grow">
               <Input
                 value={extraInstructions}
                 onChange={(e) => setExtraInstructions(e.target.value)}
-                placeholder="Ej: Adjuntar PDF de becas, Fecha límite viernes..."
-                label="Instrucción extra (Opcional)"
+                placeholder="Instrucción extra para IA..."
+                className="h-10 text-sm"
               />
             </div>
             <button
               onClick={handleAiGenerate}
               disabled={isGenerating}
               className={`
-                h-[42px] px-4 rounded-xl font-medium text-sm flex items-center gap-2 transition-all shadow-sm
-                ${isGenerating
+                        h-10 px-3 rounded-lg font-medium text-xs flex items-center gap-1 transition-all shadow-sm shrink-0
+                        ${isGenerating
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-blue-200'
                 }
-              `}
-              title="Generar correo con IA"
+                    `}
+              title="Generar con IA"
             >
-              <SparklesIcon className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-              {isGenerating ? 'Redactando...' : 'Redactar IA'}
+              <SparklesIcon className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+              {isGenerating ? '' : 'IA'}
             </button>
           </div>
+        </div>
 
-          <TextArea
-            label="Mensaje"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={8}
-            placeholder="El correo generado aparecerá aquí..."
+        <div className="flex-1 min-h-0 relative">
+          <EmailTemplateEditor
+            ref={editorRef}
+            initialHtml={initialHtml}
+            initialDesign={initialDesign}
+            initialMode={editorMode}
+            onChangeMode={setEditorMode}
           />
         </div>
-        <p className="text-xs text-gray-400 text-right">Se abrirá tu cliente de correo predeterminado.</p>
+      </div>
+      <div className="pt-4 flex justify-between items-center border-t border-gray-100 dark:border-slate-700 mt-2">
+        <button onClick={handleOpenMailClient} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+          <EnvelopeIcon className="w-3 h-3" /> Abrir cliente externo (Solo texto)
+        </button>
 
-        <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-2">
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+        <div className="flex gap-3">
+          <Button variant="ghost" onClick={onClose} disabled={isSending}>Cancelar</Button>
           <Button
-            onClick={handleOpenMailClient}
-            disabled={!lead.email || !subject || !body}
-            leftIcon={<EnvelopeIcon className="w-5 h-5" />}
+            onClick={handleSendViaApi}
+            disabled={!lead.email || !subject || isSending}
+            leftIcon={<PaperAirplaneIcon className="w-5 h-5" />}
           >
-            Abrir y Registrar
+            {isSending ? 'Enviando...' : 'Enviar Ahora'}
           </Button>
         </div>
       </div>

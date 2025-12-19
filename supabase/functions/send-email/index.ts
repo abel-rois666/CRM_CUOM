@@ -1,4 +1,6 @@
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
 const MAILRELAY_API_URL = 'https://cuom1.ipzmarketing.com/api/v1/send_emails';
 
 Deno.serve(async (req) => {
@@ -13,6 +15,48 @@ Deno.serve(async (req) => {
 
     try {
         console.log("Edge Function started.");
+
+        // --- SECURITY CHECK START ---
+        const authHeader = req.headers.get('Authorization')
+        if (!authHeader) {
+            return new Response(JSON.stringify({ error: 'Falta cabecera de autorización (No Auth Header)' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 401,
+            })
+        }
+
+        // Initialize Supabase Client with User Token
+        const supabaseClient = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+            { global: { headers: { Authorization: authHeader } } }
+        )
+
+        // Verify Token
+        const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+        if (authError || !user) {
+            console.error("Auth Failed:", authError);
+            return new Response(JSON.stringify({ error: 'Token inválido o expirado' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 401,
+            })
+        }
+
+        // Verify Role (Must be authorized staff)
+        const { data: profile, error: profileError } = await supabaseClient
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+
+        if (profileError || !profile || !['admin', 'advisor', 'moderator'].includes(profile.role)) {
+            console.error("Unauthorized Role:", profile?.role);
+            return new Response(JSON.stringify({ error: 'No tienes permisos para enviar correos.' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 403,
+            })
+        }
+        // --- SECURITY CHECK END ---
 
         const body = await req.json();
         const { to, subject, html_content } = body;

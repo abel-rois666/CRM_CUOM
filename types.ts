@@ -101,6 +101,7 @@ export interface EmailTemplate {
   name: string;
   subject: string;
   body: string;
+  design_json?: any; // [NEW] Unlayer design state
 }
 
 // --- Sistema ---

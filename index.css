@@ -164,3 +164,19 @@
     flex: 1;
     overflow-y: auto;
 }
+
+/* --- React Quill Dark Mode Icons --- */
+.dark .ql-snow .ql-stroke {
+    stroke: #e2e8f0 !important;
+}
+.dark .ql-snow .ql-fill {
+    fill: #e2e8f0 !important;
+}
+.dark .ql-snow .ql-picker {
+    color: #e2e8f0 !important;
+}
+/* Picker Options Background */
+.dark .ql-snow .ql-picker-options {
+    background-color: #1e293b !important; /* slate-800 */
+    border-color: #334155 !important;
+}

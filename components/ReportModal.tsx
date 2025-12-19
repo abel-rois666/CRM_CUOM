@@ -7,6 +7,8 @@ import { Input } from './common/FormElements';
 import PrinterIcon from './icons/PrinterIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
 import SparklesIcon from './icons/SparklesIcon';
+import CalendarIcon from './icons/CalendarIcon'; // [FIX] Imported
+import UserIcon from './icons/UserIcon'; // [FIX] Imported
 
 // Imports de Recharts
 import {
@@ -102,6 +104,7 @@ interface ReportData {
     startDate: string;
     endDate: string;
     enrolledCount: number;
+    periodAppointments: number; // [NEW] Citados del periodo
     conversionRate: number;
     newLeads: ReportSectionData;
     updatedLeads: ReportSectionData;
@@ -343,6 +346,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
 
         const inscritoStatusId = statuses.find(s => s.category === 'won')?.id;
         let enrolledCount = 0;
+        let periodAppointments = 0; // [NEW]
         const conversionsByAdvisor = new Map<string, number>();
 
         if (inscritoStatusId) {
@@ -365,11 +369,22 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             return { name: advisor.full_name, convertedCount, totalLeads, rate: totalLeads > 0 ? (convertedCount / totalLeads) * 100 : 0 };
         }).filter(item => item.totalLeads > 0 || item.convertedCount > 0);
 
+        // [NEW] Calculate appointments in period
+        leads.forEach(lead => {
+            (lead.appointments || []).forEach(appt => {
+                const apptDate = new Date(appt.date);
+                if (apptDate >= start && apptDate <= end) {
+                    periodAppointments++;
+                }
+            });
+        });
+
         const conversionRate = newLeads.length > 0 ? (enrolledCount / newLeads.length) * 100 : 0;
 
         setReport({
             startDate, endDate,
             enrolledCount,
+            periodAppointments, // [NEW]
             conversionRate,
             newLeads: newLeadsReport,
             updatedLeads: updatedLeadsReport,
@@ -412,18 +427,26 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
                     }
                 });
 
+                document.body.appendChild(clone); // [FIX] Mount first to compute styles correctly
+
                 const allElements = clone.querySelectorAll('*');
                 Array.from(allElements).forEach((el) => {
                     const element = el as HTMLElement;
                     const computed = window.getComputedStyle(element);
+
                     if (computed.color) element.style.color = normalizeColor(computed.color);
                     if (computed.backgroundColor && computed.backgroundColor !== 'rgba(0, 0, 0, 0)') element.style.backgroundColor = normalizeColor(computed.backgroundColor);
+
+                    // [FIX] Normalize all borders explicitly
                     if (computed.borderColor) element.style.borderColor = normalizeColor(computed.borderColor);
+                    if (computed.borderTopColor) element.style.borderTopColor = normalizeColor(computed.borderTopColor);
+                    if (computed.borderRightColor) element.style.borderRightColor = normalizeColor(computed.borderRightColor);
+                    if (computed.borderBottomColor) element.style.borderBottomColor = normalizeColor(computed.borderBottomColor);
+                    if (computed.borderLeftColor) element.style.borderLeftColor = normalizeColor(computed.borderLeftColor);
+
                     if (computed.fill && computed.fill !== 'none') element.style.fill = normalizeColor(computed.fill);
                     if (computed.stroke && computed.stroke !== 'none') element.style.stroke = normalizeColor(computed.stroke);
                 });
-
-                document.body.appendChild(clone);
 
                 const canvas = await html2canvas(clone, {
                     scale: 2,
@@ -499,13 +522,21 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                                 <SummaryCard
                                     title="Leads Totales"
                                     value={report.newLeads.total}
                                     subtitle="Captados en periodo"
                                     icon={<ChartBarIcon className="w-5 h-5" />}
                                     colorClass="text-blue-500 bg-blue-100"
+                                    isExporting={isExporting}
+                                />
+                                <SummaryCard
+                                    title="Citados"
+                                    value={report.periodAppointments}
+                                    subtitle="Citas en periodo"
+                                    icon={<CalendarIcon className="w-5 h-5" />}
+                                    colorClass="text-indigo-500 bg-indigo-100"
                                     isExporting={isExporting}
                                 />
                                 <SummaryCard

@@ -255,7 +255,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                         <div className="space-y-8 animate-fade-in">
                             {/* Analytics View */}
                             {/* Analytics View */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div className="bg-gradient-to-br from-brand-primary/5 to-brand-primary/10 dark:from-slate-700 dark:to-slate-800 p-6 rounded-2xl border border-brand-primary/10 dark:border-slate-600 flex flex-col justify-center items-center text-center">
                                     <p className="text-xs font-bold text-brand-primary dark:text-blue-300 uppercase tracking-widest mb-2">Total Leads</p>
                                     <p className="text-5xl font-black text-brand-primary dark:text-white tracking-tighter">{stats.totalLeads}</p>
@@ -267,6 +267,10 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                                 <div className="bg-gradient-to-br from-purple-50 to-fuchsia-100/50 dark:from-purple-900/20 dark:to-purple-900/10 p-6 rounded-2xl border border-purple-100 dark:border-purple-800 flex flex-col justify-center items-center text-center">
                                     <p className="text-xs font-bold text-purple-700 dark:text-purple-400 uppercase tracking-widest mb-2">Inscritos Hoy</p>
                                     <p className="text-5xl font-black text-purple-600 dark:text-purple-400 tracking-tighter">+{stats.enrolledToday}</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-blue-50 to-cyan-100/50 dark:from-blue-900/20 dark:to-blue-900/10 p-6 rounded-2xl border border-blue-100 dark:border-blue-800 flex flex-col justify-center items-center text-center">
+                                    <p className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-widest mb-2">Citados Hoy</p>
+                                    <p className="text-5xl font-black text-blue-600 dark:text-blue-400 tracking-tighter">{stats.appointmentsToday}</p>
                                 </div>
                             </div>
 

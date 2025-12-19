@@ -22,7 +22,11 @@ import EnvelopeIcon from './icons/EnvelopeIcon';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
 import CameraIcon from './icons/CameraIcon';
+import ChevronLeftIcon from './icons/ChevronLeftIcon'; // [NEW]
+import ChevronRightIcon from './icons/ChevronRightIcon'; // [NEW]
 import { TIMEZONE_OPTIONS } from '../utils/constants';
+import EmailTemplateEditor, { EmailTemplateEditorHandle } from './common/EmailTemplateEditor';
+import { useConfig } from '../context/ConfigContext'; // [FIX] Moved here
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -1032,7 +1036,13 @@ const EmailTemplateSettings: React.FC<{
 }> = ({ templates, onTemplatesUpdate, userProfile }) => {
     const [name, setName] = useState('');
     const [subject, setSubject] = useState('');
-    const [body, setBody] = useState('');
+
+    // Editor State
+    const editorRef = React.useRef<EmailTemplateEditorHandle>(null);
+    const [editorMode, setEditorMode] = useState<'basic' | 'pro'>('basic');
+    const [initialHtml, setInitialHtml] = useState(''); // Stores HTML for loading
+    const [initialDesign, setInitialDesign] = useState<any>(null); // Stores Design for loading
+
     const [editingId, setEditingId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState<EmailTemplate | null>(null);
@@ -1078,13 +1088,27 @@ const EmailTemplateSettings: React.FC<{
     }
 
     const handleSave = async () => {
-        if (!name.trim() || !subject.trim() || !body.trim()) return;
+        // [FIX] Get values from editor
+        if (!editorRef.current) return;
+        const content = await editorRef.current.getValues();
+
+        if (!name.trim() || !subject.trim() || !content.html) {
+            toastError("Por favor completa todos los campos.");
+            return;
+        }
+
         setSaving(true);
 
         if (editingId) {
+            // Update
             const { data, error } = await (supabase as any)
                 .from('email_templates')
-                .update({ name: name.trim(), subject: subject.trim(), body: body.trim() })
+                .update({
+                    name: name.trim(),
+                    subject: subject.trim(),
+                    body: content.html,
+                    design_json: content.design
+                })
                 .eq('id', editingId)
                 .select()
                 .single();
@@ -1099,12 +1123,20 @@ const EmailTemplateSettings: React.FC<{
                 setEditingId(null);
                 setName('');
                 setSubject('');
-                setBody('');
+                setInitialHtml('');
+                setInitialDesign(null);
+                setEditorMode('basic');
             }
         } else {
+            // Create
             const { data, error } = await (supabase as any)
                 .from('email_templates')
-                .insert({ name: name.trim(), subject: subject.trim(), body: body.trim() })
+                .insert({
+                    name: name.trim(),
+                    subject: subject.trim(),
+                    body: content.html,
+                    design_json: content.design
+                })
                 .select()
                 .single();
 
@@ -1116,7 +1148,9 @@ const EmailTemplateSettings: React.FC<{
                 success("Plantilla creada");
                 setName('');
                 setSubject('');
-                setBody('');
+                setInitialHtml('');
+                setInitialDesign(null);
+                setEditorMode('basic');
             }
         }
         setSaving(false);
@@ -1125,14 +1159,21 @@ const EmailTemplateSettings: React.FC<{
     const handleEdit = (template: EmailTemplate) => {
         setName(template.name);
         setSubject(template.subject);
-        setBody(template.body);
+
+        // [FIX] Load design
+        setInitialHtml(template.body || '');
+        setInitialDesign(template.design_json || null);
+        setEditorMode(template.design_json ? 'pro' : 'basic'); // Auto-switch mode
+
         setEditingId(template.id);
     };
 
     const handleCancelEdit = () => {
         setName('');
         setSubject('');
-        setBody('');
+        setInitialHtml('');
+        setInitialDesign(null);
+        setEditorMode('basic');
         setEditingId(null);
     };
 
@@ -1173,20 +1214,22 @@ const EmailTemplateSettings: React.FC<{
                         onChange={e => setSubject(e.target.value)}
                         placeholder="Bienvenido a la universidad..."
                     />
-                    <TextArea
-                        label="Cuerpo del Correo (HTML Soportado)"
-                        value={body}
-                        onChange={e => setBody(e.target.value)}
-                        placeholder="<p>Hola...</p>"
-                        rows={5}
-                    />
+                    <div className="h-[500px] mb-4">
+                        <EmailTemplateEditor
+                            ref={editorRef}
+                            initialHtml={initialHtml}
+                            initialDesign={initialDesign}
+                            initialMode={editorMode}
+                            onChangeMode={setEditorMode}
+                        />
+                    </div>
                     <div className="flex justify-end gap-2 pt-2">
                         {editingId && (
                             <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>
                                 Cancelar
                             </Button>
                         )}
-                        <Button onClick={handleSave} size="sm" disabled={!name || !subject || !body || saving}>
+                        <Button onClick={handleSave} size="sm" disabled={!name || !subject || saving}>
                             {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
                         </Button>
                     </div>
@@ -1316,7 +1359,7 @@ const LoginHistorySettings: React.FC = () => {
     );
 };
 
-import { useConfig } from '../context/ConfigContext';
+// [FIX] Removed misplaced import
 // PhotoIcon imported at top
 
 // ... (existing helper components)
@@ -1572,6 +1615,7 @@ const PersonalizationSettings: React.FC = () => {
 
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {
     const [activeTab, setActiveTab] = useState<string>('');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // [NEW] Collapsed state
 
     const allTabs = useMemo(() => [
         { id: 'branding', label: 'General', icon: <CameraIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
@@ -1602,26 +1646,42 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         <Modal isOpen={props.isOpen} onClose={props.onClose} title="Configuración" size="2xl">
             <div className="flex flex-col sm:flex-row -mx-6 -my-6 min-h-[60vh]">
                 {/* Left Navigation (Sidebar) */}
-                <div className="w-full sm:w-1/3 md:w-1/4 bg-gray-50/70 dark:bg-slate-900/50 p-4 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-slate-700">
-                    <nav className="grid grid-cols-2 sm:flex sm:flex-col gap-2">
+                <div className={`
+                        transition-all duration-300 ease-in-out bg-gray-50/70 dark:bg-slate-900/50 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-slate-700
+                        ${isSidebarCollapsed ? 'w-full sm:w-16' : 'w-full sm:w-1/3 md:w-1/4'}
+                    `}>
+                    <div className="flex justify-end p-2 border-b border-gray-100 dark:border-slate-800/50">
+                        <button
+                            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-500 transition-colors"
+                            title={isSidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+                        >
+                            {isSidebarCollapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
+                        </button>
+                    </div>
+
+                    <nav className="p-2 grid grid-cols-2 sm:flex sm:flex-col gap-2">
                         {visibleTabs.map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 sm:gap-3 w-full text-left px-3 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 border border-transparent ${activeTab === tab.id
-                                    ? 'bg-brand-secondary/10 text-brand-secondary dark:bg-brand-secondary/20 dark:text-brand-secondary ring-1 ring-brand-secondary/20 dark:ring-0'
-                                    : 'text-gray-600 dark:text-gray-400 bg-gray-100/50 dark:bg-slate-800/50 sm:bg-transparent hover:bg-gray-200 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
+                                className={`flex items-center gap-2 sm:gap-3 w-full text-left px-3 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 border border-transparent
+                                        ${isSidebarCollapsed ? 'justify-center sm:px-2' : ''}
+                                        ${activeTab === tab.id
+                                        ? 'bg-brand-secondary/10 text-brand-secondary dark:bg-brand-secondary/20 dark:text-brand-secondary ring-1 ring-brand-secondary/20 dark:ring-0'
+                                        : 'text-gray-600 dark:text-gray-400 bg-gray-100/50 dark:bg-slate-800/50 sm:bg-transparent hover:bg-gray-200 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                                     }`}
+                                title={isSidebarCollapsed ? tab.label : ''}
                             >
                                 {tab.icon}
-                                <span>{tab.label}</span>
+                                {!isSidebarCollapsed && <span>{tab.label}</span>}
                             </button>
                         ))}
                     </nav>
                 </div>
 
                 {/* Right Content */}
-                <div className="w-full sm:w-2/3 md:w-3/4 p-6 overflow-y-auto bg-white dark:bg-slate-800 text-gray-900 dark:text-white">
+                <div className="flex-1 p-6 overflow-y-auto bg-white dark:bg-slate-800 text-gray-900 dark:text-white min-w-0">
                     {activeTab === 'branding' && <PersonalizationSettings />}
                     {activeTab === 'users' && <UserSettings profiles={props.profiles} onProfilesUpdate={props.onProfilesUpdate} currentUserProfile={props.currentUserProfile} />}
                     {activeTab === 'statuses' && <StatusSettings statuses={props.statuses} onStatusesUpdate={props.onStatusesUpdate} />}

@@ -215,9 +215,9 @@ export interface Database {
         Update: { id?: string; name?: string; content?: string; created_at?: string }
       }
       email_templates: {
-        Row: { id: string; name: string; subject: string; body: string; created_at: string }
-        Insert: { id?: string; name: string; subject: string; body: string; created_at?: string }
-        Update: { id?: string; name?: string; subject?: string; body?: string; created_at?: string }
+        Row: { id: string; name: string; subject: string; body: string; design_json: Json | null; created_at: string }
+        Insert: { id?: string; name: string; subject: string; body: string; design_json?: Json | null; created_at?: string }
+        Update: { id?: string; name?: string; subject?: string; body?: string; design_json?: Json | null; created_at?: string }
       }
       login_history: {
         Row: { id: string; user_id: string; login_at: string; user_agent: string | null }

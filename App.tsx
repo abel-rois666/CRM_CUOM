@@ -698,6 +698,7 @@ const AppContent: React.FC = () => {
           licenciaturas={licenciaturas} // [NEW]
           initialTemplateId={initialEmailTemplateId}
           onMessageSent={handleMessageSent} // CORRECCIÓN CLAVE
+          currentUser={profile} // [NEW] Pass profile for API sending
         />
       )}
 

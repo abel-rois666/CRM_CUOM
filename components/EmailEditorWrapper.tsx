@@ -31,16 +31,19 @@ const EmailEditorWrapper = forwardRef<EmailEditorHandle, EmailEditorWrapperProps
         exportDesign: () => {
             return new Promise((resolve) => {
                 if (emailEditorRef.current && emailEditorRef.current.editor) {
-                    emailEditorRef.current.editor.exportHtml((data) => {
-                        // Unlayer exports design specifically via export_json but allow saving via full data
-                        // For now let's just use exportHtml callback which gives both design and html usually or check docs
-                        // Wait, exportHtml gives { design, html }.
-                        resolve(data.design);
+                    // Use saveDesign for retrieving JSON
+                    emailEditorRef.current.editor.saveDesign((design) => {
+                        resolve(design);
                     });
                 } else {
                     resolve({});
                 }
             });
+        },
+        loadDesign: (design: any) => {
+            if (emailEditorRef.current && emailEditorRef.current.editor && design) {
+                emailEditorRef.current.editor.loadDesign(design);
+            }
         }
     }));
 

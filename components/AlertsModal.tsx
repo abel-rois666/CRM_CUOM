@@ -65,7 +65,7 @@ const AlertsModal: React.FC<AlertsModalProps> = ({ userProfile }) => {
         <Modal isOpen={isOpen} onClose={handleClose} title="Resumen de Pendientes Diarios" maxWidth="max-w-md">
             <div className="space-y-4">
                 <p className="text-gray-600 dark:text-gray-300">
-                    Hola <strong>{userProfile?.first_name}</strong>, aquí tienes un resumen de tus prioridades para hoy:
+                    Hola <strong>{userProfile?.full_name}</strong>, aquí tienes un resumen de tus prioridades para hoy:
                 </p>
 
                 <div className="grid grid-cols-1 gap-3">
