@@ -10,6 +10,7 @@ interface EmailEditorWrapperProps {
 export interface EmailEditorHandle {
     exportHtml: () => Promise<string>;
     exportDesign: () => Promise<any>;
+    loadDesign: (design: any) => void;
 }
 
 const EmailEditorWrapper = forwardRef<EmailEditorHandle, EmailEditorWrapperProps>((props, ref) => {

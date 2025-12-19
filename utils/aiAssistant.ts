@@ -185,3 +185,43 @@ export const generateAdvisorEvaluation = async (
         return "Error al con la IA. Verifica tu conexión o API Key.";
     }
 };
+
+// [NEW] Función para Generación de Contenido General (Email, Plantillas, etc.)
+export const generateContent = async (instruction: string, context?: string): Promise<string> => {
+    if (!API_KEY) throw new Error('Falta API Key');
+
+    const systemPrompt = `
+    Eres un asistente de redacción experto para una universidad (CRM).
+    Tu objetivo es ayudar al usuario a redactar correos, boletines o mensajes profesionales.
+    
+    Instrucción del usuario: "${instruction}"
+    ${context ? `Contexto adicional: ${context}` : ''}
+    
+    Directrices:
+    - Redacción impecable, tono profesional pero cercano.
+    - Si es un correo, incluye asunto sugerido si no se pide lo contrario.
+    - Estructura clara (párrafos cortos).
+    - Adaptate al objetivo (Venta, Cobranza, Invitación, etc.).
+    `;
+
+    try {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                "model": "meta-llama/llama-3.3-70b-instruct:free",
+                "messages": [{ "role": "system", "content": systemPrompt }]
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message || 'Error en OpenRouter');
+        return data.choices[0]?.message?.content || "No se pudo generar el contenido.";
+    } catch (error) {
+        console.error('Error generating content:', error);
+        return "Error al conectar con la IA.";
+    }
+};

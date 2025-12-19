@@ -1,12 +1,14 @@
 // components/CalendarView.tsx
 import React, { useMemo, useState } from 'react';
 import { Calendar, dateFnsLocalizer, Views, View, Navigate } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay, addMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { format, parse, startOfWeek, getDay, addMonths, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { Appointment, Lead } from '../types';
-import Modal from './common/Modal'; // [NEW]
-import Button from './common/Button'; // [NEW]
+import { Appointment, Lead, Profile } from '../types'; // [FIX] Added Profile import
+import Modal from './common/Modal';
+import Button from './common/Button';
+import { generateAppointmentsPDF } from '../utils/reports'; // [NEW] Report Utility
+import PrinterIcon from './icons/PrinterIcon'; // [NEW] Icon
 
 const locales = {
   'es': es,
@@ -28,6 +30,7 @@ interface CalendarViewProps {
   view: View;
   onViewChange: (view: View) => void;
   loading?: boolean;
+  advisors?: Profile[]; // [NEW] Prop needed for proper advisor names in report
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -37,7 +40,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   onDateChange,
   view,
   onViewChange,
-  loading
+  loading,
+  advisors = [] // Default to empty
 }) => {
   // [NEW] Custom Show More State
   const [showMoreModal, setShowMoreModal] = useState<{ isOpen: boolean; events: any[]; date: Date | null }>({
@@ -45,9 +49,27 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     events: [],
     date: null
   });
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false); // [NEW] Loading state for report
 
   const handleShowMore = (events: any[], date: Date) => {
     setShowMoreModal({ isOpen: true, events, date });
+  };
+
+  // [NEW] Report Generation Handler
+  const handleDownloadReport = async () => {
+    setIsGeneratingReport(true);
+    try {
+      // Filter events for the current month view
+      // Note: 'events' prop contains all appts. We filter by displayed month.
+      const currentMonthEvents = events.filter(e => isSameMonth(new Date(e.start), currentDate));
+
+      await generateAppointmentsPDF(currentMonthEvents, currentDate, advisors);
+    } catch (error) {
+      console.error("Error generating report:", error);
+      alert("Error al generar el reporte PDF.");
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   const handleEventClickInternal = (event: any) => {
@@ -204,8 +226,21 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [events]);
 
   return (
-    <div className="h-[650px] md:h-[500px] bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300">
-      <style>{`
+    <div className="h-[650px] md:h-[500px] bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300 relative">
+      {/* [NEW] Report Button located top-right overlaid on Header - Positioned to clear View Switcher */}
+      <div className="absolute top-[26px] right-[340px] z-10 hidden md:block">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleDownloadReport}
+          disabled={isGeneratingReport}
+          title="Descargar Reporte del Mes"
+          className="text-xs"
+          leftIcon={<PrinterIcon className="w-4 h-4" />}
+        >
+          {isGeneratingReport ? '...' : 'PDF'}
+        </Button>
+      </div>      <style>{`
         .rbc-month-row {
           overflow: hidden; /* Ensure no spillover */
         }
@@ -237,17 +272,46 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           color: #bfdbfe !important; /* Lighter blue on hover */
           text-decoration: underline;
         }
+        /* Toolbar Styles & Fixes */
+        .rbc-toolbar { margin-bottom: 20px; }
+        .rbc-toolbar button { 
+            color: inherit; 
+            border-color: #e2e8f0; 
+            border-radius: 0.5rem; 
+            padding: 6px 12px;
+            cursor: pointer;
+            z-index: 10; /* Asegura que sean clickeables */
+            position: relative;
+        }
+        .rbc-toolbar button:hover { background-color: #f1f5f9; color: #0f172a; }
+        .rbc-toolbar button:active { box-shadow: inset 0 3px 5px rgba(0,0,0,0.125); }
+        
+        /* Dark Mode Toolbar */
+        .dark .rbc-toolbar button { border-color: #475569; }
+        .dark .rbc-toolbar button:hover { background-color: #334155; color: white; }
+        .dark .rbc-toolbar button.rbc-active { background-color: #0077FF; color: white; border-color: #0077FF; }
+        
+        /* General Dark Mode Fixes */
+        .dark .rbc-header { border-bottom-color: #475569; }
+        .dark .rbc-month-view, .dark .rbc-time-view, .dark .rbc-agenda-view { border-color: #475569; }
+        .dark .rbc-day-bg + .rbc-day-bg { border-left-color: #475569; }
+        .dark .rbc-month-row + .rbc-month-row { border-top-color: #475569; }
+        .dark .rbc-off-range-bg { background: rgba(0,0,0,0.2); }
+        .dark .rbc-today { background-color: rgba(0, 119, 255, 0.15); }
+        
+        /* Text Visibility */
+        .dark .rbc-toolbar-label { color: white; font-weight: 700; font-size: 1.1rem; }
+        .dark .rbc-header span { color: #cbd5e1; }
+        .dark .rbc-event-content { color: white; }
       `}</style>
+
       <Calendar
         localizer={localizer}
         events={visibleEvents}
-
-        // 3. VINCULACIÓN DE ESTADOS (ESTO ARREGLA LOS BOTONES)
         date={currentDate}
         view={view}
         onNavigate={onNavigate}
         onView={onViewChange}
-
         startAccessor="start"
         endAccessor="end"
         style={{ height: '100%' }}
@@ -261,10 +325,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           day: "Día",
           agenda: "Agenda",
           date: "Fecha",
-          time: "Hora", // Updated label to reflect that we are showing date here too
+          time: "Hora",
           event: "Evento",
           noEventsInRange: "Sin citas en este rango.",
-          showMore: (total) => `+${total} más` // [NEW] Translated
+          showMore: (total) => `+${total} más`
         }}
         eventPropGetter={eventStyleGetter}
         components={{
@@ -276,17 +340,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         onSelectEvent={(event) => handleEventClickInternal(event)}
         onShowMore={handleShowMore}
         className="text-gray-700 dark:text-gray-200 font-sans"
-
-        // CUSTOM VIEWS
         views={{
           month: true,
           week: true,
           day: true,
-          agenda: CustomAgenda as any // Casting for RBC type compatibility
+          agenda: CustomAgenda as any
         }}
       />
 
-      {/* [NEW] Custom Show More Modal */}
       <Modal
         isOpen={showMoreModal.isOpen}
         onClose={() => setShowMoreModal({ ...showMoreModal, isOpen: false })}
@@ -328,40 +389,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           </Button>
         </div>
       </Modal>
-
-      <style>{`
-        /* Toolbar Styles & Fixes */
-        .rbc-toolbar { margin-bottom: 20px; }
-        .rbc-toolbar button { 
-            color: inherit; 
-            border-color: #e2e8f0; 
-            border-radius: 0.5rem; 
-            padding: 6px 12px;
-            cursor: pointer;
-            z-index: 10; /* Asegura que sean clickeables */
-            position: relative;
-        }
-        .rbc-toolbar button:hover { background-color: #f1f5f9; color: #0f172a; }
-        .rbc-toolbar button:active { box-shadow: inset 0 3px 5px rgba(0,0,0,0.125); }
-        
-        /* Dark Mode Toolbar */
-        .dark .rbc-toolbar button { border-color: #475569; }
-        .dark .rbc-toolbar button:hover { background-color: #334155; color: white; }
-        .dark .rbc-toolbar button.rbc-active { background-color: #0077FF; color: white; border-color: #0077FF; }
-        
-        /* General Dark Mode Fixes */
-        .dark .rbc-header { border-bottom-color: #475569; }
-        .dark .rbc-month-view, .dark .rbc-time-view, .dark .rbc-agenda-view { border-color: #475569; }
-        .dark .rbc-day-bg + .rbc-day-bg { border-left-color: #475569; }
-        .dark .rbc-month-row + .rbc-month-row { border-top-color: #475569; }
-        .dark .rbc-off-range-bg { background: rgba(0,0,0,0.2); }
-        .dark .rbc-today { background-color: rgba(0, 119, 255, 0.15); }
-        
-        /* Text Visibility */
-        .dark .rbc-toolbar-label { color: white; font-weight: 700; font-size: 1.1rem; }
-        .dark .rbc-header span { color: #cbd5e1; }
-        .dark .rbc-event-content { color: white; }
-      `}</style>
     </div>
   );
 };
