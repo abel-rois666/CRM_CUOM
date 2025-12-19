@@ -67,25 +67,42 @@ El sistema implementa **Row Level Security (RLS)** en base de datos para garanti
     VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
     ```
 
-4. Configuración de Base de Datos
+4. **Configuración de Base de Datos**
 
-El sistema requiere una estructura de tablas y políticas de seguridad específicas en Supabase.
+    El sistema requiere una estructura de tablas optimizada y segura. Hemos consolidado todo en un único script maestro.
 
-    1.  En tu proyecto local, localiza el archivo `db_schema.sql` en la raíz.
-    2.  Ve a tu panel de **Supabase** > **SQL Editor**.
-    3.  Crea una **New Query**.
-    4.  Copia todo el contenido de `db_schema.sql` y pégalo en el editor.
-    5.  Haz clic en **Run**.
-    
-    **Nota:** Esto creará todas las tablas (`leads`, `profiles`, etc.), configurará los roles (`admin`, `moderator`, `advisor`) y aplicará las políticas de seguridad (Row Level Security) automáticamente.
-    
-    **Primer Acceso:**
-    Una vez ejecutado el script, deberás crear tu primer usuario manualmente desde la sección **Authentication** de Supabase y luego asignarle el rol de admin insertando una fila en la tabla `profiles` desde el      **Table Editor**:
+    1.  Ubica el archivo `production_schema.sql` en la raíz del proyecto.
+    2.  Ve al **SQL Editor** de tu proyecto en Supabase.
+    3.  Copia y pega todo el contenido de `production_schema.sql`.
+    4.  Ejecuta el script (**Run**).
+
+    > **Nota:** Esto instalará tablas, índices, roles, políticas de seguridad (RLS) y funciones RPC avanzadas automáticamente.
+
+5.  **Configuración de IA (Seguridad)**
+
+    Para proteger tu API Key de OpenRouter, el sistema usa una **Supabase Edge Function**.
+
+    1.  Instala Supabase CLI si no lo tienes (`npm i -g supabase`).
+    2.  Inicia sesión: `npx supabase login`
+    3.  Despliega la función:
+        ```bash
+        npx supabase functions deploy generate-ai-content
+        ```
+    4.  Establece tu CLAVE SECRETA (esto la guarda en la bóveda segura del servidor):
+        ```bash
+        npx supabase secrets set OPENROUTER_API_KEY=sk-or-v1-tu-clave-aqui
+        ```
+
+6.  **Crear Primer Usuario (Admin)**
+
+    Desde la sección **Authentication** de Supabase crea un usuario con email y contraseña. Luego, asignale el rol de administrador ejecutando este SQL en el editor:
+
     ```sql
     INSERT INTO public.profiles (id, full_name, email, role) 
-    VALUES ('UUID_DEL_USUARIO', 'Nombre Admin', 'correo@admin.com', 'admin');
+    VALUES ('UUID_DEL_USUARIO', 'Admin Inicial', 'correo@admin.com', 'admin');
+    ```
 
-5.  **Ejecutar en Desarrollo:**
+7.  **Ejecutar en Desarrollo**
     ```bash
     npm run dev
     ```

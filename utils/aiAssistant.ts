@@ -1,13 +1,36 @@
 import { Lead } from '../types';
+import { supabase } from '../lib/supabase';
 
-// Usamos la nueva variable de entorno para OpenRouter
-const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+// Helper Wrapper to call Edge Function
+const callAIFunction = async (systemPrompt: string, userInstruction: string, context?: string, model?: string) => {
+    try {
+        const { data, error } = await supabase.functions.invoke('generate-ai-content', {
+            body: {
+                instruction: userInstruction,
+                context,
+                systemPrompt,
+                model
+            }
+        });
+
+        if (error) {
+            console.error('Supabase Edge Function Error:', error);
+            throw new Error(error.message || 'Error invocando función de IA');
+        }
+
+        if (!data || !data.content) {
+            throw new Error('La IA no devolvió contenido.');
+        }
+
+        return data.content;
+
+    } catch (err: any) {
+        console.error('AI Service Error:', err);
+        throw new Error(err.message || 'Error al conectar con el servicio de IA.');
+    }
+};
 
 export const generateMessage = async (lead: Lead, context: string, type: 'whatsapp' | 'email', extraInstructions?: string): Promise<string> => {
-    if (!API_KEY) {
-        throw new Error('Falta la API Key de OpenRouter. Configura VITE_OPENROUTER_API_KEY en tu archivo .env');
-    }
-
     const systemPrompt = `
     Eres un experto asesor educativo de una universidad (CUOM). Tu tono es amable, profesional pero cercano, y persuasivo.
     Tu objetivo es reactivar el interés del alumno o confirmar su asistencia.
@@ -28,51 +51,10 @@ export const generateMessage = async (lead: Lead, context: string, type: 'whatsa
     ${extraInstructions ? `INSTRUCCIÓN ADICIONAL PRIORITARIA: ${extraInstructions}` : ''}
     `;
 
-    try {
-        // Usamos fetch directo a OpenRouter para no instalar SDKs extra
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json",
-                // "HTTP-Referer": window.location.origin, // Opcional para ranking OpenRouter
-                // "X-Title": "CRM CUOM" // Opcional
-            },
-            body: JSON.stringify({
-                "model": "meta-llama/llama-3.3-70b-instruct:free", // Modelo gratuito y potente del ejemplo
-                "messages": [
-                    { "role": "system", "content": systemPrompt },
-                    { "role": "user", "content": "Genera el mensaje solicitado." }
-                ]
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("OpenRouter Error:", errorData);
-            throw new Error(errorData.error?.message || `Error ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        // OpenRouter sigue el formato de OpenAI
-        const generatedText = data.choices?.[0]?.message?.content;
-
-        if (!generatedText) {
-            throw new Error('La IA no devolvió texto.');
-        }
-
-        return generatedText.trim();
-
-    } catch (error) {
-        console.error('Error generating AI message with OpenRouter:', error);
-        throw error;
-    }
+    return callAIFunction(systemPrompt, "Genera el mensaje solicitado.");
 };
 
-// [NEW] Función para Resumen Inteligente
 export const generateLeadSummary = async (lead: Lead, statusName: string, programName: string): Promise<string> => {
-    if (!API_KEY) throw new Error('Falta API Key');
-
     // 1. Historial de Notas
     const notesHistory = lead.follow_ups && lead.follow_ups.length > 0
         ? lead.follow_ups.map(f => `- ${new Date(f.created_at || f.date).toLocaleDateString()}: ${f.notes}`).join('\n')
@@ -105,26 +87,7 @@ export const generateLeadSummary = async (lead: Lead, statusName: string, progra
     4. Sé directo. Ejemplo: "Faltó a su cita de ayer. Dice tener problemas de transporte. Interés medio, reagendar para la próxima semana."
     `;
 
-    try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                "model": "meta-llama/llama-3.3-70b-instruct:free",
-                "messages": [{ "role": "system", "content": systemPrompt }]
-            })
-        });
-
-        const data = await response.json();
-        if (data.error) throw new Error(data.error.message || 'Error en OpenRouter');
-        return data.choices[0]?.message?.content || "No se pudo generar el resumen.";
-    } catch (error) {
-        console.error('Error generating summary:', error);
-        return "Error al generar resumen.";
-    }
+    return callAIFunction(systemPrompt, "Genera el resumen ejecutivo.");
 };
 
 export const generateAdvisorEvaluation = async (
@@ -140,8 +103,6 @@ export const generateAdvisorEvaluation = async (
         interactionRatio: string;
     }
 ): Promise<string> => {
-    if (!API_KEY) throw new Error('Falta API Key');
-
     const systemPrompt = `
     Eres un gerente de ventas experto evaluando el desempeño de un asesor educativo.
     
@@ -164,38 +125,13 @@ export const generateAdvisorEvaluation = async (
     Formato de respuesta: Un párrafo breve de análisis y una recomendación accionable. Usa emojis.
     `;
 
-    try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                "model": "meta-llama/llama-3.3-70b-instruct:free",
-                "messages": [{ "role": "system", "content": systemPrompt }]
-            })
-        });
-
-        const data = await response.json();
-        if (data.error) throw new Error(data.error.message || 'Error en OpenRouter');
-        return data.choices[0]?.message?.content || "No se pudo generar la evaluación.";
-    } catch (error) {
-        console.error('Error generating evaluation:', error);
-        return "Error al con la IA. Verifica tu conexión o API Key.";
-    }
+    return callAIFunction(systemPrompt, "Genera la evaluación de desempeño.");
 };
 
-// [NEW] Función para Generación de Contenido General (Email, Plantillas, etc.)
 export const generateContent = async (instruction: string, context?: string): Promise<string> => {
-    if (!API_KEY) throw new Error('Falta API Key');
-
     const systemPrompt = `
     Eres un asistente de redacción experto para una universidad (CRM).
     Tu objetivo es ayudar al usuario a redactar correos, boletines o mensajes profesionales.
-    
-    Instrucción del usuario: "${instruction}"
-    ${context ? `Contexto adicional: ${context}` : ''}
     
     Directrices:
     - Redacción impecable, tono profesional pero cercano.
@@ -204,24 +140,6 @@ export const generateContent = async (instruction: string, context?: string): Pr
     - Adaptate al objetivo (Venta, Cobranza, Invitación, etc.).
     `;
 
-    try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                "model": "meta-llama/llama-3.3-70b-instruct:free",
-                "messages": [{ "role": "system", "content": systemPrompt }]
-            })
-        });
-
-        const data = await response.json();
-        if (data.error) throw new Error(data.error.message || 'Error en OpenRouter');
-        return data.choices[0]?.message?.content || "No se pudo generar el contenido.";
-    } catch (error) {
-        console.error('Error generating content:', error);
-        return "Error al conectar con la IA.";
-    }
+    return callAIFunction(systemPrompt, instruction, context);
 };
+
