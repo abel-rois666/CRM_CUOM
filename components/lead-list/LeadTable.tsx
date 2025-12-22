@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Lead } from '../../types';
 import { calculateLeadScore, getScoreColor, getScoreBreakdown } from '../../utils/leadScoring';
 import Badge from '../common/Badge';
+import { usePreferences } from '../../hooks/usePreferences';
 import BellAlertIcon from '../icons/BellAlertIcon';
 import ExclamationCircleIcon from '../icons/ExclamationCircleIcon';
 import ClockIcon from '../icons/ClockIcon';
@@ -38,8 +39,6 @@ interface LeadTableProps {
     onEdit: (lead: Lead) => void;
     onDeleteClick: (leadId: string) => void;
     // For Empty State
-    localSearchTerm: string;
-    activeFilterCount: number;
     localSearchTerm: string;
     activeFilterCount: number;
     onClearFilters: () => void;
@@ -94,24 +93,53 @@ const LeadTable: React.FC<LeadTableProps> = ({
     onClearFilters,
     loading = false
 }) => {
-    // [NEW] Column Visibility State as Ordered Array
-    const [columns, setColumns] = useState<ColumnConfig[]>(() => {
-        const saved = localStorage.getItem('leadTable_columnsConfig_v2');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                const merged = parsed.map((p: any) => {
-                    const def = defaultColumns.find(d => d.id === p.id);
-                    return def ? { ...def, ...p } : null;
-                }).filter(Boolean);
-                defaultColumns.forEach(def => {
-                    if (!merged.find((m: any) => m.id === def.id)) merged.push(def);
-                });
-                return merged;
-            } catch (e) { return defaultColumns; }
+    // [NEW] Column Visibility Persistence
+    const { preferences, updatePreferences } = usePreferences();
+
+    // Initialize from preferences OR local storage toggle (fallback)
+    const [columns, setColumns] = useState<ColumnConfig[]>(defaultColumns);
+
+    // Sync from persisted preferences
+    useEffect(() => {
+        if (preferences?.lead_table_columns && preferences.lead_table_columns.length > 0) {
+            const savedOrderIds = preferences.lead_table_columns;
+
+            // 1. Create a map of defaults for easy lookup
+            const defaultsMap = new Map(defaultColumns.map(c => [c.id, c]));
+
+            // 2. Reconstruct columns in the SAVED order (for visible ones)
+            const orderedColumns: ColumnConfig[] = [];
+            const processedIds = new Set<string>();
+
+            // Add saved columns in their specific order
+            savedOrderIds.forEach(id => {
+                // @ts-ignore - Supabase might return strings that match ColumnId
+                const def = defaultsMap.get(id);
+                if (def) {
+                    orderedColumns.push({ ...def, visible: true });
+                    processedIds.add(id);
+                }
+            });
+
+            // 3. Append any remaining default columns that were NOT in the saved list (hidden or new)
+            // We append them at the end, marked as hidden (or default visibility if needed, but usually hidden if not in saved list)
+            defaultColumns.forEach(def => {
+                if (!processedIds.has(def.id)) {
+                    orderedColumns.push({ ...def, visible: false });
+                }
+            });
+
+            setColumns(orderedColumns);
         }
-        return defaultColumns;
-    });
+    }, [preferences.lead_table_columns]);
+
+    // Save changes to Persistence
+    // We update local state immediately for UI, and sync to DB
+    const handleColumnChange = (newColumns: ColumnConfig[]) => {
+        setColumns(newColumns);
+        const visibleIds = newColumns.filter(c => c.visible).map(c => c.id);
+        updatePreferences({ lead_table_columns: visibleIds });
+    };
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -134,7 +162,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
 
 
     const toggleColumn = (colId: ColumnId) => {
-        setColumns(prev => prev.map(c => c.id === colId ? { ...c, visible: !c.visible } : c));
+        const newCols = columns.map(c => c.id === colId ? { ...c, visible: !c.visible } : c);
+        handleColumnChange(newCols);
     };
 
     // Drag and Drop Handlers
@@ -161,6 +190,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
         e.currentTarget.classList.remove('opacity-50');
         dragItem.current = null;
         dragOverItem.current = null;
+        handleColumnChange(columns);
     };
 
     const SortableHeader: React.FC<{ config: ColumnConfig; className?: string }> = ({ config, className }) => {
@@ -321,15 +351,16 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                     checked={columns.every(c => c.visible)}
                                     onChange={(e) => {
                                         const areAllVisible = columns.every(c => c.visible);
-                                        setColumns(prev => prev.map(c =>
+                                        const newCols = columns.map(c =>
                                             c.id === 'name' ? c : { ...c, visible: !areAllVisible }
-                                        ));
+                                        );
+                                        handleColumnChange(newCols);
                                     }}
                                     className="rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary mr-2 w-4 h-4 cursor-pointer"
                                 />
                                 <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Todo</span>
                             </label>
-                            <button onClick={() => setColumns(defaultColumns)} className="text-[10px] text-brand-secondary hover:underline">Restaurar</button>
+                            <button onClick={() => handleColumnChange(defaultColumns)} className="text-[10px] text-brand-secondary hover:underline">Restaurar</button>
                         </div>
                         <div className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar">
                             {columns.map((col, index) => (

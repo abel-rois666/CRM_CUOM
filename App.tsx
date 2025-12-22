@@ -77,6 +77,8 @@ const AppContent: React.FC = () => {
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
 
+  const [clearSelectionSignal, setClearSelectionSignal] = useState(0); // [NEW] Signal for LeadList
+
   // [NEW] Check Setup Status on Load
   React.useEffect(() => {
     const initCheck = async () => {
@@ -529,7 +531,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors duration-300">
-      <Header onOpenSettings={() => setSettingsOpen(true)} userProfile={profile} onLogout={signOut} />
+      <Header onOpenSettings={() => { setSettingsOpen(true); setClearSelectionSignal(p => p + 1); }} userProfile={profile} onLogout={signOut} />
       <main>
         <LeadList
           loading={loadingData || loadingLeads}
@@ -553,8 +555,8 @@ const AppContent: React.FC = () => {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onViewDetails={handleViewDetails}
-          onOpenReports={() => setReportModalOpen(true)}
-          onOpenImport={() => setBulkImportOpen(true)}
+          onOpenReports={() => { setReportModalOpen(true); setClearSelectionSignal(p => p + 1); }}
+          onOpenImport={() => { setBulkImportOpen(true); setClearSelectionSignal(p => p + 1); }}
           onOpenWhatsApp={(lead) => {
             setSelectedLeadForWhatsApp(lead);
             setInitialWhatsAppTemplateId(undefined);
@@ -573,7 +575,8 @@ const AppContent: React.FC = () => {
           metrics={dashboardMetrics} // <--- PASSING THE METRICS
           lastUpdatedLead={lastUpdatedLead} // [NEW] Pass sync lead
           statusCategories={statusCategories} // [NEW] Dynamic Categories
-          onRefreshCatalogs={refetch} // Actually refetch fetches both, but for catalogs we explicitly need refreshCatalogs from hook if we want to be precise, or just use refetch which does everything. Wait, useCRMData exposes refreshCatalogs.
+          onRefreshCatalogs={refetch}
+          clearSelectionSignal={clearSelectionSignal} // [NEW] Pass signal
         />
       </main>
 

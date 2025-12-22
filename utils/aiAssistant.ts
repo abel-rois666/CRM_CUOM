@@ -30,7 +30,9 @@ const callAIFunction = async (systemPrompt: string, userInstruction: string, con
     }
 };
 
-export const generateMessage = async (lead: Lead, context: string, type: 'whatsapp' | 'email', extraInstructions?: string): Promise<string> => {
+export const generateMessage = async (lead: Lead, context: string, type: 'whatsapp' | 'email', extraInstructions?: string, mode: 'quick' | 'advanced' = 'advanced'): Promise<string> => {
+    const isQuick = mode === 'quick';
+
     const systemPrompt = `
     Eres un experto asesor educativo de una universidad (CUOM). Tu tono es amable, profesional pero cercano, y persuasivo.
     Tu objetivo es reactivar el interés del alumno o confirmar su asistencia.
@@ -38,21 +40,40 @@ export const generateMessage = async (lead: Lead, context: string, type: 'whatsa
     Datos del alumno:
     - Nombre: ${lead.first_name} ${lead.paternal_last_name}
     - Programa de interés: ${lead.program_id || 'No especificado'}
-    - Estatus actual: ${lead.status_id}
+    - Estatus actual: ${status_id_to_text(lead.status_id)}
     
-    Contexto adicional: ${context}
+    Contexto adicional del sistema: ${context}
     
-    Instrucciones base:
-    - Escribe un mensaje corto para ${type === 'whatsapp' ? 'WhatsApp (máximo 50 palabras, usa emojis moderados)' : 'Email (breve y cordial)'}.
-    - No uses saludos genéricos como "Estimado prospecto".
-    - Ve al grano.
-    - Si es WhatsApp, no uses "Asunto:".
+    ${isQuick ? `
+    MODO: IA RÁPIDA (Breve y Conciso)
+    - Escribe un mensaje MUY CORTO (máximo 25-30 palabras).
+    - Ve directo al punto.
+    - Ideal para recordatorios simples o saludos rápidos.
+    - Sé eficiente.
+    ` : `
+    MODO: IA AVANZADA (Extenso y Persuasivo)
+    - Escribe un mensaje detallado y completo.
+    - Utiliza todo el contexto disponible para personalizar al máximo.
+    - Argumenta beneficios, resuelve dudas implícitas.
+    - Estructura el mensaje para maximizar la conversión.
+    - Longitud libre (lo necesario para persuadir).
+    `}
 
-    ${extraInstructions ? `INSTRUCCIÓN ADICIONAL PRIORITARIA: ${extraInstructions}` : ''}
+    Instrucciones de formato:
+    - ${type === 'whatsapp' ? 'Para WhatsApp: usa emojis moderados, párrafos cortos.' : 'Para Email: Asunto atractivo, cuerpo bien estructurado.'}
+    - No uses saludos genéricos como "Estimado prospecto".
+    
+    ${extraInstructions ? `INSTRUCCIÓN DEL USUARIO (PRIORIDAD ALTA): ${extraInstructions}` : ''}
     `;
 
-    return callAIFunction(systemPrompt, "Genera el mensaje solicitado.");
+    return callAIFunction(systemPrompt, isQuick ? "Genera un mensaje breve." : "Genera un mensaje detallado y persuasivo.");
 };
+
+// Helper simple para estatus (fallback si no hay acceso a catalogo completo aqui)
+function status_id_to_text(id: string) {
+    // Mapeo básico para dar contexto a la IA si llega ID crudo
+    return id;
+}
 
 export const generateLeadSummary = async (lead: Lead, statusName: string, programName: string): Promise<string> => {
     // 1. Historial de Notas
@@ -128,15 +149,27 @@ export const generateAdvisorEvaluation = async (
     return callAIFunction(systemPrompt, "Genera la evaluación de desempeño.");
 };
 
-export const generateContent = async (instruction: string, context?: string): Promise<string> => {
+export const generateContent = async (instruction: string, context?: string, mode: 'quick' | 'advanced' = 'advanced'): Promise<string> => {
+    const isQuick = mode === 'quick';
+
     const systemPrompt = `
     Eres un asistente de redacción experto para una universidad (CRM).
     Tu objetivo es ayudar al usuario a redactar correos, boletines o mensajes profesionales.
     
+    ${isQuick ? `
+    MODO: RÁPIDO Y CONCISO.
+    - Genera texto breve, directo y al punto.
+    - Evita rellenos innecesarios.
+    ` : `
+    MODO: AVANZADO Y DETALLADO.
+    - Genera contenido rico, bien estructurado y persuasivo.
+    - Explica detalles, usa listas si es necesario.
+    - Enfócate en la calidad y profundidad del mensaje.
+    `}
+
     Directrices:
     - Redacción impecable, tono profesional pero cercano.
     - Si es un correo, incluye asunto sugerido si no se pide lo contrario.
-    - Estructura clara (párrafos cortos).
     - Adaptate al objetivo (Venta, Cobranza, Invitación, etc.).
     `;
 

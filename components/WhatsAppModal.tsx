@@ -7,6 +7,8 @@ import { Lead, WhatsAppTemplate, Licenciatura } from '../types';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
 import { generateMessage } from '../utils/aiAssistant';
 import SparklesIcon from './icons/SparklesIcon';
+import BoltIcon from './icons/BoltIcon'; // [NEW]
+import Tooltip from './common/Tooltip'; // [NEW]
 
 interface WhatsAppModalProps {
   isOpen: boolean;
@@ -24,6 +26,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
   const [extraInstructions, setExtraInstructions] = useState(''); // [NEW] Estado para instrucciones
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false); // AI State
+  const [aiMode, setAiMode] = useState<'quick' | 'advanced'>('advanced'); // [NEW]
 
   useEffect(() => {
     if (isOpen) {
@@ -73,8 +76,9 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
     }
   };
 
-  const handleAiGenerate = async () => {
+  const handleAiGenerate = async (mode: 'quick' | 'advanced') => {
     if (!lead) return;
+    setAiMode(mode);
     setIsGenerating(true);
     try {
       // Contexto simple para la IA
@@ -88,7 +92,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
       Programa de interés (Nombre real): ${programName}.
       `;
 
-      const text = await generateMessage(lead, context, 'whatsapp', extraInstructions); // [NEW] Pasar instrucciones
+      const text = await generateMessage(lead, context, 'whatsapp', extraInstructions, mode); // [UPDATED]
       setMessage(text);
       setGeneratedLink(null); // Reset link since message changed
     } catch (error) {
@@ -133,21 +137,28 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
                 label="Instrucción extra (Opcional)"
               />
             </div>
-            <button
-              onClick={handleAiGenerate}
-              disabled={isGenerating}
-              className={`
-                h-[42px] px-4 rounded-xl font-medium text-sm flex items-center gap-2 transition-all shadow-sm
-                ${isGenerating
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-indigo-200'
-                }
-              `}
-              title="Generar mensaje con Inteligencia Artificial"
-            >
-              <SparklesIcon className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-              {isGenerating ? 'Creando...' : 'Redactar IA'}
-            </button>
+
+            <Tooltip content="IA Rápida: Mensaje breve y directo." position="top">
+              <button
+                onClick={() => handleAiGenerate('quick')}
+                disabled={isGenerating}
+                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5 ${isGenerating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-400 to-cyan-400 hover:from-blue-500 hover:to-cyan-500 text-white'}`}
+              >
+                <BoltIcon className={`w-3 h-3 ${isGenerating && aiMode === 'quick' ? 'animate-spin' : ''}`} />
+                {isGenerating && aiMode === 'quick' ? '...' : 'IA Rápida'}
+              </button>
+            </Tooltip>
+
+            <Tooltip content="IA Avanzada: Mensaje detallado y persuasivo." position="top">
+              <button
+                onClick={() => handleAiGenerate('advanced')}
+                disabled={isGenerating}
+                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm transition-all transform hover:-translate-y-0.5 ${isGenerating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-purple-200 dark:shadow-none hover:shadow-md'}`}
+              >
+                <SparklesIcon className={`w-3 h-3 ${isGenerating && aiMode === 'advanced' ? 'animate-spin' : ''}`} />
+                {isGenerating && aiMode === 'advanced' ? '...' : 'IA Avanzada'}
+              </button>
+            </Tooltip>
           </div>
 
           <TextArea

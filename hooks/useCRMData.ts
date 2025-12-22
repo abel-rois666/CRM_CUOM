@@ -188,15 +188,11 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       const from = (safePage - 1) * safePageSize;
       const to = from + safePageSize - 1;
 
-      console.log(`[DEBUG] Fetching leads. Page: ${safePage}, Size: ${safePageSize}, Range: ${from}-${to}`);
-
       const { data, error, count } = await query
         .order('registration_date', { ascending: false })
         .range(from, to);
 
       if (error) throw error;
-
-      console.log(`[DEBUG] Fetched ${data?.length} leads. Total in DB: ${count}`);
 
       // @ts-ignore
       setLeads(data || []);

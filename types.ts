@@ -1,11 +1,18 @@
 // types.ts
 
 // --- Perfil de Usuario ---
+export interface UserPreferences {
+  theme?: 'light' | 'dark' | 'system';
+  lead_table_columns?: string[]; // Array of visible column IDs
+  pageSize?: number;
+}
+
 export interface Profile {
   id: string;
   full_name: string;
   email: string;
   role: 'admin' | 'advisor' | 'moderator';
+  preferences?: UserPreferences;
 }
 
 // --- Catálogos ---

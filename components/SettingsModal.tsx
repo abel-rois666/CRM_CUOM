@@ -24,9 +24,12 @@ import ArrowPathIcon from './icons/ArrowPathIcon';
 import CameraIcon from './icons/CameraIcon';
 import ChevronLeftIcon from './icons/ChevronLeftIcon'; // [NEW]
 import ChevronRightIcon from './icons/ChevronRightIcon'; // [NEW]
+import BoltIcon from './icons/BoltIcon';
+import SparklesIcon from './icons/SparklesIcon';
 import { TIMEZONE_OPTIONS } from '../utils/constants';
 import EmailTemplateEditor, { EmailTemplateEditorHandle } from './common/EmailTemplateEditor';
-import { useConfig } from '../context/ConfigContext'; // [FIX] Moved here
+import { useConfig } from '../context/ConfigContext';
+import Tooltip from './common/Tooltip'; // [FIX] Import added
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -844,7 +847,56 @@ const WhatsappTemplateSettings: React.FC<{
     const [editingId, setEditingId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState<WhatsAppTemplate | null>(null);
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [extraInstructions, setExtraInstructions] = useState(''); // [NEW] State for AI Context
+    const [aiMode, setAiMode] = useState<'quick' | 'advanced'>('advanced'); // [NEW] Mode tracking
     const { success, error: toastError } = useToast();
+
+    // [NEW] AI Handler - Enhanced with Context and Mode
+    const handleAiGenerate = async () => {
+        setIsGenerating(true);
+        try {
+            // Contexto mejorado: Usamos las instrucciones del usuario
+            const context = `
+            Estás ayudando a crear una PLANTILLA DE WHATSAPP reutilizable.
+            Nombre de la plantilla: ${name || 'Sin nombre aún'}.
+            `;
+            const instruction = `
+            Genera un mensaje genérico y profesional para usar como plantilla.
+            Usa el placeholder "{nombre}" donde iría el nombre del alumno.
+            Objetivo/Contexto Específico: ${extraInstructions || name || 'Contactar al alumno'}.
+            `;
+
+            // Dummy lead for structural compatibility
+            const dummyLead = {
+                first_name: '{nombre}',
+                paternal_last_name: '',
+                program_id: '',
+                status_id: '',
+                phone: '',
+                email: '',
+                source_id: '',
+                created_at: new Date().toISOString()
+            } as any;
+
+            const text = await generateMessage(dummyLead, context, 'whatsapp', instruction, aiMode);
+            setContent(text);
+            setIsAIModalOpen(false); // Close modal on success
+        } catch (error) {
+            console.error(error);
+            toastError("Error al generar con IA");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    // ... existing helpers ...
+
+    const openAiModal = (mode: 'quick' | 'advanced') => {
+        setAiMode(mode);
+        setIsAIModalOpen(true);
+    };
 
     const handleSeedTemplates = async () => {
         setSaving(true);
@@ -971,8 +1023,49 @@ const WhatsappTemplateSettings: React.FC<{
                         onChange={e => setName(e.target.value)}
                         placeholder="Ej: Saludo Inicial"
                     />
+                    <div className="flex justify-between items-end mb-1.5">
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide ml-1">
+                            CONTENIDO DEL MENSAJE <span className="text-red-500">*</span>
+                        </label>
+
+                        <div className="flex gap-2">
+                            <Tooltip content="IA Rápida: Genera mensajes breves y directos, ideales para recordatorios o saludos sencillos." position="top">
+                                <button
+                                    onClick={() => openAiModal('quick')}
+                                    disabled={!name}
+                                    className={`
+                                        flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5
+                                        ${!name
+                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                            : 'bg-gradient-to-r from-blue-400 to-cyan-400 hover:from-blue-500 hover:to-cyan-500 text-white'
+                                        }
+                                    `}
+                                >
+                                    <BoltIcon className="w-3 h-3 text-white" />
+                                    IA Rápida
+                                </button>
+                            </Tooltip>
+
+                            <Tooltip content="IA Avanzada: Genera mensajes detallados, persuasivos y enriquecidos, ideales para ventas o información compleja." position="top">
+                                <button
+                                    onClick={() => openAiModal('advanced')}
+                                    disabled={!name}
+                                    className={`
+                                        flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm transition-all transform hover:-translate-y-0.5
+                                        ${!name
+                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                            : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-purple-200 dark:shadow-none hover:shadow-md'
+                                        }
+                                    `}
+                                >
+                                    <SparklesIcon className="w-3 h-3 text-white" />
+                                    IA Avanzada
+                                </button>
+                            </Tooltip>
+                        </div>
+                    </div>
+
                     <TextArea
-                        label="Contenido del Mensaje"
                         value={content}
                         onChange={e => setContent(e.target.value)}
                         placeholder="Hola, te contacto para..."
@@ -1025,6 +1118,54 @@ const WhatsappTemplateSettings: React.FC<{
                 confirmButtonText="Sí, Eliminar"
                 confirmButtonVariant="danger"
             />
+
+            {/* AI Generation Modal */}
+            <Modal isOpen={isAIModalOpen} onClose={() => setIsAIModalOpen(false)} title={`IA para Plantillas: ${aiMode === 'quick' ? 'Generación Rápida' : 'Redacción Avanzada'}`} size="md">
+                <div className="space-y-4">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg flex items-start gap-3">
+                        <SparklesIcon className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-sm text-blue-800 dark:text-blue-300 font-medium">
+                                {aiMode === 'quick'
+                                    ? 'La IA generará un texto breve y directo.'
+                                    : 'La IA redactará un mensaje detallado y persuasivo.'}
+                            </p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                Se usará el nombre de la plantilla como contexto principal.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Instrucciones Adicionales (Opcional)
+                        </label>
+                        <textarea
+                            value={extraInstructions}
+                            onChange={(e) => setExtraInstructions(e.target.value)}
+                            placeholder={aiMode === 'quick' ? "Ej: Mencionar fecha límite..." : "Ej: Enfatizar los beneficios de la beca y horarios flexibles..."}
+                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white h-24 p-3 text-sm"
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="ghost" onClick={() => setIsAIModalOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleAiGenerate} disabled={isGenerating}>
+                            {isGenerating ? (
+                                <span className="flex items-center gap-2">
+                                    <SparklesIcon className="w-4 h-4 animate-spin" />
+                                    Generando...
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-2">
+                                    {aiMode === 'quick' ? <BoltIcon className="w-4 h-4" /> : <SparklesIcon className="w-4 h-4" />}
+                                    Generar Plantilla
+                                </span>
+                            )}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

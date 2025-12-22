@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
-    plugins: [react(), tailwindcss(),],
+    plugins: [react({ jsxRuntime: 'automatic' }), tailwindcss(),],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

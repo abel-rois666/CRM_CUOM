@@ -1,5 +1,6 @@
 // context/ThemeContext.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { usePreferences } from '../hooks/usePreferences';
 
 type Theme = 'dark' | 'light' | 'system';
 
@@ -26,33 +27,41 @@ export function ThemeProvider({
   defaultTheme = 'system',
   storageKey = 'crm-ui-theme',
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
+  const { preferences, updatePreferences } = usePreferences();
+
+  // Initialize state from local storage or props, but prefer DB if available later
+  const [theme, setThemeState] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
   );
 
+  // Sync with DB preferences when they load
+  useEffect(() => {
+    if (preferences?.theme && preferences.theme !== theme) {
+      setThemeState(preferences.theme);
+    }
+  }, [preferences.theme]);
+
   useEffect(() => {
     const root = window.document.documentElement;
-
     root.classList.remove('light', 'dark');
 
     if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
-        .matches
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
         ? 'dark'
         : 'light';
-
       root.classList.add(systemTheme);
-      return;
+    } else {
+      root.classList.add(theme);
     }
-
-    root.classList.add(theme);
   }, [theme]);
 
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
+    setTheme: (newTheme: Theme) => {
+      localStorage.setItem(storageKey, newTheme);
+      setThemeState(newTheme);
+      // Persist to DB
+      updatePreferences({ theme: newTheme });
     },
   };
 

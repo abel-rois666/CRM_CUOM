@@ -65,6 +65,7 @@ interface LeadListProps {
     lastUpdatedLead?: Lead | null;
     statusCategories: StatusCategoryMetadata[]; // [NEW]
     onRefreshCatalogs: () => void; // [NEW]
+    clearSelectionSignal?: number; // [NEW] Signal to clear selection remotely
 }
 
 const LeadList: React.FC<LeadListProps> = ({
@@ -76,7 +77,8 @@ const LeadList: React.FC<LeadListProps> = ({
     onOpenEmail, onUpdateLead, userRole, onRefresh, onLocalDeleteMany, currentUser, metrics,
     lastUpdatedLead,
     statusCategories = [], // Default empty array to prevent crashes
-    onRefreshCatalogs // [NEW]
+    onRefreshCatalogs, // [NEW]
+    clearSelectionSignal = 0 // [NEW]
 }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
 
@@ -89,6 +91,13 @@ const LeadList: React.FC<LeadListProps> = ({
             setActiveCategoryTab(currentFilters.category as StatusCategory);
         }
     }, [currentFilters.category, activeCategoryTab]);
+
+    // [NEW] Clear selection when signal changes
+    useEffect(() => {
+        if (clearSelectionSignal > 0) {
+            setSelectedIds(new Set());
+        }
+    }, [clearSelectionSignal]);
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
     const [isBulkTransferOpen, setIsBulkTransferOpen] = useState(false);

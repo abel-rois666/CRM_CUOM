@@ -277,7 +277,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm">
                                     <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Distribución por Estado</h4>
-                                    <div className="h-64 w-full flex items-center justify-center">
+                                    <div className="h-64 w-full" style={{ minHeight: '250px' }}>
                                         {stats.statusData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                                 <PieChart>
@@ -304,7 +304,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
 
                                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm">
                                     <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Leads por Asesor</h4>
-                                    <div className="h-64 w-full">
+                                    <div className="h-64 w-full" style={{ minHeight: '250px' }}>
                                         {stats.advisorData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                                 <BarChart data={stats.advisorData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>

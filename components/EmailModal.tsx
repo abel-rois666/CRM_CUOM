@@ -255,41 +255,14 @@ const EmailModal: React.FC<EmailModalProps> = ({ isOpen, onClose, lead, template
           </div>
         </div>
 
-        {/* Row 2: Subject + Extra + AI */}
-        <div className="flex flex-col md:flex-row gap-2">
-          <div className="w-full md:w-1/3">
-            <Input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Asunto..."
-              className="h-10 text-sm"
-            />
-          </div>
-          <div className="flex-grow flex gap-2">
-            <div className="flex-grow">
-              <Input
-                value={extraInstructions}
-                onChange={(e) => setExtraInstructions(e.target.value)}
-                placeholder="Instrucción extra para IA..."
-                className="h-10 text-sm"
-              />
-            </div>
-            <button
-              onClick={handleAiGenerate}
-              disabled={isGenerating}
-              className={`
-                        h-10 px-3 rounded-lg font-medium text-xs flex items-center gap-1 transition-all shadow-sm shrink-0
-                        ${isGenerating
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-blue-200'
-                }
-                    `}
-              title="Generar con IA"
-            >
-              <SparklesIcon className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-              {isGenerating ? '' : 'IA'}
-            </button>
-          </div>
+        {/* Row 2: Subject */}
+        <div className="w-full">
+          <Input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Asunto..."
+            className="h-10 text-sm"
+          />
         </div>
 
         <div className="flex-1 min-h-0 relative">

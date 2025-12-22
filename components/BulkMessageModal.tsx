@@ -7,15 +7,15 @@ import { Lead, WhatsAppTemplate, EmailTemplate, Profile, Licenciatura } from '..
 import { supabase } from '../lib/supabase';
 import CheckCircleIcon from './icons/CheckCircleIcon';
 import ArrowRightIcon from './icons/ChevronRightIcon';
-import EmailTemplateEditor, { EmailTemplateEditorHandle } from './common/EmailTemplateEditor'; // [FIX] Use Reusable Editor
-import PlayIcon from './icons/PlayButtonIcon'; // [FIX] Renamed to avoid ghost file specific error
-import StopIcon from './icons/PauseIcon'; // Assuming you have this or use text
-import ExclamationCircleIcon from './icons/ExclamationCircleIcon'; // For errors
-import SparklesIcon from './icons/SparklesIcon'; // [NEW] AI Icon
-import { Input } from './common/FormElements'; // [NEW] Input for AI extra instructions
-import { generateMessage } from '../utils/aiAssistant'; // [NEW] AI Function
-
-// [TODO: Ensure these icons exist or use generic replacement if strictly necessary, but sticking to standard set]
+import EmailTemplateEditor, { EmailTemplateEditorHandle } from './common/EmailTemplateEditor';
+import PlayIcon from './icons/PlayButtonIcon';
+import StopIcon from './icons/PauseIcon';
+import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
+import SparklesIcon from './icons/SparklesIcon';
+import BoltIcon from './icons/BoltIcon'; // [NEW]
+import Tooltip from './common/Tooltip'; // [NEW]
+import { Input } from './common/FormElements';
+import { generateMessage } from '../utils/aiAssistant';
 
 interface BulkMessageModalProps {
     isOpen: boolean;
@@ -24,7 +24,7 @@ interface BulkMessageModalProps {
     leads: Lead[];
     whatsappTemplates: WhatsAppTemplate[];
     emailTemplates: EmailTemplate[];
-    licenciaturas: Licenciatura[]; // [NEW] Catalog for resolving names
+    licenciaturas: Licenciatura[];
     onComplete: () => void;
     currentUser: Profile | null;
 }
@@ -42,7 +42,7 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
 }) => {
     const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [sentIds, setSentIds] = useState<Set<string>>(new Set());
-    const [failedIds, setFailedIds] = useState<Set<string>>(new Set()); // New: Track failures
+    const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
     const [sendingId, setSendingId] = useState<string | null>(null);
 
     // Bulk Send State
@@ -56,6 +56,7 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
     // AI & Custom Content State
     const [extraInstructions, setExtraInstructions] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [aiMode, setAiMode] = useState<'quick' | 'advanced'>('advanced'); // [NEW]
 
     // Editor State
     const [editorMode, setEditorMode] = useState<'basic' | 'pro'>('basic');
@@ -76,6 +77,8 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
             shouldStopRef.current = false;
             setShowSummary(false);
             setSummaryStats({ sent: 0, failed: 0 });
+            setAiMode('advanced');
+            setExtraInstructions('');
         }
     }, [isOpen]);
 
@@ -95,11 +98,9 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                 setInitialHtml(temp.body || '');
                 setInitialDesign(temp.design_json || null);
 
-                // [FIX] Auto-switch mode based on design existence
                 const newMode = temp.design_json ? 'pro' : 'basic';
                 setEditorMode(newMode);
 
-                // Force load design if needed
                 if (editorRef.current && newMode === 'pro' && temp.design_json) {
                     editorRef.current.loadDesign(temp.design_json);
                 }
@@ -108,8 +109,9 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
     }, [selectedTemplateId, mode, emailTemplates]);
 
     // [NEW] AI Generation Logic
-    const handleAiGenerate = async () => {
+    const handleAiGenerate = async (selectedAiMode: 'quick' | 'advanced') => {
         if (leads.length === 0) return;
+        setAiMode(selectedAiMode);
         setIsGenerating(true);
         try {
             // Use the first lead as a reference context
@@ -131,13 +133,12 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
             ${extraInstructions}
             `;
 
-            const text = await generateMessage(refLead, context, mode, placeholderInstruction);
+            const text = await generateMessage(refLead, context, mode === 'email' ? 'email' : 'whatsapp', placeholderInstruction, selectedAiMode);
 
             if (mode === 'email') {
                 if (editorRef.current) {
                     if (editorMode === 'pro') {
                         // Create a valid Unlayer design with the AI text
-                        // FIX: Added 'cells' and default 'values' to prevent 'reduce' error
                         const design = {
                             "body": {
                                 "rows": [
@@ -149,7 +150,7 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                                                     {
                                                         "type": "text",
                                                         "values": {
-                                                            "text": text, // The AI content
+                                                            "text": text,
                                                             "lineHeight": "140%",
                                                             "fontSize": "16px",
                                                             "textAlign": "left",
@@ -226,11 +227,10 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                     } else {
                         editorRef.current.setHtml(text);
                     }
-                    // Also update initialHtml to keep sync
                     setInitialHtml(text);
                 }
             } else {
-                // For WhatsApp, we use initialHtml as the state for the custom message (when 'blank' is selected)
+                // For WhatsApp
                 setInitialHtml(text);
             }
 
@@ -244,7 +244,6 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
 
     const getTemplateOptions = () => {
         let options = [];
-        // [NEW] Add "Blank / Create New" option first
         options.push({ value: 'blank', label: '✨ + Redactar desde cero / Nuevo' });
 
         if (mode === 'whatsapp') {
@@ -257,13 +256,12 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
 
     const getCurrentTemplate = () => {
         if (selectedTemplateId === 'blank') {
-            // Return a dummy template object so the UI thinks we have one selected
             return {
                 id: 'blank',
                 name: 'Nuevo Mensaje',
-                subject: '', // User will edit this in editor if email
+                subject: '',
                 body: '',
-                content: '' // For WhatsApp
+                content: ''
             };
         }
         if (mode === 'whatsapp') return whatsappTemplates.find(t => t.id === selectedTemplateId);
@@ -289,11 +287,10 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
         setSendingId(lead.id);
 
         try {
-            // 1. WhatsApp
             if (mode === 'whatsapp') {
                 let message = '';
                 if (selectedTemplateId === 'blank') {
-                    // Use custom message state
+                    // Use custom message state (initialHtml hack)
                     message = processText(initialHtml, lead);
                 } else {
                     const waTemplate = template as WhatsAppTemplate;
@@ -303,15 +300,6 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                 if (!message.trim()) throw new Error("Mensaje vacío");
                 const phone = cleanPhoneNumber(lead.phone);
                 const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
-
-                // For bulk sending, window.open might be blocked if not direct user action
-                // But since we are inside an async loop initiated by user, it *might* work in some browsers,
-                // mostly it will stick to popups. WhatsApp bulk via web is tricky. 
-                // However, for single clicks it works. For "Send All", WhatsApp Web API doesn't support background sending.
-                // It opens a tab. Opening 50 tabs is bad. 
-                // If mode is WhatsApp, "Send All" is dangerous/annoying UX (50 tabs).
-                // LIMITATION: "Send All" is best for Email. For WhatsApp might need a pause or manual confirmation.
-                // We will proceed for now, but user should know.
 
                 const newWindow = window.open(url, '_blank');
                 if (!newWindow && !suppressAlerts) {
@@ -330,28 +318,18 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                 setSentIds(prev => new Set(prev).add(lead.id));
                 setFailedIds(prev => {
                     const newSet = new Set(prev);
-                    newSet.delete(lead.id); // Remove from failed if success
+                    newSet.delete(lead.id);
                     return newSet;
                 });
                 return true;
             }
-            // 2. Email
+            // Email
             else {
                 const emailTemplate = template as EmailTemplate;
                 const subject = processText(emailTemplate.subject, lead);
 
-                // [FIX] Use getValues from shared editor
-                // Design values logic is tricky inside a loop if we query the editor every time.
-                // Optimization: Get HTML *once* before loop if possible. 
-                // But `processText` needs raw HTML.
-                // `handleSend` gets current value. That's fine.
                 if (!editorRef.current) throw new Error("Editor no inicializado");
 
-                // Warning: getting values from editor on every iteration is slow?
-                // Unlayer getValues is async.
-
-                // Optimization: IF handleSend is called from SendAll, maybe pass the HTML?
-                // For now, keep it simple.
                 const { html } = await editorRef.current.getValues();
                 const finalHtml = processText(html, lead);
 
@@ -388,7 +366,7 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
             }
         } catch (error: any) {
             console.error('Error al enviar:', error);
-            setFailedIds(prev => new Set(prev).add(lead.id)); // Mark as failed
+            setFailedIds(prev => new Set(prev).add(lead.id));
             if (!suppressAlerts) {
                 alert(`Error al enviar a ${lead.first_name}: ${error.message || 'Error desconocido'}`);
             }
@@ -402,14 +380,10 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
         const template = getCurrentTemplate();
         if (!template) return;
 
-        // Validation for WhatsApp: Warn about tabs
         if (mode === 'whatsapp') {
             const confirm = window.confirm("⚠️ ¿Estás seguro? Para WhatsApp, esto abrirá una nueva pestaña por cada contacto. Asegúrate de tener los popups habilitados. ¿Continuar?");
             if (!confirm) return;
         }
-
-        // Capture HTML content ONCE for efficiency if Email mode 
-        // (Actually handleSend queries editor... let's stick to reuse handleSend for reliability first)
 
         const leadsToSend = leads.filter(lead => {
             const hasContact = mode === 'whatsapp' ? lead.phone : lead.email;
@@ -424,7 +398,6 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
         setIsSendingAll(true);
         shouldStopRef.current = false;
 
-        // Browser close protection
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
             e.preventDefault();
             e.returnValue = 'El envío está en curso. ¿Seguro que quieres salir?';
@@ -436,14 +409,10 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
 
         for (const lead of leadsToSend) {
             if (shouldStopRef.current) break;
-
-            // Wait a bit to prevent UI freeze and give user chance to stop
-            // Also helps with API rate limits
             await new Promise(r => setTimeout(r, mode === 'whatsapp' ? 1000 : 500));
-
             if (shouldStopRef.current) break;
 
-            const success = await handleSend(lead, true); // suppressAlerts = true
+            const success = await handleSend(lead, true);
             if (success) successCount++;
             else failCount++;
         }
@@ -451,15 +420,8 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
         setIsSendingAll(false);
         window.removeEventListener('beforeunload', handleBeforeUnload);
 
-        if (!shouldStopRef.current) {
-            // Finished naturally
-            setSummaryStats({ sent: successCount, failed: failCount });
-            setShowSummary(true);
-        } else {
-            // Stopped manually
-            setSummaryStats({ sent: successCount, failed: failCount });
-            setShowSummary(true);
-        }
+        setSummaryStats({ sent: successCount, failed: failCount });
+        setShowSummary(true);
     };
 
     const stopSending = () => {
@@ -542,26 +504,39 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* [NEW] AI Controls */}
-                                    {template && (
-                                        <div className="flex items-end gap-2 flex-1 min-w-[250px]">
+                                    {/* AI Controls (Only for WhatsApp as Email has internal editor AI) */}
+                                    {template && mode === 'whatsapp' && (
+                                        <div className="flex items-center gap-2 flex-1 min-w-[300px]">
                                             <div className="flex-grow">
                                                 <Input
                                                     value={extraInstructions}
                                                     onChange={(e) => setExtraInstructions(e.target.value)}
-                                                    placeholder="Ej: Ofrecer 10% de beca, URGE..."
+                                                    placeholder="Ej: Oferta, Urgente..."
                                                     className="h-9 text-xs"
                                                 />
                                             </div>
-                                            <Button
-                                                size="sm"
-                                                onClick={handleAiGenerate}
-                                                disabled={isGenerating || isSendingAll}
-                                                className={`bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-sm border-none ${isGenerating ? 'opacity-50' : ''}`}
-                                            >
-                                                <SparklesIcon className={`w-3 h-3 mr-1 ${isGenerating ? 'animate-spin' : ''}`} />
-                                                {isGenerating ? '...' : 'IA'}
-                                            </Button>
+
+                                            <Tooltip content="IA Rápida: Redacción breve y directa." position="top">
+                                                <button
+                                                    onClick={() => handleAiGenerate('quick')}
+                                                    disabled={isGenerating || isSendingAll}
+                                                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5 ${isGenerating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-400 to-cyan-400 hover:from-blue-500 hover:to-cyan-500 text-white'}`}
+                                                >
+                                                    <BoltIcon className={`w-3 h-3 ${isGenerating && aiMode === 'quick' ? 'animate-spin' : ''}`} />
+                                                    IA Rápida
+                                                </button>
+                                            </Tooltip>
+
+                                            <Tooltip content="IA Avanzada: Redacción detallada y profesional." position="top">
+                                                <button
+                                                    onClick={() => handleAiGenerate('advanced')}
+                                                    disabled={isGenerating || isSendingAll}
+                                                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm transition-all transform hover:-translate-y-0.5 ${isGenerating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-purple-200 dark:shadow-none hover:shadow-md'}`}
+                                                >
+                                                    <SparklesIcon className={`w-3 h-3 ${isGenerating && aiMode === 'advanced' ? 'animate-spin' : ''}`} />
+                                                    IA Avanzada
+                                                </button>
+                                            </Tooltip>
                                         </div>
                                     )}
                                 </div>
@@ -592,8 +567,6 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                                                     <textarea
                                                         className="w-full h-full p-4 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none font-sans text-sm"
                                                         placeholder="Escribe tu mensaje de WhatsApp aquí... Usa {nombre} para personalizar."
-                                                        // We need state for this. For now let's reuse initialHtml as a hack or add 'customMessage' state.
-                                                        // Reusing initialHtml for simplicity as 'customMessage' 
                                                         value={initialHtml}
                                                         onChange={(e) => setInitialHtml(e.target.value)}
                                                     />
@@ -612,7 +585,6 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                                 </div>
                             </div>
                         </div>
-
 
                         {/* COLUMNA DERECHA: Lista de Destinatarios (1/3) */}
                         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl flex flex-col shadow-sm h-full min-h-0">

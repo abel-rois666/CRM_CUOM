@@ -228,7 +228,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div className="h-[650px] md:h-[500px] bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 transition-colors duration-300 relative">
       {/* [NEW] Report Button located top-right overlaid on Header - Positioned to clear View Switcher */}
-      <div className="absolute top-[26px] right-[340px] z-10 hidden md:block">
+      {/* [NEW] Report Button located top-right. Relative on mobile/tablet, Absolute on Large Desktop */}
+      <div className="flex justify-end mb-2 lg:mb-0 lg:absolute lg:top-[26px] lg:right-[340px] z-10">
         <Button
           variant="secondary"
           size="sm"
