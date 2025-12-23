@@ -61,10 +61,10 @@ const LeadHeader: React.FC<LeadHeaderProps> = ({
                 )}
                 <Button
                     onClick={onAddNew}
-                    className="shadow-lg shadow-brand-secondary/20 !rounded-full w-12 h-12 !p-0 flex items-center justify-center md:!rounded-xl md:w-auto md:!px-4 md:!py-2"
+                    className="shadow-lg shadow-brand-secondary/20 !rounded-full w-12 h-12 !p-0 flex items-center justify-center lg:!rounded-xl lg:w-auto lg:!px-4 lg:!py-2"
                 >
-                    <PlusIcon className="w-8 h-8 stroke-2 md:w-5 md:h-5 md:mr-2 md:stroke-[1.5]" />
-                    <span className="hidden md:inline">Nuevo Lead</span>
+                    <PlusIcon className="w-8 h-8 stroke-2 lg:w-5 lg:h-5 lg:mr-2 lg:stroke-[1.5]" />
+                    <span className="hidden lg:inline">Nuevo Lead</span>
                 </Button>
             </div>
         </div>

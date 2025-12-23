@@ -527,6 +527,7 @@ const LeadList: React.FC<LeadListProps> = ({
                                     localSearchTerm={localSearchTerm}
                                     activeFilterCount={activeFilterCount}
                                     loading={loading} // [NEW] Pass loading state
+                                    onStatusChange={handleLeadMove}
                                     onClearFilters={() => {
                                         setLocalSearchTerm('');
                                         onFilterChange({ advisorId: 'all', statusId: 'all', programId: 'all', startDate: '', endDate: '' });

@@ -5,12 +5,13 @@ interface BadgeProps {
   children: React.ReactNode;
   color?: string; // Esperamos clases de Tailwind como 'bg-blue-500'
   size?: 'sm' | 'md';
+  className?: string;
 }
 
-const Badge: React.FC<BadgeProps> = ({ children, color = 'bg-gray-500', size = 'md' }) => {
+const Badge: React.FC<BadgeProps> = ({ children, color = 'bg-gray-500', size = 'md', className = '' }) => {
   // Mapa para convertir colores sólidos antiguos a estilos "Soft" modernos
   // Ejemplo: si viene 'bg-blue-500', lo transformamos en un fondo suave con texto oscuro
-  
+
   const getColorStyle = (bgClass: string) => {
     if (bgClass.includes('red')) return 'bg-red-50 text-red-700 ring-red-600/20';
     if (bgClass.includes('blue') || bgClass.includes('sky')) return 'bg-blue-50 text-blue-700 ring-blue-700/10';
@@ -26,7 +27,7 @@ const Badge: React.FC<BadgeProps> = ({ children, color = 'bg-gray-500', size = '
   const colorClasses = getColorStyle(color);
 
   return (
-    <span className={`inline-flex items-center font-medium rounded-lg ring-1 ring-inset ${sizeClasses} ${colorClasses}`}>
+    <span className={`inline-flex items-center font-medium rounded-lg ring-1 ring-inset ${sizeClasses} ${colorClasses} ${className}`}>
       {children}
     </span>
   );

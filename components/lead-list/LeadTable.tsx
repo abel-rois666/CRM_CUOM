@@ -43,6 +43,7 @@ interface LeadTableProps {
     activeFilterCount: number;
     onClearFilters: () => void;
     loading?: boolean; // [NEW] Prop to control empty state visibility
+    onStatusChange: (id: string, newStatusId: string) => void;
 }
 
 type ColumnId = 'urgency' | 'score' | 'name' | 'advisor' | 'status' | 'program' | 'registro' | 'agenda' | 'actions' | 'email' | 'phone' | 'source' | 'last_activity';
@@ -59,13 +60,13 @@ const defaultColumns: ColumnConfig[] = [
     { id: 'urgency', label: '!', visible: true, sortKey: 'urgency', minWidth: 'w-10' },
     { id: 'score', label: 'Prob.', visible: true, sortKey: 'score', minWidth: 'w-24' },
     { id: 'name', label: 'Nombre', visible: true, sortKey: 'name' },
-    { id: 'email', label: 'Email', visible: false, sortKey: 'email' },
-    { id: 'phone', label: 'Teléfono', visible: false, sortKey: 'phone' },
+    { id: 'email', label: 'Email', visible: true, sortKey: 'email' },
+    { id: 'phone', label: 'Teléfono', visible: true, sortKey: 'phone' },
     { id: 'advisor', label: 'Asesor', visible: true, sortKey: 'advisor_id' },
-    { id: 'status', label: 'Estado', visible: true, sortKey: 'status_id' },
+    { id: 'status', label: 'Estado', visible: true, sortKey: 'status_id', minWidth: 'w-36' },
     { id: 'program', label: 'Licenciatura', visible: true, sortKey: 'program_id' },
-    { id: 'source', label: 'Origen', visible: false },
-    { id: 'last_activity', label: 'Últ. Actividad', visible: false },
+    { id: 'source', label: 'Origen', visible: true },
+    { id: 'last_activity', label: 'Últ. Actividad', visible: true },
     { id: 'registro', label: 'Registro', visible: true, sortKey: 'registration_date' },
     { id: 'agenda', label: 'Agenda', visible: true },
     { id: 'actions', label: 'Contactar', visible: true },
@@ -91,7 +92,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
     localSearchTerm,
     activeFilterCount,
     onClearFilters,
-    loading = false
+    loading = false,
+    onStatusChange
 }) => {
     // [NEW] Column Visibility Persistence
     const { preferences, updatePreferences } = usePreferences();
@@ -194,10 +196,15 @@ const LeadTable: React.FC<LeadTableProps> = ({
     };
 
     const SortableHeader: React.FC<{ config: ColumnConfig; className?: string }> = ({ config, className }) => {
-        const { label, sortKey, minWidth } = config;
+        const { label, sortKey, minWidth, id } = config;
+
+        // Sticky Logic for Name Column
+        const stickyClass = id === 'name'
+            ? 'sticky left-0 z-30 bg-gray-50/50 dark:bg-slate-700/50 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]'
+            : '';
 
         if (!sortKey) {
-            return <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${className} ${minWidth || ''}`}>{label}</th>;
+            return <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${className} ${minWidth || ''} ${stickyClass}`}>{label}</th>;
         }
 
         const isSorted = sortColumn === sortKey;
@@ -206,7 +213,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
             : <ChevronUpDownIcon className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />;
 
         return (
-            <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer group ${className} ${minWidth || ''}`} onClick={() => onSort(sortKey)}>
+            <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer group ${className} ${minWidth || ''} ${stickyClass}`} onClick={() => onSort(sortKey)}>
                 <div className="flex items-center gap-1">
                     <span className="group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">{label}</span>
                     {icon}
@@ -261,12 +268,12 @@ const LeadTable: React.FC<LeadTableProps> = ({
                 );
             case 'name':
                 return (
-                    <div className="flex items-center cursor-pointer" onClick={() => onViewDetails(lead, 'info')}>
-                        <div className="h-9 w-9 rounded-full bg-brand-secondary/10 dark:bg-blue-900/30 flex items-center justify-center text-brand-secondary dark:text-blue-400 font-bold text-sm mr-3">
+                    <div className="flex items-center cursor-pointer sticky left-0 z-20 bg-inherit w-full h-full" onClick={() => onViewDetails(lead, 'info')}>
+                        <div className="h-9 w-9 rounded-full bg-brand-secondary/10 dark:bg-blue-900/30 flex items-center justify-center text-brand-secondary dark:text-blue-400 font-bold text-sm mr-3 shrink-0">
                             {lead.first_name.charAt(0)}
                         </div>
-                        <div>
-                            <div className="text-sm font-bold text-gray-900 dark:text-white">{lead.first_name} {lead.paternal_last_name}</div>
+                        <div className="min-w-[120px]">
+                            <div className="text-sm font-bold text-gray-900 dark:text-white truncate">{lead.first_name} {lead.paternal_last_name}</div>
                         </div>
                     </div>
                 );
@@ -277,7 +284,29 @@ const LeadTable: React.FC<LeadTableProps> = ({
             case 'advisor':
                 return <span className="text-sm text-gray-600 dark:text-gray-300">{advisorMap.get(lead.advisor_id) || <span className="text-gray-400 italic">Sin asignar</span>}</span>;
             case 'status':
-                return <Badge color={statusMap.get(lead.status_id)?.color} size="sm">{statusMap.get(lead.status_id)?.name || 'Desconocido'}</Badge>;
+                return (
+                    <div className="relative group/status inline-block" onClick={(e) => e.stopPropagation()}>
+                        {/* Visual Badge - pointer-events-none so clicks pass through to the select */}
+                        <Badge color={statusMap.get(lead.status_id)?.color} size="sm" className="pointer-events-none">
+                            {statusMap.get(lead.status_id)?.name || 'Desconocido'}
+                            <ChevronDownIcon className="w-3 h-3 ml-1 inline opacity-50" />
+                        </Badge>
+                        {/* Invisible select overlaid on top for interaction */}
+                        <select
+                            name={`status-${lead.id}`}
+                            id={`status-${lead.id}`}
+                            value={lead.status_id}
+                            onChange={(e) => onStatusChange(lead.id, e.target.value)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        >
+                            {Array.from(statusMap.entries()).map(([id, s]) => (
+                                <option key={id} value={id}>
+                                    {s.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                );
             case 'program':
                 return <span className="text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate block">{licenciaturaMap.get(lead.program_id) || '-'}</span>;
             case 'source':
@@ -395,13 +424,221 @@ const LeadTable: React.FC<LeadTableProps> = ({
                 )}
             </div>
 
-            <div className="overflow-x-auto custom-scrollbar">
+            {/* RESPONSIVE LAYOUT */}
+
+            {/* 1. MOBILE & TABLET CARD VIEW (Visible < xl) */}
+            <div className="block xl:hidden p-3 space-y-4 bg-gray-50 dark:bg-slate-900/50 rounded-b-2xl">
+                {/* Mobile Selection Toolbar */}
+                <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            className="w-5 h-5 rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary cursor-pointer"
+                            checked={leads.length > 0 && leads.every(l => selectedIds.has(l.id))}
+                            onChange={onSelectAll}
+                            aria-label="Seleccionar todos en móvil"
+                        />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {selectedIds.size > 0 ? `${selectedIds.size} seleccionados` : 'Seleccionar todo'}
+                        </span>
+                    </label>
+
+                    {/* Reusing existing column config button logic if needed, or just relying on the top toolbar */}
+                </div>
+
+                <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
+                    {leads.length === 0 && !loading && (
+                        <div className="flex flex-col items-center justify-center py-10 text-center animate-fade-in col-span-full">
+                            <div className="bg-white dark:bg-slate-800 rounded-full p-4 mb-3 shadow-sm">
+                                <MagnifyingGlassIcon className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                            </div>
+                            <h3 className="text-sm font-bold text-gray-900 dark:text-white">No hay leads</h3>
+                            <p className="text-xs text-gray-400 mt-1">Intenta ajustar tus filtros.</p>
+                            {(activeFilterCount > 0 || localSearchTerm) && (
+                                <button onClick={onClearFilters} className="mt-4 text-xs font-semibold text-brand-secondary underline">
+                                    Limpiar Filtros
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {leads.map(lead => {
+                        const urgency = getLeadUrgency(lead);
+                        const statusObj = statusMap.get(lead.status_id);
+                        const score = calculateLeadScore(lead, statusObj ? [{ id: lead.status_id, ...statusObj }] : []);
+                        const scoreColor = getScoreColor(score);
+
+                        // Calculate Last Activity Date
+                        const lastNote = lead.follow_ups?.length ? new Date(Math.max(...lead.follow_ups.map(f => new Date(f.date).getTime()))) : null;
+                        const lastAppt = lead.appointments?.length ? new Date(Math.max(...lead.appointments.map(a => new Date(a.date).getTime()))) : null;
+                        const activityDates = [lastNote, lastAppt, new Date(lead.registration_date)].filter(Boolean) as Date[];
+                        const lastActivityDate = new Date(Math.max(...activityDates.map(d => d.getTime())));
+
+                        return (
+                            <div key={lead.id} className={`bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden ${selectedIds.has(lead.id) ? 'ring-2 ring-brand-secondary/50' : ''}`}>
+                                {/* Selection Overlay (Tap active area) */}
+                                <div className="absolute top-4 right-4 z-10">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds.has(lead.id)}
+                                        onChange={() => onSelectOne(lead.id)}
+                                        className="w-5 h-5 rounded-full border-gray-300 text-brand-secondary focus:ring-brand-secondary"
+                                        aria-label={`Seleccionar lead ${lead.first_name}`}
+                                    />
+                                </div>
+
+                                {/* Urgency Indicator Strip */}
+                                {urgency > 0 && columns.find(c => c.id === 'urgency')?.visible && (
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${urgency === 3 ? 'bg-red-500' : 'bg-amber-400'}`} />
+                                )}
+
+                                {/* Header: Avatar & Name */}
+                                <div className="flex items-start gap-3 pr-8 mb-3" onClick={() => onViewDetails(lead, 'info')}>
+                                    <div className="h-10 w-10 rounded-full bg-brand-secondary/10 dark:bg-blue-900/20 flex items-center justify-center text-brand-secondary dark:text-blue-400 font-bold shrink-0">
+                                        {lead.first_name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">
+                                            {lead.first_name} {lead.paternal_last_name}
+                                        </h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {columns.find(c => c.id === 'status')?.visible && (
+                                                <Badge color={statusObj?.color} size="sm">{statusObj?.name || 'Estado'}</Badge>
+                                            )}
+                                            {columns.find(c => c.id === 'score')?.visible && (
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border ${scoreColor}`}>
+                                                    {score}%
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Key Details Grid - Respecting Column Visibility */}
+                                <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs text-gray-500 dark:text-gray-400 mb-4 pl-2 border-l-2 border-gray-100 dark:border-slate-700 ml-3">
+                                    {columns.find(c => c.id === 'program')?.visible && (
+                                        <div>
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-400">Programa</span>
+                                            <span className="font-medium text-gray-700 dark:text-gray-300 truncate block">
+                                                {licenciaturaMap.get(lead.program_id) || '-'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {columns.find(c => c.id === 'advisor')?.visible && (
+                                        <div>
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-400">Asesor</span>
+                                            <span className="font-medium text-gray-700 dark:text-gray-300 truncate block">
+                                                {advisorMap.get(lead.advisor_id) ?? 'Sin asignar'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {columns.find(c => c.id === 'email')?.visible && (
+                                        <div className="col-span-2 sm:col-span-1">
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-400">Email</span>
+                                            <span className="font-medium text-gray-700 dark:text-gray-300 truncate block" title={lead.email}>
+                                                {lead.email || '-'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {columns.find(c => c.id === 'phone')?.visible && (
+                                        <div>
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-400">Teléfono</span>
+                                            <span className="font-medium text-gray-700 dark:text-gray-300 truncate block">
+                                                {lead.phone || '-'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {columns.find(c => c.id === 'source')?.visible && (
+                                        <div>
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-400">Origen</span>
+                                            <span className="font-medium text-gray-700 dark:text-gray-300 truncate block">
+                                                {sourceMap.get(lead.source_id) || 'Desconocido'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {columns.find(c => c.id === 'last_activity')?.visible && (
+                                        <div>
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-400">Últ. Actividad</span>
+                                            <span className="font-medium text-gray-700 dark:text-gray-300 truncate block">
+                                                {lastActivityDate.toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {columns.find(c => c.id === 'registro')?.visible && (
+                                        <div>
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-400">Registro</span>
+                                            <span className="font-medium">{new Date(lead.registration_date).toLocaleDateString()}</span>
+                                        </div>
+                                    )}
+
+                                    {/* Appointments / Agenda Shortcut */}
+                                    {columns.find(c => c.id === 'agenda')?.visible && (
+                                        <div className="flex items-center col-span-2 mt-1">
+                                            {lead.appointments?.some(a => a.status === 'scheduled') && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onViewDetails(lead, 'appointments'); }}
+                                                    className="flex items-center gap-1 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full"
+                                                >
+                                                    <CalendarIcon className="w-3 h-3" />
+                                                    <span className="font-bold">Cita</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Action Bar */}
+                                {columns.find(c => c.id === 'actions')?.visible && (
+                                    <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-slate-700">
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => onOpenWhatsApp(lead)}
+                                                className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
+                                            >
+                                                <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                                            </button>
+                                            {lead.email && (
+                                                <button
+                                                    onClick={() => onOpenEmail(lead)}
+                                                    className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
+                                                >
+                                                    <EnvelopeIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => onEdit(lead)}
+                                                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-300"
+                                            >
+                                                Editar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* 2. DESKTOP TABLE VIEW (Visible >= xl) */}
+            <div className="hidden xl:block overflow-x-auto custom-scrollbar">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-transparent">
                     <thead className="bg-gray-50/50 dark:bg-slate-700/50 sticky top-0 z-20">
                         <tr>
                             <th scope="col" className="px-4 py-4 text-left w-10">
                                 <input
                                     type="checkbox"
+                                    id="select-all-leads"
+                                    name="select-all-leads"
+                                    aria-label="Seleccionar todos los leads"
                                     checked={leads.length > 0 && leads.every(l => selectedIds.has(l.id))}
                                     onChange={onSelectAll}
                                     className="w-4 h-4 rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary cursor-pointer"
@@ -440,6 +677,9 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                     <td className="px-4 py-4 whitespace-nowrap">
                                         <input
                                             type="checkbox"
+                                            id={`checkbox-${lead.id}`}
+                                            name={`checkbox-${lead.id}`}
+                                            aria-label={`Seleccionar lead ${lead.first_name}`}
                                             checked={selectedIds.has(lead.id)}
                                             onChange={() => onSelectOne(lead.id)}
                                             className="w-4 h-4 rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary cursor-pointer"
@@ -447,7 +687,10 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                     </td>
 
                                     {columns.filter(c => c.visible).map(col => (
-                                        <td key={col.id} className="px-6 py-4 whitespace-nowrap">
+                                        <td
+                                            key={col.id}
+                                            className={`px-6 py-4 whitespace-nowrap ${col.id === 'name' ? 'sticky left-0 z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                                        >
                                             {renderCell(lead, col.id)}
                                         </td>
                                     ))}
