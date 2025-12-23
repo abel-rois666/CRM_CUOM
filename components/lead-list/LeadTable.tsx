@@ -386,6 +386,9 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                         handleColumnChange(newCols);
                                     }}
                                     className="rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary mr-2 w-4 h-4 cursor-pointer"
+                                    id="select-all-columns"
+                                    name="select-all-columns"
+                                    aria-label="Mostrar todas las columnas"
                                 />
                                 <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Todo</span>
                             </label>
@@ -408,10 +411,13 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                     <label className="flex-1 flex items-center cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
                                         <input
                                             type="checkbox"
+                                            id={`col-visibility-${col.id}`}
+                                            name={`col-visibility-${col.id}`}
                                             checked={col.visible}
                                             onChange={() => toggleColumn(col.id)}
                                             disabled={col.id === 'name'}
                                             className="rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary mr-3 w-4 h-4 cursor-pointer"
+                                            aria-label={`Alternar visibilidad de columna ${col.label}`}
                                         />
                                         <span className={`text-sm ${col.visible ? 'text-gray-700 dark:text-gray-200 font-medium' : 'text-gray-400 line-through'}`}>
                                             {col.label}
@@ -433,6 +439,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input
                             type="checkbox"
+                            id="mobile-select-all"
+                            name="mobile-select-all"
                             className="w-5 h-5 rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary cursor-pointer"
                             checked={leads.length > 0 && leads.every(l => selectedIds.has(l.id))}
                             onChange={onSelectAll}
@@ -480,6 +488,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                 <div className="absolute top-4 right-4 z-10">
                                     <input
                                         type="checkbox"
+                                        id={`mobile-select-${lead.id}`}
+                                        name={`mobile-select-${lead.id}`}
                                         checked={selectedIds.has(lead.id)}
                                         onChange={() => onSelectOne(lead.id)}
                                         className="w-5 h-5 rounded-full border-gray-300 text-brand-secondary focus:ring-brand-secondary"

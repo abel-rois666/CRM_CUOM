@@ -119,6 +119,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
         </div>
 
         <Select
+          id="whatsapp-template-select"
           label="Cargar Plantilla"
           value={selectedTemplateId}
           onChange={handleTemplateChange}
@@ -131,6 +132,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
           <div className="flex items-end gap-2">
             <div className="flex-grow">
               <Input
+                id="whatsapp-extra-instructions"
                 value={extraInstructions}
                 onChange={(e) => setExtraInstructions(e.target.value)}
                 placeholder="Ej: Ofrece 10% de beca, Sé formal..."
@@ -162,6 +164,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
           </div>
 
           <TextArea
+            id="whatsapp-message"
             label="Mensaje"
             value={message}
             onChange={(e) => { setMessage(e.target.value); setGeneratedLink(null); }}

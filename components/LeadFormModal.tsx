@@ -197,6 +197,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
             <Input
               label="Nombre(s)"
               {...register('first_name')}
+              autoComplete="given-name"
               error={errors.first_name?.message}
               placeholder="Ej. María"
               // Keep TitleCase behavior on Blur
@@ -207,6 +208,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
             <Input
               label="Apellido Paterno"
               {...register('paternal_last_name')}
+              autoComplete="family-name"
               error={errors.paternal_last_name?.message}
               placeholder="Ej. López"
               onBlur={(e) => {
@@ -218,6 +220,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
             <Input
               label="Apellido Materno"
               {...register('maternal_last_name')}
+              autoComplete="family-name"
               error={errors.maternal_last_name?.message}
               placeholder="Opcional"
               onBlur={(e) => {
@@ -247,6 +250,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
                 label="Teléfono / WhatsApp"
                 type="tel"
                 {...register('phone')}
+                autoComplete="tel"
                 error={errors.phone?.message}
                 placeholder="10 dígitos"
                 maxLength={10} // HTML Constraint
@@ -259,6 +263,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
                 label="Correo Electrónico"
                 type="email"
                 {...register('email')}
+                autoComplete="email"
                 error={errors.email?.message}
                 placeholder="correo@ejemplo.com"
                 className={duplicateWarning?.includes('correo') ? 'border-amber-400 ring-1 ring-amber-400' : ''}

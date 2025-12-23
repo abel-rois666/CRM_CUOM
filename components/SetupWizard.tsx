@@ -165,8 +165,8 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
                             <p className="text-sm text-gray-500">Esto aparecerá en el encabezado y reportes.</p>
                         </div>
 
-                        <Input label="Nombre de la Universidad" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej. Universidad Central" />
-                        <Input label="Eslogan o Subtítulo" value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="Ej. Admisiones 2024" />
+                        <Input id="setup-company-name" label="Nombre de la Universidad" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej. Universidad Central" />
+                        <Input id="setup-subtitle" label="Eslogan o Subtítulo" value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="Ej. Admisiones 2024" />
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Logotipo</label>
@@ -195,8 +195,9 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
                             <h3 className="text-xl font-bold text-gray-800 dark:text-white">Ajustes del Sistema</h3>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Zona Horaria</label>
+                            <label htmlFor="setup-timezone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Zona Horaria</label>
                             <select
+                                id="setup-timezone"
                                 value={timezone}
                                 onChange={(e) => setTimezone(e.target.value)}
                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none transition-all"

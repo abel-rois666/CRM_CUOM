@@ -195,11 +195,12 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             <form onSubmit={handleCreateUser} className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 space-y-4 shadow-sm">
                 <h4 className="font-semibold text-gray-700 dark:text-gray-300">Crear Nuevo Usuario</h4>
 
-                <Input label="Nombre Completo" value={fullName} onChange={e => setFullName(e.target.value)} required />
-                <Input label="Correo Electrónico" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-                <Input label="Contraseña Inicial" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres" />
+                <Input id="new-user-fullname" label="Nombre Completo" value={fullName} onChange={e => setFullName(e.target.value)} required />
+                <Input id="new-user-email" label="Correo Electrónico" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                <Input id="new-user-password" label="Contraseña Inicial" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} placeholder="Mínimo 6 caracteres" />
 
                 <Select
+                    id="new-user-role"
                     label="Rol"
                     value={role}
                     onChange={e => setRole(e.target.value as any)}
@@ -459,6 +460,8 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 
                 <div className="grid grid-cols-1 gap-4">
                     <Input
+                        id="status-name"
+                        name="status-name"
                         label="Nombre del Estado"
                         value={name}
                         onChange={e => setName(e.target.value)}
@@ -470,6 +473,8 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
                             <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">Color</label>
                             {/* Select manual estilizado para coincidir con Input */}
                             <select
+                                id="status-color"
+                                name="status-color"
                                 value={color}
                                 onChange={e => setColor(e.target.value)}
                                 className="block w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary cursor-pointer"
@@ -480,6 +485,8 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
                         </div>
                         <div>
                             <Select
+                                id="status-category"
+                                name="status-category"
                                 label="Categoría"
                                 value={category}
                                 onChange={e => setCategory(e.target.value as StatusCategory)}
@@ -624,6 +631,9 @@ const SourceSettings: React.FC<{ sources: Source[], onSourcesUpdate: (sources: S
                     </h4>
                     <div className="flex gap-2 items-end">
                         <Input
+                            id="source-name"
+                            name="source-name"
+                            aria-label="Nombre del Origen"
                             value={name}
                             onChange={e => setName(e.target.value)}
                             placeholder="Nombre del Origen (Ej: Facebook, Google)"
@@ -778,6 +788,9 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
                 <div className="flex flex-col sm:flex-row gap-3 items-end">
                     <div className="flex-grow w-full">
                         <Input
+                            id="licenciatura-name"
+                            name="licenciatura-name"
+                            aria-label="Nombre de la Licenciatura"
                             value={name}
                             onChange={e => setName(e.target.value)}
                             placeholder="Nombre de la Licenciatura / Programa"
@@ -1018,6 +1031,8 @@ const WhatsappTemplateSettings: React.FC<{
                 <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
                 <div className="space-y-4">
                     <Input
+                        id="whatsapp-template-name"
+                        name="whatsapp-template-name"
                         label="Nombre de la Plantilla"
                         value={name}
                         onChange={e => setName(e.target.value)}
@@ -1066,6 +1081,8 @@ const WhatsappTemplateSettings: React.FC<{
                     </div>
 
                     <TextArea
+                        id="whatsapp-template-content"
+                        name="whatsapp-template-content"
                         value={content}
                         onChange={e => setContent(e.target.value)}
                         placeholder="Hola, te contacto para..."
@@ -1344,14 +1361,18 @@ const EmailTemplateSettings: React.FC<{
                 <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{editingId ? 'Editar Plantilla' : 'Nueva Plantilla'}</h4>
                 <div className="space-y-4">
                     <Input
+                        id="email-template-name"
+                        name="email-template-name"
                         label="Nombre de la Plantilla"
                         value={name}
                         onChange={e => setName(e.target.value)}
                         placeholder="Ej: Bienvenida"
                     />
                     <Input
+                        id="email-template-subject"
+                        name="email-template-subject"
                         label="Asunto del Correo"
-                        value={subject}
+                        value={name}
                         onChange={e => setSubject(e.target.value)}
                         placeholder="Bienvenido a la universidad..."
                     />
@@ -1640,16 +1661,22 @@ const PersonalizationSettings: React.FC = () => {
             <div className="p-5 border border-gray-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800 shadow-sm space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
+                        id="company-name"
+                        name="company-name"
                         label="Nombre de la Empresa"
                         value={name}
                         onChange={e => setName(e.target.value)}
                         placeholder="Ej: Mi Universidad"
+                        autoComplete="organization"
                     />
                     <Input
+                        id="company-subtitle"
+                        name="company-subtitle"
                         label="Subtítulo / Slogan"
                         value={subtitle}
                         onChange={e => setSubtitle(e.target.value)}
                         placeholder="Ej: Panel Administrativo"
+                        autoComplete="off"
                     />
                 </div>
 
@@ -1661,6 +1688,8 @@ const PersonalizationSettings: React.FC = () => {
                         </div>
                         <div className="flex-1">
                             <input
+                                id="logo-upload"
+                                name="logo-upload"
                                 type="file"
                                 accept="image/*"
                                 onChange={handleLogoUpload}
@@ -1698,6 +1727,8 @@ const PersonalizationSettings: React.FC = () => {
                     {/* Timezone */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Select
+                            id="timezone-select"
+                            name="timezone"
                             label="Zona Horaria"
                             value={timezone}
                             onChange={e => setTimezone(e.target.value)}

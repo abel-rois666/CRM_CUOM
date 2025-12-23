@@ -72,6 +72,7 @@ export interface Database {
           email: string
           full_name: string
           role: 'admin' | 'advisor' | 'moderator'
+          preferences: Json | null
           created_at: string
         }
         Insert: {
@@ -79,6 +80,7 @@ export interface Database {
           email: string
           full_name: string
           role?: 'admin' | 'advisor' | 'moderator'
+          preferences?: Json
           created_at?: string
         }
         Update: {
@@ -86,6 +88,7 @@ export interface Database {
           email?: string
           full_name?: string
           role?: 'admin' | 'advisor' | 'moderator'
+          preferences?: Json
           created_at?: string
         }
       }
@@ -278,6 +281,29 @@ export interface Database {
           company_subtitle?: string
           logo_url?: string | null
           created_at?: string
+        }
+      }
+      status_categories: {
+        Row: {
+          key: string
+          label: string
+          icon: string
+          color: string
+          order_index: number
+        }
+        Insert: {
+          key: string
+          label: string
+          icon: string
+          color: string
+          order_index?: number
+        }
+        Update: {
+          key?: string
+          label?: string
+          icon?: string
+          color?: string
+          order_index?: number
         }
       }
     }

@@ -68,6 +68,8 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
 
                             <input
                                 type="text"
+                                id="server-search"
+                                name="server-search"
                                 className="block w-full pl-11 pr-4 py-3 border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-brand-secondary/10 focus:border-brand-secondary transition-all text-sm"
                                 placeholder="Buscar en el servidor (Nombre, Email, Tel)..."
                                 value={localSearchTerm}

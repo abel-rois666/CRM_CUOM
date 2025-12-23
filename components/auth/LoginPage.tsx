@@ -40,27 +40,27 @@ const LoginPage: React.FC = () => {
 
       <div className="relative w-full max-w-md bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-8 animate-scale-in">
         <div className="text-center mb-8">
-          
+
           {/* LOGO MEJORADO: Más grande y con mejor distribución */}
           <div className="flex justify-center mb-6">
             <div className="relative w-36 h-36 group transition-transform duration-300 hover:scale-105">
-                {/* Efecto de resplandor suave detrás del logo */}
-                <div className="absolute -inset-4 bg-brand-secondary/20 rounded-full blur-xl opacity-40 group-hover:opacity-60 transition duration-500"></div>
-                
-                <img 
-                  src={logoCuom} 
-                  alt="Logo CUOM" 
-                  className="relative w-full h-full rounded-full shadow-xl object-cover bg-white ring-4 ring-white"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
-                
-                {/* Fallback por si la imagen falla */}
-                <div className="hidden w-full h-full rounded-full bg-gray-100 flex items-center justify-center ring-4 ring-white shadow-inner">
-                    <span className="text-gray-400 font-bold text-xl">CUOM</span>
-                </div>
+              {/* Efecto de resplandor suave detrás del logo */}
+              <div className="absolute -inset-4 bg-brand-secondary/20 rounded-full blur-xl opacity-40 group-hover:opacity-60 transition duration-500"></div>
+
+              <img
+                src={logoCuom}
+                alt="Logo CUOM"
+                className="relative w-full h-full rounded-full shadow-xl object-cover bg-white ring-4 ring-white"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+
+              {/* Fallback por si la imagen falla */}
+              <div className="hidden w-full h-full rounded-full bg-gray-100 flex items-center justify-center ring-4 ring-white shadow-inner">
+                <span className="text-gray-400 font-bold text-xl">CUOM</span>
+              </div>
             </div>
           </div>
 
@@ -71,7 +71,7 @@ const LoginPage: React.FC = () => {
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 ml-1">
+            <label htmlFor="email" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 ml-1">
               Correo Electrónico
             </label>
             <input
@@ -86,7 +86,7 @@ const LoginPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 ml-1">
+            <label htmlFor="password" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 ml-1">
               Contraseña
             </label>
             <input
@@ -99,13 +99,13 @@ const LoginPage: React.FC = () => {
               placeholder="••••••••"
             />
           </div>
-          
+
           {error && (
             <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm flex items-start">
-                <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {error === 'Invalid login credentials' ? 'Credenciales incorrectas.' : error}
+              <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {error === 'Invalid login credentials' ? 'Credenciales incorrectas.' : error}
             </div>
           )}
 
@@ -113,10 +113,10 @@ const LoginPage: React.FC = () => {
             {loading ? 'Verificando...' : 'Iniciar Sesión'}
           </Button>
         </form>
-        
+
         {/* Footer */}
         <div className="mt-8 text-center border-t border-gray-100 pt-6">
-            <p className="text-xs text-gray-400 font-medium">© 2025 CRM CUOM. Todos los derechos reservados.</p>
+          <p className="text-xs text-gray-400 font-medium">© 2025 CRM CUOM. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>

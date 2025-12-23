@@ -9,15 +9,18 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, className = '', ...props }, ref) => {
+    const elementId = props.id || props.name;
+
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">
+          <label htmlFor={elementId} className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">
             {label} {props.required && <span className="text-red-500">*</span>}
           </label>
         )}
         <input
           ref={ref}
+          id={elementId}
           title={props.value as string}
           className={`
             block w-full px-4 py-2.5 
@@ -51,17 +54,19 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, options, placeholder, className = '', ...props }, ref) => {
     const selectedLabel = options.find(o => String(o.value) === String(props.value))?.label || props.value;
+    const elementId = props.id || props.name;
 
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">
+          <label htmlFor={elementId} className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">
             {label} {props.required && <span className="text-red-500">*</span>}
           </label>
         )}
         <div className="relative">
-            <select
+          <select
             ref={ref}
+            id={elementId}
             title={selectedLabel as string}
             className={`
                 block w-full pl-4 pr-10 py-2.5 
@@ -76,21 +81,21 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
                 ${className}
             `}
             {...props}
-            >
+          >
             {placeholder && <option value="" disabled className="text-gray-400 dark:text-gray-500">{placeholder}</option>}
-            
+
             {options.map((opt) => (
-                <option key={opt.value} value={opt.value}>
+              <option key={opt.value} value={opt.value}>
                 {opt.label}
-                </option>
+              </option>
             ))}
-            </select>
-            {/* Flecha personalizada */}
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-            </div>
+          </select>
+          {/* Flecha personalizada */}
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
         {error && <p className="mt-1 text-xs text-red-500 font-medium ml-1">{error}</p>}
       </div>
@@ -101,22 +106,24 @@ Select.displayName = 'Select';
 
 // --- TEXTAREA ---
 interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-    label?: string;
-    error?: string;
+  label?: string;
+  error?: string;
 }
 
 export const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
-    ({ label, error, className = '', ...props }, ref) => {
-      return (
-        <div className="w-full">
-          {label && (
-            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">
-              {label} {props.required && <span className="text-red-500">*</span>}
-            </label>
-          )}
-          <textarea
-            ref={ref}
-            className={`
+  ({ label, error, className = '', ...props }, ref) => {
+    const elementId = props.id || props.name;
+    return (
+      <div className="w-full">
+        {label && (
+          <label htmlFor={elementId} className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">
+            {label} {props.required && <span className="text-red-500">*</span>}
+          </label>
+        )}
+        <textarea
+          ref={ref}
+          id={elementId}
+          className={`
               block w-full px-4 py-3 
               bg-white dark:bg-slate-900
               border border-gray-200 dark:border-slate-700
@@ -127,11 +134,11 @@ export const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
               ${error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}
               ${className}
             `}
-            {...props}
-          />
-          {error && <p className="mt-1 text-xs text-red-500 font-medium ml-1">{error}</p>}
-        </div>
-      );
-    }
-  );
+          {...props}
+        />
+        {error && <p className="mt-1 text-xs text-red-500 font-medium ml-1">{error}</p>}
+      </div>
+    );
+  }
+);
 TextArea.displayName = 'TextArea';

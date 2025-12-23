@@ -1,4 +1,5 @@
 
+// @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const MAILRELAY_API_URL = 'https://cuom1.ipzmarketing.com/api/v1/send_emails';

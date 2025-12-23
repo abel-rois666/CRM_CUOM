@@ -26,9 +26,12 @@ const LeadPagination: React.FC<LeadPaginationProps> = ({
 
             <div className="flex items-center gap-3 sm:gap-4 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-end">
                 <select
+                    id="page-size-select"
+                    name="page-size-select"
                     value={pageSize}
                     onChange={e => onPageSizeChange(Number(e.target.value))}
                     className="border border-gray-300 dark:border-slate-600 rounded-md text-sm px-2 py-1.5 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 focus:ring-brand-secondary focus:border-brand-secondary"
+                    aria-label="Resultados por página"
                 >
                     <option value={10}>10 por pág</option>
                     <option value={20}>20 por pág</option>

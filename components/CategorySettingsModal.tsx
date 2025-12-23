@@ -106,6 +106,9 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, o
                                 </label>
                                 <input
                                     type="text"
+                                    id={`cat-label-${index}`}
+                                    name={`cat-label-${index}`}
+                                    autoComplete="off"
                                     value={cat.label}
                                     onChange={(e) => handleChange(index, 'label', e.target.value)}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
@@ -118,6 +121,8 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, o
                                     Ícono
                                 </label>
                                 <select
+                                    id={`cat-icon-${index}`}
+                                    name={`cat-icon-${index}`}
                                     value={cat.icon}
                                     onChange={(e) => handleChange(index, 'icon', e.target.value)}
                                     className="w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-lg"
@@ -135,6 +140,8 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, o
                                     Color
                                 </label>
                                 <select
+                                    id={`cat-color-${index}`}
+                                    name={`cat-color-${index}`}
                                     value={cat.color}
                                     onChange={(e) => handleChange(index, 'color', e.target.value)}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"

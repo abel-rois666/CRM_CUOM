@@ -62,7 +62,7 @@ const AlertsModal: React.FC<AlertsModalProps> = ({ userProfile }) => {
     if (!alerts) return null;
 
     return (
-        <Modal isOpen={isOpen} onClose={handleClose} title="Resumen de Pendientes Diarios" maxWidth="max-w-md">
+        <Modal isOpen={isOpen} onClose={handleClose} title="Resumen de Pendientes Diarios">
             <div className="space-y-4">
                 <p className="text-gray-600 dark:text-gray-300">
                     Hola <strong>{userProfile?.full_name}</strong>, aquí tienes un resumen de tus prioridades para hoy:

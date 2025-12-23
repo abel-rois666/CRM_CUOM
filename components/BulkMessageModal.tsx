@@ -494,6 +494,9 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                                         </h4>
                                         <div className="flex-1 max-w-sm">
                                             <Select
+                                                id="bulk-template-selector"
+                                                name="bulk-template-selector"
+                                                aria-label="Seleccionar plantilla"
                                                 label=""
                                                 value={selectedTemplateId}
                                                 onChange={e => setSelectedTemplateId(e.target.value)}
@@ -509,6 +512,9 @@ const BulkMessageModal: React.FC<BulkMessageModalProps> = ({
                                         <div className="flex items-center gap-2 flex-1 min-w-[300px]">
                                             <div className="flex-grow">
                                                 <Input
+                                                    id="bulk-extra-instructions"
+                                                    name="bulk-extra-instructions"
+                                                    aria-label="Instrucciones extra para IA"
                                                     value={extraInstructions}
                                                     onChange={(e) => setExtraInstructions(e.target.value)}
                                                     placeholder="Ej: Oferta, Urgente..."
