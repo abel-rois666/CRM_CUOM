@@ -204,7 +204,9 @@ const LeadTable: React.FC<LeadTableProps> = ({
             : '';
 
         if (!sortKey) {
-            return <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${className} ${minWidth || ''} ${stickyClass}`}>{label}</th>;
+            const isUrgency = id === 'urgency';
+            const headerLabel = isUrgency ? <span className="sr-only">Urgencia</span> : label;
+            return <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${className} ${minWidth || ''} ${stickyClass}`}>{isUrgency ? <span aria-hidden="true">!</span> : null}{headerLabel}</th>;
         }
 
         const isSorted = sortColumn === sortKey;
@@ -215,7 +217,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
         return (
             <th scope="col" className={`px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer group ${className} ${minWidth || ''} ${stickyClass}`} onClick={() => onSort(sortKey)}>
                 <div className="flex items-center gap-1">
-                    <span className="group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">{label}</span>
+                    <span className="group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">{id === 'urgency' ? <span aria-label="Ordenar por Urgencia">!</span> : label}</span>
                     {icon}
                 </div>
             </th>
@@ -251,8 +253,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
         switch (colId) {
             case 'urgency':
                 const urgencyLevel = getLeadUrgency(lead);
-                if (urgencyLevel === 3) return <div className="flex justify-center"><BellAlertIcon className="w-5 h-5 text-red-600 animate-pulse" title="Cita inminente (<48h)" /></div>;
-                if (urgencyLevel === 2) return <div className="flex justify-center"><ExclamationCircleIcon className="w-5 h-5 text-amber-500" title="Requiere Atención (Sin seguimiento)" /></div>;
+                if (urgencyLevel === 3) return <div className="flex justify-center"><BellAlertIcon className="w-5 h-5 text-red-600 animate-pulse" title="Cita inminente (<48h)" role="img" aria-label="Cita inminente" /></div>;
+                if (urgencyLevel === 2) return <div className="flex justify-center"><ExclamationCircleIcon className="w-5 h-5 text-amber-500" title="Requiere Atención (Sin seguimiento)" role="img" aria-label="Requiere atención" /></div>;
                 return null;
             case 'score':
                 const statusObj = statusMap.get(lead.status_id);
@@ -289,7 +291,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
                         {/* Visual Badge - pointer-events-none so clicks pass through to the select */}
                         <Badge color={statusMap.get(lead.status_id)?.color} size="sm" className="pointer-events-none">
                             {statusMap.get(lead.status_id)?.name || 'Desconocido'}
-                            <ChevronDownIcon className="w-3 h-3 ml-1 inline opacity-50" />
+                            <ChevronDownIcon className="w-3 h-3 ml-1 inline opacity-50" aria-hidden="true" />
                         </Badge>
                         {/* Invisible select overlaid on top for interaction */}
                         <select
@@ -343,11 +345,11 @@ const LeadTable: React.FC<LeadTableProps> = ({
             case 'actions':
                 return (
                     <div className="flex items-center justify-center space-x-3 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => onOpenWhatsApp(lead)} className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors hover:bg-green-50 dark:hover:bg-green-900/30 p-1 rounded-md">
+                        <button onClick={() => onOpenWhatsApp(lead)} aria-label={`Enviar WhatsApp a ${lead.first_name}`} className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors hover:bg-green-50 dark:hover:bg-green-900/30 p-1 rounded-md">
                             <ChatBubbleLeftRightIcon className="w-5 h-5" />
                         </button>
                         {lead.email && (
-                            <button onClick={() => onOpenEmail(lead)} className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1 rounded-md">
+                            <button onClick={() => onOpenEmail(lead)} aria-label={`Enviar Email a ${lead.first_name}`} className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1 rounded-md">
                                 <EnvelopeIcon className="w-5 h-5" />
                             </button>
                         )}
@@ -368,7 +370,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
                     className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-500 dark:text-gray-400 border border-transparent hover:border-gray-200 dark:hover:border-slate-600 transition-all shadow-sm bg-white dark:bg-slate-800"
                     title="Gestionar Columnas"
                 >
-                    <SlidersIcon className="w-5 h-5" />
+                    <SlidersIcon className="w-5 h-5" aria-hidden="true" />
                 </button>
 
                 {isMenuOpen && (
@@ -644,6 +646,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
                     <thead className="bg-gray-50/50 dark:bg-slate-700/50 sticky top-0 z-20">
                         <tr>
                             <th scope="col" className="px-4 py-4 text-left w-10">
+                                <label htmlFor="select-all-leads" className="sr-only">Seleccionar todos los leads</label>
                                 <input
                                     type="checkbox"
                                     id="select-all-leads"
@@ -660,7 +663,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
                             ))}
 
                             <th scope="col" className="relative px-6 py-3 w-20"><span className="sr-only">Editar</span></th>
-                            <th scope="col" className="px-2 w-10"></th>
+                            <th scope="col" className="px-2 w-10"><span className="sr-only">Indicadores</span></th>
                         </tr>
                     </thead>
 
@@ -707,8 +710,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
 
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex justify-end space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => onEdit(lead)} className="text-gray-400 dark:text-gray-500 hover:text-brand-secondary dark:hover:text-blue-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700"><EditIcon className="w-4 h-4" /></button>
-                                            <button onClick={() => onDeleteClick(lead.id)} className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"><TrashIcon className="w-4 h-4" /></button>
+                                            <button onClick={() => onEdit(lead)} aria-label={`Editar ${lead.first_name}`} className="text-gray-400 dark:text-gray-500 hover:text-brand-secondary dark:hover:text-blue-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700"><EditIcon className="w-4 h-4" /></button>
+                                            <button onClick={() => onDeleteClick(lead.id)} aria-label={`Eliminar ${lead.first_name}`} className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"><TrashIcon className="w-4 h-4" /></button>
                                         </div>
                                     </td>
                                     <td></td>

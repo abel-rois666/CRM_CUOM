@@ -180,7 +180,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
                                 )}
                                 <label className="cursor-pointer bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 transition-colors">
                                     Subir Imagen
-                                    <input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                                    <input id="wizard-logo-upload" name="wizard-logo-upload" type="file" className="hidden" accept="image/*" onChange={(e) => {
                                         if (e.target.files?.[0]) handleLogoUpload(e.target.files[0]);
                                     }} />
                                 </label>
@@ -215,7 +215,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, currentUser }) =>
                                 <p className="text-xs text-gray-500">Notificar a asesores al iniciar sesión.</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" className="sr-only peer" checked={notificationsEnabled} onChange={e => setNotificationsEnabled(e.target.checked)} />
+                                <input id="wizard-notifications" name="wizard-notifications" type="checkbox" className="sr-only peer" checked={notificationsEnabled} onChange={e => setNotificationsEnabled(e.target.checked)} />
                                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-primary/20 dark:peer-focus:ring-brand-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                             </label>
                         </div>

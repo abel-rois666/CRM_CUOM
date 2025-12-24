@@ -47,7 +47,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, userProfile, onLogout }
 
             {/* 1. Centro de Notificaciones */}
             <div className="border-r border-white/10 pr-2 sm:pr-4 mr-2 flex items-center gap-1">
-              <ThemeToggle /> {/* Coloca el botón aquí */}
+              <ThemeToggle />
               <NotificationDropdown userId={userProfile?.id} />
             </div>
 

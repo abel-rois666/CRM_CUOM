@@ -131,6 +131,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full sm:w-auto bg-gray-100/50 dark:bg-slate-700/50 p-1 rounded-xl">
                     <button
                         onClick={() => setActiveTab('agenda')}
+                        aria-label="Ver Indicadores de Atención"
                         className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'agenda' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
                         <ListBulletIcon className="w-4 h-4" />
@@ -138,6 +139,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                     </button>
                     <button
                         onClick={() => setActiveTab('analytics')}
+                        aria-label="Ver Métricas Globales"
                         className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'analytics' ? 'bg-white dark:bg-slate-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
                         <ChartBarIcon className="w-4 h-4" />
@@ -145,13 +147,18 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                     </button>
                     <button
                         onClick={() => setActiveTab('evaluation')}
+                        aria-label="Ver Evaluación de Asesores"
                         className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'evaluation' ? 'bg-white dark:bg-slate-600 text-brand-primary dark:text-blue-300 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-brand-primary dark:hover:text-blue-300'}`}
                     >
                         <SparklesIcon className="w-4 h-4" />
                         Evaluación Asesores
                     </button>
                 </div>
-                <button className="text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 p-2 rounded-full transition-colors self-end sm:self-auto" onClick={() => setIsExpanded(!isExpanded)}>
+                <button
+                    className="text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 p-2 rounded-full transition-colors self-end sm:self-auto"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    aria-label={isExpanded ? "Contraer estadísticas" : "Expandir estadísticas"}
+                >
                     <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
             </div>
@@ -174,7 +181,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                                         <p className={`text-4xl font-black tracking-tight ${activeFilter === 'appointments_today' ? 'text-blue-700 dark:text-blue-400' : 'text-gray-800 dark:text-white'}`}>
                                             {stats.appointmentsToday}
                                         </p>
-                                        <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mt-2">Eventos programados</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-2">Eventos programados</p>
                                     </div>
                                     <div className={`p-3 rounded-xl transition-colors ${stats.appointmentsToday > 0 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-slate-500'}`}>
                                         <CalendarIcon className="w-6 h-6" />
@@ -252,7 +259,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                     )}
 
                     {activeTab === 'analytics' && (
-                        <div className="space-y-8 animate-fade-in">
+                        <div className="space-y-8">
                             {/* Analytics View */}
                             {/* Analytics View */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -277,9 +284,9 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm min-w-0">
                                     <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Distribución por Estado</h4>
-                                    <div className="h-64 w-full" style={{ minHeight: '250px' }}>
+                                    <div className="w-full relative min-w-0" style={{ height: '250px', width: '100%' }}>
                                         {stats.statusData.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={200}>
                                                 <PieChart>
                                                     <Pie data={stats.statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                                                         {stats.statusData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="none" />))}
@@ -304,9 +311,9 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
 
                                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm min-w-0">
                                     <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">Leads por Asesor</h4>
-                                    <div className="h-64 w-full" style={{ minHeight: '250px' }}>
+                                    <div className="w-full relative min-w-0" style={{ height: '250px', width: '100%' }}>
                                         {stats.advisorData.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={200}>
                                                 <BarChart data={stats.advisorData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.2} />
                                                     <XAxis type="number" hide />

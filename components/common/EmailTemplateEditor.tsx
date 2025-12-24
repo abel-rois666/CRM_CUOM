@@ -206,19 +206,47 @@ const EmailTemplateEditor = forwardRef<EmailTemplateEditorHandle, EmailTemplateE
             <div className="flex-1 bg-white dark:bg-slate-800 relative min-h-[600px]">
                 {mode === 'basic' ? (
                     <>
+                        {/* Custom Toolbar Definition to fix Accessibility Issues */}
+                        <div id="quill-toolbar-container" className="rounded-t-lg bg-gray-50 border-b border-gray-200 dark:border-slate-600 dark:bg-slate-700">
+                            <span className="ql-formats">
+                                <select className="ql-header" defaultValue="" aria-label="Encabezado" title="Encabezado">
+                                    <option value="1">Encabezado 1</option>
+                                    <option value="2">Encabezado 2</option>
+                                    <option value="3">Encabezado 3</option>
+                                    <option value="">Normal</option>
+                                </select>
+                            </span>
+                            <span className="ql-formats">
+                                <button className="ql-bold" aria-label="Negrita" title="Negrita" type="button" />
+                                <button className="ql-italic" aria-label="Cursiva" title="Cursiva" type="button" />
+                                <button className="ql-underline" aria-label="Subrayado" title="Subrayado" type="button" />
+                                <button className="ql-link" aria-label="Enlace" title="Enlace" type="button" />
+                                <button className="ql-blockquote" aria-label="Cita" title="Cita" type="button" />
+                            </span>
+                            <span className="ql-formats">
+                                <button className="ql-list" value="ordered" aria-label="Lista ordenada" title="Lista ordenada" type="button" />
+                                <button className="ql-list" value="bullet" aria-label="Lista con viñetas" title="Lista con viñetas" type="button" />
+                            </span>
+                            <span className="ql-formats">
+                                <select className="ql-color" aria-label="Color de texto" title="Color de texto" />
+                                <select className="ql-background" aria-label="Color de fondo" title="Color de fondo" />
+                            </span>
+                            <span className="ql-formats">
+                                <select className="ql-align" aria-label="Alineación" title="Alineación" />
+                            </span>
+                            <span className="ql-formats">
+                                <button className="ql-clean" aria-label="Limpiar formato" title="Limpiar formato" type="button" />
+                            </span>
+                        </div>
+
                         <ReactQuill
                             theme="snow"
                             value={htmlContent}
                             onChange={setHtmlContent}
                             modules={{
-                                toolbar: [
-                                    [{ 'header': [1, 2, 3, false] }],
-                                    ['bold', 'italic', 'underline', 'link', 'blockquote'],
-                                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                                    [{ 'color': [] }, { 'background': [] }],
-                                    [{ 'align': [] }],
-                                    ['clean']
-                                ]
+                                toolbar: {
+                                    container: "#quill-toolbar-container",
+                                }
                             }}
                             className="h-full flex flex-col ql-container-flex"
                         />

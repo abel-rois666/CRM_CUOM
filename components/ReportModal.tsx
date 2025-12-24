@@ -501,10 +501,10 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             <div className={`space-y-6 ${isExporting ? 'pointer-events-none' : ''}`}>
                 <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-4 items-end">
                     <div className="w-full sm:flex-1">
-                        <Input label="Desde" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                        <Input id="report-start-date" label="Desde" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
                     </div>
                     <div className="w-full sm:flex-1">
-                        <Input label="Hasta" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        <Input id="report-end-date" label="Hasta" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
                     </div>
                     <Button onClick={handleGenerateReport} className="w-full sm:w-auto shadow-md">
                         <ChartBarIcon className="w-5 h-5 mr-2" />

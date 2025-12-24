@@ -29,7 +29,8 @@ import SparklesIcon from './icons/SparklesIcon';
 import { TIMEZONE_OPTIONS } from '../utils/constants';
 import EmailTemplateEditor, { EmailTemplateEditorHandle } from './common/EmailTemplateEditor';
 import { useConfig } from '../context/ConfigContext';
-import Tooltip from './common/Tooltip'; // [FIX] Import added
+import Tooltip from './common/Tooltip';
+import { generateMessage } from '../utils/aiAssistant'; // [FIX] Import added
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -470,7 +471,7 @@ const StatusSettings: React.FC<{ statuses: Status[], onStatusesUpdate: (statuses
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">Color</label>
+                            <label htmlFor="status-color" className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1.5 ml-1">Color</label>
                             {/* Select manual estilizado para coincidir con Input */}
                             <select
                                 id="status-color"
@@ -1039,7 +1040,7 @@ const WhatsappTemplateSettings: React.FC<{
                         placeholder="Ej: Saludo Inicial"
                     />
                     <div className="flex justify-between items-end mb-1.5">
-                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide ml-1">
+                        <label htmlFor="whatsapp-template-content" className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide ml-1">
                             CONTENIDO DEL MENSAJE <span className="text-red-500">*</span>
                         </label>
 
@@ -1407,10 +1408,10 @@ const EmailTemplateSettings: React.FC<{
                         <div className="flex justify-between items-start mb-2">
                             <h5 className="font-bold text-gray-800 dark:text-white text-sm">{t.name}</h5>
                             <div className="flex gap-1">
-                                <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
+                                <button onClick={() => handleEdit(t)} aria-label={`Editar plantilla ${t.name}`} title="Editar" className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
                                     <EditIcon className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => setTemplateToDelete(t)} className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
+                                <button onClick={() => setTemplateToDelete(t)} aria-label={`Eliminar plantilla ${t.name}`} title="Eliminar" className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
                                     <TrashIcon className="w-4 h-4" />
                                 </button>
                             </div>
@@ -1681,7 +1682,7 @@ const PersonalizationSettings: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Logotipo</label>
+                    <label htmlFor="logo-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Logotipo</label>
                     <div className="flex items-center gap-4">
                         <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 flex items-center justify-center overflow-hidden">
                             {logoUrl ? <img src={logoUrl} alt="Logo Preview" className="w-full h-full object-cover" /> : <CameraIcon className="w-6 h-6 text-gray-400" />}
@@ -1737,7 +1738,7 @@ const PersonalizationSettings: React.FC = () => {
 
                         <div className="flex items-center justify-between p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-900/50">
                             <div>
-                                <label className="block text-sm font-medium text-gray-900 dark:text-white">Recordatorios de Pendientes</label>
+                                <label htmlFor="toggle-notif" className="block text-sm font-medium text-gray-900 dark:text-white">Recordatorios de Pendientes</label>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">Notificar a asesores al iniciar sesión.</p>
                             </div>
                             <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">

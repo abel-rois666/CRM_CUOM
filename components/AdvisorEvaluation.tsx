@@ -42,8 +42,8 @@ const calculateHeuristicAnalysis = (m: AdvisorMetric) => {
     summary += `• Conversión: ${conversionRate}% (${m.enrolled}/${m.totalLeads})\n`;
     summary += `• Intensidad: ${interactionRatio} interacciones/lead\n`;
 
-    if (m.overdueFollowUps > 5) {
-        summary += `⚠️ ALERTA: ${m.overdueFollowUps} seguimientos vencidos.\n`;
+    if (m.overdueFollowUps > 0) {
+        summary += `⚠️ Atención: ${m.overdueFollowUps} seguimiento${m.overdueFollowUps > 1 ? 's' : ''} vencido${m.overdueFollowUps > 1 ? 's' : ''}.\n`;
     } else {
         summary += `✅ Agenda al día.\n`;
     }

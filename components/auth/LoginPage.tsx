@@ -24,7 +24,7 @@ const LoginPage: React.FC = () => {
     if (error) {
       setError(error.message);
     } else if (data.user) {
-      await supabase.from('login_history').insert({
+      await (supabase as any).from('login_history').insert({
         user_id: data.user.id,
         user_agent: navigator.userAgent,
       });
@@ -33,7 +33,7 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-br from-slate-900 via-brand-primary to-slate-900">
+    <main className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-br from-slate-900 via-brand-primary to-slate-900">
       {/* Elementos decorativos de fondo */}
       <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-brand-secondary/20 rounded-full blur-3xl"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
@@ -66,7 +66,7 @@ const LoginPage: React.FC = () => {
 
           {/* Textos */}
           <h1 className="text-2xl font-bold text-gray-900">Bienvenido al CRM del CUOM</h1>
-          <p className="text-gray-500 text-sm mt-2">Ingresa tus credenciales para acceder al sistema</p>
+          <p className="text-gray-800 text-sm mt-2">Ingresa tus credenciales para acceder al sistema</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-5">
@@ -116,10 +116,10 @@ const LoginPage: React.FC = () => {
 
         {/* Footer */}
         <div className="mt-8 text-center border-t border-gray-100 pt-6">
-          <p className="text-xs text-gray-400 font-medium">© 2025 CRM CUOM. Todos los derechos reservados.</p>
+          <p className="text-xs text-gray-500 font-medium">© 2025 CRM CUOM. Todos los derechos reservados.</p>
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 
