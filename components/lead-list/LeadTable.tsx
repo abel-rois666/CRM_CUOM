@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Lead } from '../../types';
-import { calculateLeadScore, getScoreColor, getScoreBreakdown } from '../../utils/leadScoring';
+import { calculateLeadScore, getScoreColor, getScoreBreakdown, getLeadUrgency } from '../../utils/leadScoring';
 import Badge from '../common/Badge';
+import LeadRow from './LeadRow'; // [NEW] Memoized Row
 import { usePreferences } from '../../hooks/usePreferences';
 import BellAlertIcon from '../icons/BellAlertIcon';
 import ExclamationCircleIcon from '../icons/ExclamationCircleIcon';
@@ -224,141 +225,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
         )
     };
 
-    const getLeadUrgency = (lead: Lead) => {
-        const status = statusMap.get(lead.status_id);
-        if (status?.category !== 'active') return 0;
-        if (lead.appointments?.some(a => a.status === 'scheduled')) {
-            const activeAppt = lead.appointments.find(a => a.status === 'scheduled');
-            if (activeAppt) {
-                const apptDate = new Date(activeAppt.date);
-                const now = new Date();
-                const hoursDiff = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-                if (hoursDiff > 0 && hoursDiff <= 48) return 3;
-                return 1;
-            }
-        }
-        const regDate = new Date(lead.registration_date);
-        const now = new Date();
-        const daysSinceReg = (now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24);
-        if ((!lead.follow_ups || lead.follow_ups.length === 0) && daysSinceReg > 3) return 2;
-        if (lead.follow_ups && lead.follow_ups.length > 0) {
-            const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-            const daysSinceFollowUp = (now.getTime() - new Date(lastFollowUp.date).getTime()) / (1000 * 60 * 60 * 24);
-            if (daysSinceFollowUp > 7) return 2;
-        }
-        return 0;
-    };
 
-    const renderCell = (lead: Lead, colId: ColumnId) => {
-        switch (colId) {
-            case 'urgency':
-                const urgencyLevel = getLeadUrgency(lead);
-                if (urgencyLevel === 3) return <div className="flex justify-center"><BellAlertIcon className="w-5 h-5 text-red-600 animate-pulse" title="Cita inminente (<48h)" role="img" aria-label="Cita inminente" /></div>;
-                if (urgencyLevel === 2) return <div className="flex justify-center"><ExclamationCircleIcon className="w-5 h-5 text-amber-500" title="Requiere Atención (Sin seguimiento)" role="img" aria-label="Requiere atención" /></div>;
-                return null;
-            case 'score':
-                const statusObj = statusMap.get(lead.status_id);
-                const statusesContext = statusObj ? [{ id: lead.status_id, ...statusObj }] : [];
-                const score = calculateLeadScore(lead, statusesContext);
-                const colorClass = getScoreColor(score);
-                return (
-                    <div className="flex justify-center">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${colorClass} cursor-help`} title={getScoreBreakdown(lead, statusesContext)}>
-                            {score}%
-                        </span>
-                    </div>
-                );
-            case 'name':
-                return (
-                    <div className="flex items-center cursor-pointer sticky left-0 z-20 bg-inherit w-full h-full" onClick={() => onViewDetails(lead, 'info')}>
-                        <div className="h-9 w-9 rounded-full bg-brand-secondary/10 dark:bg-blue-900/30 flex items-center justify-center text-brand-secondary dark:text-blue-400 font-bold text-sm mr-3 shrink-0">
-                            {lead.first_name.charAt(0)}
-                        </div>
-                        <div className="min-w-[120px]">
-                            <div className="text-sm font-bold text-gray-900 dark:text-white truncate">{lead.first_name} {lead.paternal_last_name}</div>
-                        </div>
-                    </div>
-                );
-            case 'email':
-                return <span className="text-sm text-gray-600 dark:text-gray-300">{lead.email || '-'}</span>;
-            case 'phone':
-                return <span className="text-sm text-gray-600 dark:text-gray-300">{lead.phone || '-'}</span>;
-            case 'advisor':
-                return <span className="text-sm text-gray-600 dark:text-gray-300">{advisorMap.get(lead.advisor_id) || <span className="text-gray-400 italic">Sin asignar</span>}</span>;
-            case 'status':
-                return (
-                    <div className="relative group/status inline-block" onClick={(e) => e.stopPropagation()}>
-                        {/* Visual Badge - pointer-events-none so clicks pass through to the select */}
-                        <Badge color={statusMap.get(lead.status_id)?.color} size="sm" className="pointer-events-none">
-                            {statusMap.get(lead.status_id)?.name || 'Desconocido'}
-                            <ChevronDownIcon className="w-3 h-3 ml-1 inline opacity-50" aria-hidden="true" />
-                        </Badge>
-                        {/* Invisible select overlaid on top for interaction */}
-                        <select
-                            name={`status-${lead.id}`}
-                            id={`status-${lead.id}`}
-                            value={lead.status_id}
-                            onChange={(e) => onStatusChange(lead.id, e.target.value)}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        >
-                            {Array.from(statusMap.entries()).map(([id, s]) => (
-                                <option key={id} value={id}>
-                                    {s.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                );
-            case 'program':
-                return <span className="text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate block">{licenciaturaMap.get(lead.program_id) || '-'}</span>;
-            case 'source':
-                return <span className="text-sm text-gray-500 dark:text-gray-400">{sourceMap.get(lead.source_id) || 'Desconocido'}</span>;
-            case 'last_activity':
-                // Calcular fecha más reciente de notas o citas
-                const lastNote = lead.follow_ups?.length ? new Date(Math.max(...lead.follow_ups.map(f => new Date(f.date).getTime()))) : null;
-                const lastAppt = lead.appointments?.length ? new Date(Math.max(...lead.appointments.map(a => new Date(a.date).getTime()))) : null;
-                const dates = [lastNote, lastAppt, new Date(lead.registration_date)].filter(Boolean) as Date[];
-                const lastDate = new Date(Math.max(...dates.map(d => d.getTime())));
-
-                return (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {lastDate.toLocaleDateString()}
-                    </div>
-                );
-            case 'registro':
-                return (
-                    <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-                        <ClockIcon className="w-3 h-3" />
-                        {new Date(lead.registration_date).toLocaleDateString()}
-                    </div>
-                );
-            case 'agenda':
-                return lead.appointments?.some(a => a.status === 'scheduled') ? (
-                    <div className="flex justify-center">
-                        <button onClick={() => onViewDetails(lead, 'appointments')} className="text-emerald-500 hover:scale-110 transition-transform" title="Cita Programada">
-                            <CalendarIcon className="w-5 h-5" />
-                        </button>
-                    </div>
-                ) : (
-                    <div className="flex justify-center"><span className="text-gray-300 dark:text-gray-600 text-xs">•</span></div>
-                );
-            case 'actions':
-                return (
-                    <div className="flex items-center justify-center space-x-3 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => onOpenWhatsApp(lead)} aria-label={`Enviar WhatsApp a ${lead.first_name}`} className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors hover:bg-green-50 dark:hover:bg-green-900/30 p-1 rounded-md">
-                            <ChatBubbleLeftRightIcon className="w-5 h-5" />
-                        </button>
-                        {lead.email && (
-                            <button onClick={() => onOpenEmail(lead)} aria-label={`Enviar Email a ${lead.first_name}`} className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1 rounded-md">
-                                <EnvelopeIcon className="w-5 h-5" />
-                            </button>
-                        )}
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
 
     return (
         <div className="bg-white dark:bg-slate-800 shadow-sm rounded-2xl border border-gray-200 dark:border-slate-700 flex flex-col relative">
@@ -473,8 +340,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
                     )}
 
                     {leads.map(lead => {
-                        const urgency = getLeadUrgency(lead);
                         const statusObj = statusMap.get(lead.status_id);
+                        const urgency = getLeadUrgency(lead, statusObj);
                         const score = calculateLeadScore(lead, statusObj ? [{ id: lead.status_id, ...statusObj }] : []);
                         const scoreColor = getScoreColor(score);
 
@@ -668,56 +535,25 @@ const LeadTable: React.FC<LeadTableProps> = ({
                     </thead>
 
                     <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-100 dark:divide-none">
-                        {leads.map((lead) => {
-                            const urgencyLevel = getLeadUrgency(lead);
-
-                            let rowClasses = "group hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200 border-b border-transparent dark:border-slate-800";
-
-                            if (urgencyLevel === 3) {
-                                rowClasses = "group bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 border-l-4 border-red-500";
-                            } else if (urgencyLevel === 2) {
-                                rowClasses = "group bg-amber-50/30 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20 border-l-4 border-amber-400";
-                            } else {
-                                rowClasses += " border-l-4 border-transparent";
-                            }
-
-                            if (selectedIds.has(lead.id)) {
-                                rowClasses += " bg-blue-50 dark:bg-blue-900/20";
-                            }
-
-                            return (
-                                <tr key={lead.id} className={rowClasses}>
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                        <input
-                                            type="checkbox"
-                                            id={`checkbox-${lead.id}`}
-                                            name={`checkbox-${lead.id}`}
-                                            aria-label={`Seleccionar lead ${lead.first_name}`}
-                                            checked={selectedIds.has(lead.id)}
-                                            onChange={() => onSelectOne(lead.id)}
-                                            className="w-4 h-4 rounded border-gray-300 text-brand-secondary focus:ring-brand-secondary cursor-pointer"
-                                        />
-                                    </td>
-
-                                    {columns.filter(c => c.visible).map(col => (
-                                        <td
-                                            key={col.id}
-                                            className={`px-6 py-4 whitespace-nowrap ${col.id === 'name' ? 'sticky left-0 z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
-                                        >
-                                            {renderCell(lead, col.id)}
-                                        </td>
-                                    ))}
-
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex justify-end space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => onEdit(lead)} aria-label={`Editar ${lead.first_name}`} className="text-gray-400 dark:text-gray-500 hover:text-brand-secondary dark:hover:text-blue-400 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700"><EditIcon className="w-4 h-4" /></button>
-                                            <button onClick={() => onDeleteClick(lead.id)} aria-label={`Eliminar ${lead.first_name}`} className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"><TrashIcon className="w-4 h-4" /></button>
-                                        </div>
-                                    </td>
-                                    <td></td>
-                                </tr>
-                            )
-                        })}
+                        {leads.map((lead) => (
+                            <LeadRow
+                                key={lead.id}
+                                lead={lead}
+                                columns={columns}
+                                isSelected={selectedIds.has(lead.id)}
+                                onSelectOne={onSelectOne}
+                                advisorMap={advisorMap}
+                                statusMap={statusMap}
+                                licenciaturaMap={licenciaturaMap}
+                                sourceMap={sourceMap}
+                                onViewDetails={onViewDetails}
+                                onOpenWhatsApp={onOpenWhatsApp}
+                                onOpenEmail={onOpenEmail}
+                                onEdit={onEdit}
+                                onDeleteClick={onDeleteClick}
+                                onStatusChange={onStatusChange}
+                            />
+                        ))}
                         {/* [MODIFIED] Only show empty state if NOT loading. If loading, showing nothing here (or a spinner) is better to avoid flash. */}
                         {!loading && leads.length === 0 && (
                             <tr>

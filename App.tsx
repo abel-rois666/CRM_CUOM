@@ -63,21 +63,17 @@ const AppContent: React.FC = () => {
     checkSetupStatus
   } = useCRMData(session, profile?.role, profile?.id);
 
-  // Estados de UI
-  const [isLeadFormOpen, setLeadFormOpen] = useState(false);
-  const [isDetailViewOpen, setDetailViewOpen] = useState(false);
-  const [isSettingsOpen, setSettingsOpen] = useState(false);
-  const [isReportModalOpen, setReportModalOpen] = useState(false);
-  const [isWhatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [isBulkImportOpen, setBulkImportOpen] = useState(false);
-  const [isAutomationChoiceOpen, setIsAutomationChoiceOpen] = useState(false);
+  const { modals, openModal, closeModal, updateModalData } = useModal(); // [NEW]
+
+  // [REMOVED] Estados de UI locales
+  // const [isLeadFormOpen, setLeadFormOpen] = useState(false);
+  // ... (all removed)
 
   // Estado Setup Wizard
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
 
-  const [clearSelectionSignal, setClearSelectionSignal] = useState(0); // [NEW] Signal for LeadList
+  const [clearSelectionSignal, setClearSelectionSignal] = useState(0);
 
   // [NEW] Check Setup Status on Load
   React.useEffect(() => {
@@ -95,17 +91,14 @@ const AppContent: React.FC = () => {
     }
   }, [session, profile, loadingData, checkSetupStatus]);
 
-  const [detailInitialTab, setDetailInitialTab] = useState<'info' | 'activity' | 'appointments'>('info');
+  // [REMOVED] detailInitialTab & selectedLead... (moved to modal data)
+  const [automationLead, setAutomationLead] = useState<Lead | null>(null); // Keep locally for now as it's transient before modal logic
+  // Actually automationLead IS used for AutomationChoiceModal. I can use modal data for that too.
 
-  // Estados de Selección
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [selectedLeadForWhatsApp, setSelectedLeadForWhatsApp] = useState<Lead | null>(null);
-  const [selectedLeadForEmail, setSelectedLeadForEmail] = useState<Lead | null>(null);
-  const [automationLead, setAutomationLead] = useState<Lead | null>(null);
-  const [lastUpdatedLead, setLastUpdatedLead] = useState<Lead | null>(null); // [NEW] Sync State
+  const [lastUpdatedLead, setLastUpdatedLead] = useState<Lead | null>(null);
 
-  const [initialEmailTemplateId, setInitialEmailTemplateId] = useState<string | undefined>(undefined);
-  const [initialWhatsAppTemplateId, setInitialWhatsAppTemplateId] = useState<string | undefined>(undefined);
+  // [REMOVED] initialEmailTemplateId etc. (Use modal data)
+
 
   const assignableStaff = profiles.filter(p =>
     p.role === 'advisor' || p.role === 'moderator' || p.role === 'admin'
@@ -127,20 +120,19 @@ const AppContent: React.FC = () => {
 
   // --- MANEJADORES DE UI ---
 
+  // --- MANEJADORES DE UI ---
+
   const handleAddNew = () => {
-    setSelectedLead(null);
-    setLeadFormOpen(true);
+    openModal('leadForm', null);
   };
 
   const handleEdit = (lead: Lead) => {
-    setSelectedLead(lead);
-    setLeadFormOpen(true);
+    openModal('leadForm', lead);
   };
 
   const handleViewDetails = async (lead: Lead, tab: 'info' | 'activity' | 'appointments' = 'info') => {
-    setDetailInitialTab(tab);
-    setSelectedLead(lead);
-    setDetailViewOpen(true);
+    // Optimistic open
+    openModal('detailView', { lead, initialTab: tab });
 
     const { data, error } = await supabase
       .from('leads')
@@ -156,7 +148,8 @@ const AppContent: React.FC = () => {
     if (error) {
       console.error("Error fetching lead details", error);
     } else {
-      setSelectedLead(data);
+      // Update with full data
+      updateModalData('detailView', { lead: data, initialTab: tab });
     }
   };
 
@@ -166,27 +159,26 @@ const AppContent: React.FC = () => {
     const status = statuses.find(s => s.id === newStatusId);
     if (status && status.name.toLowerCase().includes('inscrito')) {
       setTimeout(() => {
-        setAutomationLead(lead);
-        setIsAutomationChoiceOpen(true);
+        // We can pass data to automationChoice modal directly
+        openModal('automationChoice', lead);
         success("¡Inscripción registrada! Elige cómo dar la bienvenida.");
       }, 500);
     }
   };
 
   const handleAutomationChoice = (channel: 'email' | 'whatsapp') => {
-    if (!automationLead) return;
-    setIsAutomationChoiceOpen(false);
+    const lead = modals.automationChoice.data; // Retrieve from modal state
+    if (!lead) return;
+    closeModal('automationChoice');
 
     if (channel === 'email') {
       const welcomeTemplate = emailTemplates.find(t => t.name.toLowerCase().includes('bienvenida'));
-      setSelectedLeadForEmail(automationLead);
-      setInitialEmailTemplateId(welcomeTemplate?.id);
-      setIsEmailModalOpen(true);
+      // Open Email Modal with data
+      openModal('email', { lead, initialTemplateId: welcomeTemplate?.id });
     } else {
       const welcomeTemplate = whatsappTemplates.find(t => t.name.toLowerCase().includes('bienvenida') || t.name.toLowerCase().includes('saludo'));
-      setSelectedLeadForWhatsApp(automationLead);
-      setInitialWhatsAppTemplateId(welcomeTemplate?.id);
-      setWhatsAppModalOpen(true);
+      // Open WhatsApp Modal with data
+      openModal('whatsapp', { lead, initialTemplateId: welcomeTemplate?.id });
     }
   };
 
@@ -234,6 +226,12 @@ const AppContent: React.FC = () => {
       }
 
       updateLocalLead(updatedLead);
+
+      // Sync detail view if open
+      if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadIdToEdit) {
+        updateModalData('detailView', { ...modals.detailView.data, lead: updatedLead });
+      }
+
       success("Lead actualizado.");
 
     } else {
@@ -265,7 +263,7 @@ const AppContent: React.FC = () => {
         checkAndTriggerAutomation(leadData.status_id, fullNewLead);
       }
     }
-    setLeadFormOpen(false);
+    closeModal('leadForm');
   };
 
   const handleUpdateLeadDetails = async (leadId: string, updates: any) => {
@@ -306,8 +304,10 @@ const AppContent: React.FC = () => {
     };
 
     updateLocalLead(updatedLeadComplete as Lead);
-    if (selectedLead?.id === leadId) {
-      setSelectedLead(updatedLeadComplete as Lead);
+
+    // Sync detail view
+    if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadId) {
+      updateModalData('detailView', { ...modals.detailView.data, lead: updatedLeadComplete });
     }
 
     setLastUpdatedLead(updatedLeadComplete as Lead);
@@ -343,10 +343,16 @@ const AppContent: React.FC = () => {
 
       if (profile?.role === 'advisor' && profile.id !== newAdvisorId) {
         removeLocalLead(leadId);
-        setDetailViewOpen(false);
+        // Close detail if open for this lead
+        if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadId) {
+          closeModal('detailView');
+        }
       } else {
         updateLocalLead(updated);
-        if (selectedLead?.id === leadId) setSelectedLead(updated);
+        // Sync detail view
+        if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadId) {
+          updateModalData('detailView', { ...modals.detailView.data, lead: updated });
+        }
       }
       success("Lead transferido.");
     }
@@ -371,9 +377,11 @@ const AppContent: React.FC = () => {
     }
 
     // Actualizar el modal de detalles si está abierto
-    if (selectedLead?.id === leadId && data) {
+    if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadId && data) {
       const newFollowUp = { ...data, created_by: profile };
-      setSelectedLead(prev => prev ? ({ ...prev, follow_ups: [...(prev.follow_ups || []), newFollowUp] }) : null);
+      const prevLead = modals.detailView.data.lead;
+      const updatedLead = { ...prevLead, follow_ups: [...(prevLead.follow_ups || []), newFollowUp] };
+      updateModalData('detailView', { ...modals.detailView.data, lead: updatedLead });
     }
     success("Nota guardada.");
   };
@@ -395,8 +403,11 @@ const AppContent: React.FC = () => {
       const up = { ...l, follow_ups: (l.follow_ups || []).filter(f => f.id !== followUpId) };
       updateLocalLead(up);
     }
-    if (selectedLead?.id === leadId) {
-      setSelectedLead(prev => prev ? ({ ...prev, follow_ups: (prev.follow_ups || []).filter(f => f.id !== followUpId) }) : null);
+    // Sync detail
+    if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadId) {
+      const prevLead = modals.detailView.data.lead;
+      const updatedLead = { ...prevLead, follow_ups: (prevLead.follow_ups || []).filter((f: any) => f.id !== followUpId) };
+      updateModalData('detailView', { ...modals.detailView.data, lead: updatedLead });
     }
     success("Nota eliminada.");
   };
@@ -422,8 +433,6 @@ const AppContent: React.FC = () => {
 
     const l = leads.find(l => l.id === leadId);
     if (l && savedAppointment) {
-      // [FIX] Merge with old appointment to preserve status if missing, though select('*') should have it.
-      // Also preserve created_by if we don't want to overwrite it visually (though payload updated it).
       const oldAppt = l.appointments?.find(a => a.id === savedAppointment.id) || {} as any;
 
       const apptWithProfile = {
@@ -445,23 +454,22 @@ const AppContent: React.FC = () => {
       updateLocalLead(up);
     }
 
-    if (selectedLead?.id === leadId && savedAppointment) {
-      setSelectedLead(prev => {
-        if (!prev) return null;
+    // Sync detail
+    if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadId && savedAppointment) {
+      const prevLead = modals.detailView.data.lead;
+      const oldAppt = prevLead.appointments?.find((a: any) => a.id === savedAppointment.id) || {} as any;
+      const apptWithProfile = {
+        ...oldAppt,
+        ...savedAppointment,
+        status: savedAppointment.status || oldAppt.status || 'scheduled',
+        created_by: profile
+      };
 
-        const oldAppt = prev.appointments?.find(a => a.id === savedAppointment.id) || {} as any;
-        const apptWithProfile = {
-          ...oldAppt,
-          ...savedAppointment,
-          status: savedAppointment.status || oldAppt.status || 'scheduled', // [FIX] Robust fallback
-          created_by: profile
-        };
+      let newApps = prevLead.appointments || [];
+      if (appointmentIdToEdit) newApps = newApps.map((a: any) => a.id === appointmentIdToEdit ? apptWithProfile : a);
+      else newApps = [...newApps, apptWithProfile];
 
-        let newApps = prev.appointments || [];
-        if (appointmentIdToEdit) newApps = newApps.map(a => a.id === appointmentIdToEdit ? apptWithProfile : a);
-        else newApps = [...newApps, apptWithProfile];
-        return { ...prev, appointments: newApps };
-      });
+      updateModalData('detailView', { ...modals.detailView.data, lead: { ...prevLead, appointments: newApps } });
     }
   };
 
@@ -477,12 +485,12 @@ const AppContent: React.FC = () => {
       updateLocalLead(up);
     }
 
-    if (selectedLead?.id === leadId && data) {
+    // Sync detail
+    if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadId && data) {
       const apptWithProfile = { ...data, created_by: profile };
-      setSelectedLead(prev => {
-        if (!prev) return null;
-        return { ...prev, appointments: (prev.appointments || []).map(a => a.id === appointmentId ? { ...a, ...apptWithProfile } : a) };
-      });
+      const prevLead = modals.detailView.data.lead;
+      const newApps = (prevLead.appointments || []).map((a: any) => a.id === appointmentId ? { ...a, ...apptWithProfile } : a);
+      updateModalData('detailView', { ...modals.detailView.data, lead: { ...prevLead, appointments: newApps } });
     }
 
     status === 'completed' ? success("Completada.") : info("Cancelada.");
@@ -517,13 +525,11 @@ const AppContent: React.FC = () => {
       updateLocalLead(up);
     }
 
-    if (selectedLead?.id === leadId) {
-      // [LOGGING] Update selectedLead too
-      setSelectedLead(prev => {
-        if (!prev) return null;
-        const newApps = (prev.appointments || []).map(a => a.id === appointmentId ? { ...a, ...updatedAppt } : a);
-        return { ...prev, appointments: newApps };
-      });
+    // Sync detail
+    if (modals.detailView.isOpen && modals.detailView.data?.lead?.id === leadId) {
+      const prevLead = modals.detailView.data.lead;
+      const newApps = (prevLead.appointments || []).map((a: any) => a.id === appointmentId ? { ...a, ...updatedAppt } : a);
+      updateModalData('detailView', { ...modals.detailView.data, lead: { ...prevLead, appointments: newApps } });
     }
 
     success("Cita eliminada (movida a historial).");
@@ -531,7 +537,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors duration-300">
-      <Header onOpenSettings={() => { setSettingsOpen(true); setClearSelectionSignal(p => p + 1); }} userProfile={profile} onLogout={signOut} />
+      <Header onOpenSettings={() => { openModal('settings'); setClearSelectionSignal(p => p + 1); }} userProfile={profile} onLogout={signOut} />
       <main>
         <LeadList
           loading={loadingData || loadingLeads}
@@ -555,45 +561,42 @@ const AppContent: React.FC = () => {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onViewDetails={handleViewDetails}
-          onOpenReports={() => { setReportModalOpen(true); setClearSelectionSignal(p => p + 1); }}
-          onOpenImport={() => { setBulkImportOpen(true); setClearSelectionSignal(p => p + 1); }}
+          onOpenReports={() => { openModal('report'); setClearSelectionSignal(p => p + 1); }}
+          onOpenImport={() => { openModal('bulkImport'); setClearSelectionSignal(p => p + 1); }}
           onOpenWhatsApp={(lead) => {
-            setSelectedLeadForWhatsApp(lead);
-            setInitialWhatsAppTemplateId(undefined);
-            setWhatsAppModalOpen(true);
+            // Retrieve template if needed or just open default
+            openModal('whatsapp', { lead });
           }}
           onOpenEmail={(lead) => {
-            setSelectedLeadForEmail(lead);
-            setInitialEmailTemplateId(undefined);
-            setIsEmailModalOpen(true);
+            openModal('email', { lead });
           }}
           onUpdateLead={handleUpdateLeadDetails}
           userRole={profile?.role}
           currentUser={profile}
           onRefresh={refetch}
           onLocalDeleteMany={removeManyLocalLeads}
-          metrics={dashboardMetrics} // <--- PASSING THE METRICS
-          lastUpdatedLead={lastUpdatedLead} // [NEW] Pass sync lead
-          statusCategories={statusCategories} // [NEW] Dynamic Categories
+          metrics={dashboardMetrics}
+          lastUpdatedLead={lastUpdatedLead}
+          statusCategories={statusCategories}
           onRefreshCatalogs={refetch}
-          clearSelectionSignal={clearSelectionSignal} // [NEW] Pass signal
+          clearSelectionSignal={clearSelectionSignal}
         />
       </main>
 
       {/* MODALES */}
       <AutomationChoiceModal
-        isOpen={isAutomationChoiceOpen}
-        onClose={() => setIsAutomationChoiceOpen(false)}
-        lead={automationLead}
+        isOpen={modals.automationChoice.isOpen}
+        onClose={() => closeModal('automationChoice')}
+        lead={modals.automationChoice.data}
         onSelect={handleAutomationChoice}
       />
 
-      {isLeadFormOpen && (
+      {modals.leadForm.isOpen && (
         <LeadFormModal
-          isOpen={isLeadFormOpen}
-          onClose={() => setLeadFormOpen(false)}
+          isOpen={modals.leadForm.isOpen}
+          onClose={() => closeModal('leadForm')}
           onSave={(leadData, leadId) => handleSaveLead(leadData, leadId)}
-          leadToEdit={selectedLead}
+          leadToEdit={modals.leadForm.data} // Passing data directly
           advisors={assignableStaff}
           statuses={statuses}
           sources={sources}
@@ -604,11 +607,11 @@ const AppContent: React.FC = () => {
 
       <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white/50 dark:bg-slate-900/50"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-secondary"></div></div>}>
 
-        {isDetailViewOpen && selectedLead && (
+        {modals.detailView.isOpen && modals.detailView.data?.lead && (
           <LeadDetailModal
-            isOpen={isDetailViewOpen}
-            onClose={() => setDetailViewOpen(false)}
-            lead={selectedLead}
+            isOpen={modals.detailView.isOpen}
+            onClose={() => closeModal('detailView')}
+            lead={modals.detailView.data.lead}
             advisors={assignableStaff}
             statuses={statuses}
             sources={sources}
@@ -621,24 +624,20 @@ const AppContent: React.FC = () => {
             onDeleteAppointment={handleDeleteAppointment}
             onTransferLead={handleTransferLead}
             currentUser={profile}
-            initialTab={detailInitialTab}
+            initialTab={modals.detailView.data.initialTab || 'info'}
             onOpenWhatsApp={(lead) => {
-              setSelectedLeadForWhatsApp(lead);
-              setInitialWhatsAppTemplateId(undefined);
-              setWhatsAppModalOpen(true);
+              openModal('whatsapp', { lead });
             }}
             onOpenEmail={(lead) => {
-              setSelectedLeadForEmail(lead);
-              setInitialEmailTemplateId(undefined);
-              setIsEmailModalOpen(true);
+              openModal('email', { lead });
             }}
           />
         )}
 
-        {isSettingsOpen && (
+        {modals.settings.isOpen && (
           <SettingsModal
-            isOpen={isSettingsOpen}
-            onClose={() => setSettingsOpen(false)}
+            isOpen={modals.settings.isOpen}
+            onClose={() => closeModal('settings')}
             profiles={profiles}
             statuses={statuses}
             sources={sources}
@@ -655,10 +654,10 @@ const AppContent: React.FC = () => {
           />
         )}
 
-        {isReportModalOpen && (
+        {modals.report.isOpen && (
           <ReportModal
-            isOpen={isReportModalOpen}
-            onClose={() => setReportModalOpen(false)}
+            isOpen={modals.report.isOpen}
+            onClose={() => closeModal('report')}
             leads={leads}
             statuses={statuses}
             advisors={assignableStaff}
@@ -666,11 +665,11 @@ const AppContent: React.FC = () => {
           />
         )}
 
-        {isBulkImportOpen && (
+        {modals.bulkImport.isOpen && (
           <BulkImportModal
-            isOpen={isBulkImportOpen}
-            onClose={() => setBulkImportOpen(false)}
-            onSuccess={() => { refetch(); setBulkImportOpen(false); }}
+            isOpen={modals.bulkImport.isOpen}
+            onClose={() => closeModal('bulkImport')}
+            onSuccess={() => { refetch(); closeModal('bulkImport'); }}
             advisors={assignableStaff}
             statuses={statuses}
             sources={sources}
@@ -679,29 +678,29 @@ const AppContent: React.FC = () => {
         )}
       </Suspense>
 
-      {/* MODALES INDIVIDUALES ACTUALIZADOS: USAN handleMessageSent */}
-      {isWhatsAppModalOpen && (
+      {/* MODALES INDIVIDUALES ACTUALIZADOS */}
+      {modals.whatsapp.isOpen && modals.whatsapp.data?.lead && (
         <WhatsAppModal
-          isOpen={isWhatsAppModalOpen}
-          onClose={() => setWhatsAppModalOpen(false)}
-          lead={selectedLeadForWhatsApp}
+          isOpen={modals.whatsapp.isOpen}
+          onClose={() => closeModal('whatsapp')}
+          lead={modals.whatsapp.data.lead}
           templates={whatsappTemplates}
-          licenciaturas={licenciaturas} // [NEW] Pasamos el catálogo
-          initialTemplateId={initialWhatsAppTemplateId}
-          onMessageSent={handleMessageSent} // CORRECCIÓN CLAVE
+          licenciaturas={licenciaturas}
+          initialTemplateId={modals.whatsapp.data.initialTemplateId}
+          onMessageSent={handleMessageSent}
         />
       )}
 
-      {isEmailModalOpen && selectedLeadForEmail && (
+      {modals.email.isOpen && modals.email.data?.lead && (
         <EmailModal
-          isOpen={isEmailModalOpen}
-          onClose={() => setIsEmailModalOpen(false)}
-          lead={selectedLeadForEmail}
+          isOpen={modals.email.isOpen}
+          onClose={() => closeModal('email')}
+          lead={modals.email.data.lead}
           templates={emailTemplates}
-          licenciaturas={licenciaturas} // [NEW]
-          initialTemplateId={initialEmailTemplateId}
-          onMessageSent={handleMessageSent} // CORRECCIÓN CLAVE
-          currentUser={profile} // [NEW] Pass profile for API sending
+          licenciaturas={licenciaturas}
+          initialTemplateId={modals.email.data.initialTemplateId}
+          onMessageSent={handleMessageSent}
+          currentUser={profile}
         />
       )}
 
@@ -713,6 +712,8 @@ const AppContent: React.FC = () => {
 
 import { ConfigProvider } from './context/ConfigContext';
 
+import { ModalProvider, useModal } from './context/ModalContext'; // [NEW]
+
 // ... imports
 
 const App: React.FC = () => (
@@ -720,7 +721,9 @@ const App: React.FC = () => (
     <ConfigProvider>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <ToastProvider>
-          <AppContent />
+          <ModalProvider>
+            <AppContent />
+          </ModalProvider>
         </ToastProvider>
       </ThemeProvider>
     </ConfigProvider>

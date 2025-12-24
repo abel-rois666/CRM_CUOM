@@ -176,3 +176,43 @@ export const getScoreLabel = (score: number): string => {
     if (score >= 40) return '⚖️ Tibio';
     return '❄️ Frío';
 };
+
+export const getLeadUrgency = (lead: Lead, currentStatus: { category: string } | undefined): number => {
+    // Si no está activo, urgencia 0
+    if (currentStatus?.category !== 'active') return 0;
+
+    const now = new Date();
+
+    // 1. Cita Inminente (<48h) -> Urgencia 3 (Alta/Rojo)
+    if (lead.appointments?.some(a => a.status === 'scheduled')) {
+        const activeAppt = lead.appointments.find(a => a.status === 'scheduled');
+        if (activeAppt) {
+            const apptDate = new Date(activeAppt.date);
+            const hoursDiff = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+            // Si es en el futuro y menos de 48h
+            if (hoursDiff > 0 && hoursDiff <= 48) return 3;
+            // Si es futura pero > 48h, urgencia 1 (Baja/Normal)
+            if (hoursDiff > 48) return 1;
+            // Si ya pasó (hoursDiff < 0) y sigue scheduled... es un "no-show" o atrasada. Podría ser 2 o 3. 
+            // Mantengamos lógica original: return 1 si solo existe.
+            return 1;
+        }
+    }
+
+    // 2. Sin Seguimiento Reciente -> Urgencia 2 (Media/Ambar)
+    // A) Nuevo Lead (>3 días sin contacto)
+    const regDate = new Date(lead.registration_date);
+    const daysSinceReg = (now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24);
+
+    if ((!lead.follow_ups || lead.follow_ups.length === 0) && daysSinceReg > 3) return 2;
+
+    // B) Lead "Abandonado" (>7 días desde último follow up)
+    if (lead.follow_ups && lead.follow_ups.length > 0) {
+        const lastFollowUp = [...lead.follow_ups].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        const daysSinceFollowUp = (now.getTime() - new Date(lastFollowUp.date).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceFollowUp > 7) return 2;
+    }
+
+    return 0;
+};
