@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email TEXT,
   full_name TEXT,
   role TEXT CHECK (role IN ('admin', 'advisor', 'moderator')) DEFAULT 'advisor',
+  preferences JSONB DEFAULT '{}'::jsonb, -- [NEW] User preferences (theme, columns, pageSize)
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -458,6 +459,62 @@ CREATE OR REPLACE FUNCTION delete_user_by_id(user_id_to_delete UUID) RETURNS VOI
 BEGIN
   DELETE FROM public.profiles WHERE id = user_id_to_delete;
   DELETE FROM auth.users WHERE id = user_id_to_delete;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- 7.7 Filtros Rápidos del Dashboard (Server-Side)
+CREATE OR REPLACE FUNCTION get_quick_filter_leads(
+    filter_type text,
+    requesting_user_id uuid
+)
+RETURNS SETOF leads AS $$
+DECLARE
+    user_role text;
+    today date := CURRENT_DATE;
+    three_days_ago timestamp := NOW() - INTERVAL '3 days';
+    seven_days_ago timestamp := NOW() - INTERVAL '7 days';
+BEGIN
+    -- Obtener rol del usuario
+    SELECT role INTO user_role FROM profiles WHERE id = requesting_user_id;
+
+    -- Lógica de Filtros
+    IF filter_type = 'appointments_today' THEN
+        RETURN QUERY 
+        SELECT l.* 
+        FROM leads l
+        JOIN appointments a ON l.id = a.lead_id
+        JOIN statuses s ON l.status_id = s.id
+        WHERE a.status = 'scheduled' 
+        AND DATE(a.date) = today
+        AND s.category = 'active'
+        AND (user_role IN ('admin', 'moderator') OR l.advisor_id = requesting_user_id);
+
+    ELSIF filter_type = 'no_followup' THEN
+        RETURN QUERY 
+        SELECT l.* 
+        FROM leads l
+        JOIN statuses s ON l.status_id = s.id
+        WHERE l.registration_date < three_days_ago
+        AND NOT EXISTS (SELECT 1 FROM follow_ups f WHERE f.lead_id = l.id)
+        AND s.category = 'active'
+        AND (user_role IN ('admin', 'moderator') OR l.advisor_id = requesting_user_id);
+
+    ELSIF filter_type = 'stale_followup' THEN
+        RETURN QUERY 
+        SELECT l.* 
+        FROM leads l
+        JOIN statuses s ON l.status_id = s.id
+        WHERE s.category = 'active'
+        AND (user_role IN ('admin', 'moderator') OR l.advisor_id = requesting_user_id)
+        AND EXISTS (
+            SELECT 1 FROM follow_ups f 
+            WHERE f.lead_id = l.id 
+            HAVING MAX(f.date) < seven_days_ago
+        );
+
+    ELSE
+        RETURN;
+    END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
