@@ -11,7 +11,7 @@ import FilterDrawer from './FilterDrawer';
 import BulkTransferModal from './BulkTransferModal';
 import { supabase } from '../lib/supabase';
 import BulkMessageModal from './BulkMessageModal';
-import { calculateLeadScore } from '../utils/leadScoring';
+import { calculateLeadScore, getLastActivityDate, getNextScheduledAppointment } from '../utils/leadScoring';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
 import { useKanbanData } from '../hooks/useKanbanData';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
@@ -276,6 +276,22 @@ const LeadList: React.FC<LeadListProps> = ({
                 case 'score':
                     valA = calculateLeadScore(a, statuses);
                     valB = calculateLeadScore(b, statuses);
+                    break;
+                case 'agenda':
+                    const dateA = getNextScheduledAppointment(a);
+                    const dateB = getNextScheduledAppointment(b);
+                    // Sort nearest future appointments first (ASC)
+                    // If no appointment, treat as very far future (MAX_SAFE_INTEGER)
+                    valA = dateA ? dateA.getTime() : Number.MAX_SAFE_INTEGER;
+                    valB = dateB ? dateB.getTime() : Number.MAX_SAFE_INTEGER;
+                    break;
+                case 'source':
+                    valA = (sourceMap.get(a.source_id) || '').toLowerCase();
+                    valB = (sourceMap.get(b.source_id) || '').toLowerCase();
+                    break;
+                case 'last_activity':
+                    valA = getLastActivityDate(a).getTime();
+                    valB = getLastActivityDate(b).getTime();
                     break;
             }
             if (valA < valB) return sortDirection === 'asc' ? -1 : 1;

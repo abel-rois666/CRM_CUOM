@@ -1,7 +1,7 @@
 
 import React, { memo } from 'react';
 import { Lead } from '../../types';
-import { calculateLeadScore, getScoreColor, getScoreBreakdown, getLeadUrgency } from '../../utils/leadScoring';
+import { calculateLeadScore, getScoreColor, getScoreBreakdown, getLeadUrgency, getLastActivityDate } from '../../utils/leadScoring';
 import Badge from '../common/Badge';
 import BellAlertIcon from '../icons/BellAlertIcon';
 import ExclamationCircleIcon from '../icons/ExclamationCircleIcon';
@@ -99,7 +99,7 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
                 );
             case 'name':
                 return (
-                    <div className="flex items-center cursor-pointer sticky left-0 z-20 bg-inherit w-full h-full" onClick={() => onViewDetails(lead, 'info')}>
+                    <div className="relative z-10 flex items-center cursor-pointer w-full h-full" onClick={() => onViewDetails(lead, 'info')}>
                         <div className="h-9 w-9 rounded-full bg-brand-secondary/10 dark:bg-blue-900/30 flex items-center justify-center text-brand-secondary dark:text-blue-400 font-bold text-sm mr-3 shrink-0">
                             {lead.first_name.charAt(0)}
                         </div>
@@ -142,11 +142,8 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
             case 'source':
                 return <span className="text-sm text-gray-500 dark:text-gray-400">{sourceMap.get(lead.source_id) || 'Desconocido'}</span>;
             case 'last_activity':
-                // Calcular fecha más reciente de notas o citas
-                const lastNote = lead.follow_ups?.length ? new Date(Math.max(...lead.follow_ups.map(f => new Date(f.date).getTime()))) : null;
-                const lastAppt = lead.appointments?.length ? new Date(Math.max(...lead.appointments.map(a => new Date(a.date).getTime()))) : null;
-                const dates = [lastNote, lastAppt, new Date(lead.registration_date)].filter(Boolean) as Date[];
-                const lastDate = new Date(Math.max(...dates.map(d => d.getTime())));
+                // Calcular fecha más reciente usando utilidad centralizada
+                const lastDate = getLastActivityDate(lead);
 
                 return (
                     <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -190,16 +187,32 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
 
     let rowClasses = "group hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200 border-b border-transparent dark:border-slate-800";
 
+    // Base styles for the sticky cell: Opaque background to hide scrolled content, relative for pseudo-positioning
+    // [FIX] Changed dark:bg-slate-900 to dark:bg-slate-800 to match LeadTable tbody color
+    const stickyBase = "sticky left-0 z-20 bg-white dark:bg-slate-800 border-r border-transparent shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]";
+
+    // Dynamic overlay styles using 'before' pseudo-element to match row background without losing opacity
+    let stickyOverlay = "before:absolute before:inset-0 before:transition-colors before:duration-200 before:pointer-events-none";
+
+    // Helper to constructing hover classes: Light hover | Dark hover
+    // We use dark:group-hover:before:... to ensure specific dark mode handling
+
     if (urgencyLevel === 3) {
         rowClasses = "group bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 border-l-4 border-red-500";
+        stickyOverlay += " group-hover:before:bg-red-50 dark:group-hover:before:bg-red-900/20";
     } else if (urgencyLevel === 2) {
         rowClasses = "group bg-amber-50/30 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20 border-l-4 border-amber-400";
+        stickyOverlay += " group-hover:before:bg-amber-50 dark:group-hover:before:bg-amber-900/20";
     } else {
         rowClasses += " border-l-4 border-transparent";
+        // Standard hover: Gray-50 in light | Slate-700/50 in dark
+        stickyOverlay += " group-hover:before:bg-gray-50 dark:group-hover:before:bg-slate-700/50";
     }
 
     if (isSelected) {
         rowClasses += " bg-blue-50 dark:bg-blue-900/20";
+        // Override overlay for selected state
+        stickyOverlay = "before:absolute before:inset-0 before:transition-colors before:duration-200 before:pointer-events-none before:bg-blue-50 before:dark:bg-blue-900/20";
     }
 
     return (
@@ -219,7 +232,7 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
             {columns.filter(c => c.visible).map(col => (
                 <td
                     key={col.id}
-                    className={`px-6 py-4 whitespace-nowrap ${col.id === 'name' ? 'sticky left-0 z-20 bg-white dark:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}
+                    className={`px-6 py-4 whitespace-nowrap ${col.id === 'name' ? `${stickyBase} ${stickyOverlay}` : ''}`}
                 >
                     {renderCell(lead, col.id)}
                 </td>

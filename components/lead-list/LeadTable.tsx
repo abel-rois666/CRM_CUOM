@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Lead } from '../../types';
-import { calculateLeadScore, getScoreColor, getScoreBreakdown, getLeadUrgency } from '../../utils/leadScoring';
+import { calculateLeadScore, getScoreColor, getScoreBreakdown, getLeadUrgency, getLastActivityDate } from '../../utils/leadScoring';
 import Badge from '../common/Badge';
 import LeadRow from './LeadRow'; // [NEW] Memoized Row
 import { usePreferences } from '../../hooks/usePreferences';
@@ -19,7 +19,7 @@ import ChevronUpDownIcon from '../icons/ChevronUpDownIcon';
 import SlidersIcon from '../icons/SlidersIcon';
 import GripVerticalIcon from '../icons/GripVerticalIcon';
 
-export type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date' | 'urgency' | 'score' | 'email' | 'phone';
+export type SortableColumn = 'name' | 'advisor_id' | 'status_id' | 'program_id' | 'registration_date' | 'urgency' | 'score' | 'email' | 'phone' | 'agenda' | 'source' | 'last_activity';
 export type SortDirection = 'asc' | 'desc';
 
 interface LeadTableProps {
@@ -61,16 +61,16 @@ const defaultColumns: ColumnConfig[] = [
     { id: 'urgency', label: '!', visible: true, sortKey: 'urgency', minWidth: 'w-10' },
     { id: 'score', label: 'Prob.', visible: true, sortKey: 'score', minWidth: 'w-24' },
     { id: 'name', label: 'Nombre', visible: true, sortKey: 'name' },
-    { id: 'email', label: 'Email', visible: true, sortKey: 'email' },
-    { id: 'phone', label: 'Teléfono', visible: true, sortKey: 'phone' },
-    { id: 'advisor', label: 'Asesor', visible: true, sortKey: 'advisor_id' },
     { id: 'status', label: 'Estado', visible: true, sortKey: 'status_id', minWidth: 'w-36' },
     { id: 'program', label: 'Licenciatura', visible: true, sortKey: 'program_id' },
-    { id: 'source', label: 'Origen', visible: true },
-    { id: 'last_activity', label: 'Últ. Actividad', visible: true },
-    { id: 'registro', label: 'Registro', visible: true, sortKey: 'registration_date' },
-    { id: 'agenda', label: 'Agenda', visible: true },
     { id: 'actions', label: 'Contactar', visible: true },
+    { id: 'agenda', label: 'Agenda', visible: true, sortKey: 'agenda' },
+    { id: 'advisor', label: 'Asesor', visible: true, sortKey: 'advisor_id' },
+    { id: 'phone', label: 'Teléfono', visible: true, sortKey: 'phone' },
+    { id: 'email', label: 'Email', visible: true, sortKey: 'email' },
+    { id: 'source', label: 'Origen', visible: true, sortKey: 'source' },
+    { id: 'registro', label: 'Registro', visible: true, sortKey: 'registration_date' },
+    { id: 'last_activity', label: 'Últ. Actividad', visible: true, sortKey: 'last_activity' },
 ];
 
 const LeadTable: React.FC<LeadTableProps> = ({
@@ -162,6 +162,15 @@ const LeadTable: React.FC<LeadTableProps> = ({
         if (isMenuOpen) document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isMenuOpen]);
+
+    // [NEW] Disable reordering on Mobile/Tablet
+    const [isDesktop, setIsDesktop] = useState(false);
+    useEffect(() => {
+        const checkScreen = () => setIsDesktop(window.innerWidth >= 1280); // xl breakpoint
+        checkScreen();
+        window.addEventListener('resize', checkScreen);
+        return () => window.removeEventListener('resize', checkScreen);
+    }, []);
 
 
     const toggleColumn = (colId: ColumnId) => {
@@ -267,14 +276,14 @@ const LeadTable: React.FC<LeadTableProps> = ({
                             {columns.map((col, index) => (
                                 <div
                                     key={col.id}
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, index)}
-                                    onDragEnter={(e) => handleDragEnter(e, index)}
-                                    onDragEnd={handleDragEnd}
-                                    onDragOver={(e) => e.preventDefault()}
-                                    className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg group cursor-move active:cursor-grabbing transition-colors"
+                                    draggable={isDesktop}
+                                    onDragStart={(e) => isDesktop && handleDragStart(e, index)}
+                                    onDragEnter={(e) => isDesktop && handleDragEnter(e, index)}
+                                    onDragEnd={(e) => isDesktop && handleDragEnd(e)}
+                                    onDragOver={(e) => isDesktop && e.preventDefault()}
+                                    className={`flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg group transition-colors ${isDesktop ? 'cursor-move active:cursor-grabbing' : 'cursor-default'}`}
                                 >
-                                    <div className="text-gray-300 dark:text-gray-600 group-hover:text-gray-500 dark:group-hover:text-gray-400">
+                                    <div className={`text-gray-300 dark:text-gray-600 group-hover:text-gray-500 dark:group-hover:text-gray-400 ${isDesktop ? 'block' : 'hidden'}`}>
                                         <GripVerticalIcon className="w-4 h-4" />
                                     </div>
                                     <label className="flex-1 flex items-center cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
@@ -345,11 +354,8 @@ const LeadTable: React.FC<LeadTableProps> = ({
                         const score = calculateLeadScore(lead, statusObj ? [{ id: lead.status_id, ...statusObj }] : []);
                         const scoreColor = getScoreColor(score);
 
-                        // Calculate Last Activity Date
-                        const lastNote = lead.follow_ups?.length ? new Date(Math.max(...lead.follow_ups.map(f => new Date(f.date).getTime()))) : null;
-                        const lastAppt = lead.appointments?.length ? new Date(Math.max(...lead.appointments.map(a => new Date(a.date).getTime()))) : null;
-                        const activityDates = [lastNote, lastAppt, new Date(lead.registration_date)].filter(Boolean) as Date[];
-                        const lastActivityDate = new Date(Math.max(...activityDates.map(d => d.getTime())));
+                        // Calculate Last Activity Date (using centralized utility)
+                        const lastActivityDate = getLastActivityDate(lead);
 
                         return (
                             <div key={lead.id} className={`bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden ${selectedIds.has(lead.id) ? 'ring-2 ring-brand-secondary/50' : ''}`}>

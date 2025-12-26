@@ -216,3 +216,57 @@ export const getLeadUrgency = (lead: Lead, currentStatus: { category: string } |
 
     return 0;
 };
+
+export const getLastActivityDate = (lead: Lead): Date => {
+    const now = new Date();
+
+    // Get all activity timestamps (when the interaction happened, not scheduled dates)
+    const activityTimestamps: number[] = [];
+
+    // Follow-ups: use the note's date (when the follow-up occurred)
+    if (lead.follow_ups?.length) {
+        lead.follow_ups.forEach(f => {
+            const timestamp = new Date(f.date).getTime();
+            if (timestamp <= now.getTime()) {
+                activityTimestamps.push(timestamp);
+            }
+        });
+    }
+
+    // Appointments: use created_at (when the appointment was scheduled/created, not the appointment date itself)
+    if (lead.appointments?.length) {
+        lead.appointments.forEach(a => {
+            // Use created_at if available, otherwise fall back to date but only if in past
+            const createdAt = a.created_at ? new Date(a.created_at).getTime() : null;
+            if (createdAt && createdAt <= now.getTime()) {
+                activityTimestamps.push(createdAt);
+            }
+        });
+    }
+
+    // Status history: use the status change date
+    if (lead.status_history?.length) {
+        lead.status_history.forEach(change => {
+            const timestamp = new Date(change.date).getTime();
+            if (timestamp <= now.getTime()) {
+                activityTimestamps.push(timestamp);
+            }
+        });
+    }
+
+    // Registration date as baseline
+    activityTimestamps.push(new Date(lead.registration_date).getTime());
+
+    // Return the most recent activity
+    return new Date(Math.max(...activityTimestamps));
+};
+
+export const getNextScheduledAppointment = (lead: Lead): Date | null => {
+    if (!lead.appointments) return null;
+    const now = new Date();
+    const futureAppts = lead.appointments
+        .filter(a => a.status === 'scheduled' && new Date(a.date) > now)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return futureAppts.length > 0 ? new Date(futureAppts[0].date) : null;
+};

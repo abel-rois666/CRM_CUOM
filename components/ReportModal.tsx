@@ -7,8 +7,9 @@ import { Input } from './common/FormElements';
 import PrinterIcon from './icons/PrinterIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
 import SparklesIcon from './icons/SparklesIcon';
-import CalendarIcon from './icons/CalendarIcon'; // [FIX] Imported
-import UserIcon from './icons/UserIcon'; // [FIX] Imported
+import CalendarIcon from './icons/CalendarIcon';
+import UserIcon from './icons/UserIcon';
+import { supabase } from '../lib/supabase';
 
 // Imports de Recharts
 import {
@@ -276,6 +277,8 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
     const [endDate, setEndDate] = useState(today);
     const [report, setReport] = useState<ReportData | null>(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
     const reportContentRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -292,10 +295,75 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
         };
     }, [isExporting]);
 
-    const handleGenerateReport = () => {
-        if (!startDate || !endDate) { alert("Por favor, selecciona un periodo."); return; }
-        const start = new Date(startDate + 'T00:00:00Z');
-        const end = new Date(endDate + 'T23:59:59Z');
+    const handleGenerateReport = async () => {
+        setError(null);
+        setReport(null);
+        if (!startDate || !endDate) { setError("Por favor, selecciona un periodo."); return; }
+
+        // [FIX] Use date-only comparisons to avoid timezone issues
+        const startDateStr = startDate; // e.g. "2025-12-01"
+        const endDateStr = endDate;     // e.g. "2025-12-31"
+
+        // Helper function to extract YYYY-MM-DD from any date string or ISO timestamp
+        const toDateStr = (dateInput: string | Date): string => {
+            if (typeof dateInput === 'string') {
+                return dateInput.split('T')[0];
+            }
+            return dateInput.toISOString().split('T')[0];
+        };
+
+        // Validation
+        const startForValidation = new Date(startDate);
+        const endForValidation = new Date(endDate);
+
+        const minYear = 2000;
+        const maxYear = 2100;
+
+        if (isNaN(startForValidation.getTime()) || isNaN(endForValidation.getTime())) {
+            setError("Las fechas seleccionadas no son válidas.");
+            return;
+        }
+
+        if (startForValidation.getFullYear() < minYear || startForValidation.getFullYear() > maxYear ||
+            endForValidation.getFullYear() < minYear || endForValidation.getFullYear() > maxYear) {
+            setError(`Por favor, ingresa un año válido entre ${minYear} y ${maxYear}.`);
+            return;
+        }
+
+        if (startDateStr > endDateStr) {
+            setError("La fecha de inicio no puede ser mayor que la fecha final.");
+            return;
+        }
+
+        // [FIX] Fetch ALL leads from database (no filters, no pagination)
+        setIsLoading(true);
+        let allLeads: Lead[] = [];
+
+        try {
+            const { data, error: fetchError } = await supabase
+                .from('leads')
+                .select(`
+                    *,
+                    appointments(*, created_by(full_name)),
+                    follow_ups(*, created_by(full_name)),
+                    status_history(*, created_by(full_name))
+                `)
+                .order('registration_date', { ascending: false });
+
+            if (fetchError) throw fetchError;
+            allLeads = (data || []) as Lead[];
+        } catch (err) {
+            console.error('Error fetching leads for report:', err);
+            setError("Error al cargar los datos del reporte.");
+            setIsLoading(false);
+            return;
+        }
+
+        // Helper to check if a date string is within the period
+        const isInPeriod = (dateInput: string): boolean => {
+            const dateStr = toDateStr(dateInput);
+            return dateStr >= startDateStr && dateStr <= endDateStr;
+        };
 
         const getStatusBreakdown = (leadsForBreakdown: Lead[]): StatusBreakdown[] => {
             const statusMap = new Map<string, StatusBreakdown>(statuses.map(s => [s.id, { name: s.name, color: s.color, count: 0 }]));
@@ -306,22 +374,21 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             return Array.from(statusMap.values());
         };
 
-        const newLeads = leads.filter(lead => {
-            const regDate = new Date(lead.registration_date);
-            return regDate >= start && regDate <= end;
-        });
+        // 1. New Leads (ALL leads registered in period, regardless of status)
+        const newLeads = allLeads.filter(lead => isInPeriod(lead.registration_date));
         const newLeadsReport: ReportSectionData = { total: newLeads.length, breakdown: getStatusBreakdown(newLeads) };
 
+        // 2. Updated Leads (Activity)
         const updatedLeadIds = new Set<string>();
-        leads.forEach(lead => {
+        allLeads.forEach(lead => {
             (lead.status_history || []).forEach(change => {
-                const changeDate = new Date(change.date);
-                if (changeDate >= start && changeDate <= end) updatedLeadIds.add(lead.id);
+                if (isInPeriod(change.date)) updatedLeadIds.add(lead.id);
             });
         });
-        const updatedLeads = leads.filter(lead => updatedLeadIds.has(lead.id));
+        const updatedLeads = allLeads.filter(lead => updatedLeadIds.has(lead.id));
         const updatedLeadsReport: ReportSectionData = { total: updatedLeads.length, breakdown: getStatusBreakdown(updatedLeads) };
 
+        // 3. Advisor Breakdown
         const advisorMap = new Map(advisors.map(a => [a.id, a.full_name]));
         const leadsByAdvisorMap = new Map<string, number>();
         newLeads.forEach(lead => {
@@ -333,6 +400,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             breakdown: Array.from(leadsByAdvisorMap.entries()).map(([id, count]) => ({ name: String(advisorMap.get(id) || 'Sin Asignar'), count }))
         };
 
+        // 4. Source Breakdown
         const sourceMap = new Map(sources.map(s => [s.id, s.name]));
         const leadsBySourceMap = new Map<string, number>();
         newLeads.forEach(lead => {
@@ -344,36 +412,59 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             breakdown: Array.from(leadsBySourceMap.entries()).map(([id, count]) => ({ name: String(sourceMap.get(id) || 'Desconocido'), count }))
         };
 
-        const inscritoStatusId = statuses.find(s => s.category === 'won')?.id;
+        // 5. Enrollments (Inscritos del Periodo)
+        // Criterios para contar como "Inscrito del periodo":
+        // A) Lead ACTUALMENTE en status 'won' (Inscrito)
+        // B) CUALQUIERA de las siguientes condiciones:
+        //    B1) La ÚLTIMA transición a 'won' ocurrió en el periodo
+        //    B2) El lead fue REGISTRADO en el periodo (para leads creados directamente como Inscrito)
+        // C) NO cuenta si tuvo 'won' pero después cambió a otro status
         let enrolledCount = 0;
-        let periodAppointments = 0; // [NEW]
+        let periodAppointments = 0;
         const conversionsByAdvisor = new Map<string, number>();
 
-        if (inscritoStatusId) {
-            leads.forEach(lead => {
-                const hasWonInPeriod = (lead.status_history || []).some(change => {
-                    const d = new Date(change.date);
-                    return d >= start && d <= end && change.new_status_id === inscritoStatusId;
-                });
+        // Find all statuses that are 'won' category
+        const wonStatusIds = new Set(statuses.filter(s => s.category === 'won').map(s => s.id));
 
-                if (hasWonInPeriod) {
-                    enrolledCount++;
-                    conversionsByAdvisor.set(lead.advisor_id, (conversionsByAdvisor.get(lead.advisor_id) || 0) + 1);
-                }
-            });
-        }
+        allLeads.forEach(lead => {
+            // A. Check if lead is CURRENTLY in a 'won' status
+            const currentStatus = statuses.find(s => s.id === lead.status_id);
+            if (currentStatus?.category !== 'won') return; // Skip if not currently won
 
+            // B. Determine the relevant date for this enrollment
+            const history = lead.status_history || [];
+            const wonTransitions = history
+                .filter(change => wonStatusIds.has(change.new_status_id))
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Most recent first
+
+            const lastWonTransition = wonTransitions[0];
+
+            // The enrollment date is EITHER the last won transition date OR the registration date
+            const enrollmentDateStr = lastWonTransition
+                ? lastWonTransition.date
+                : lead.registration_date;
+
+            // Check if enrollment happened within the period
+            if (isInPeriod(enrollmentDateStr)) {
+                enrolledCount++;
+                const advisorId = lead.advisor_id || 'unassigned';
+                conversionsByAdvisor.set(advisorId, (conversionsByAdvisor.get(advisorId) || 0) + 1);
+            }
+        });
+
+        // 6. Advisors Performance
+        // "Conversion Rate" here will be (Sales in Period / Assigned New Leads in Period)
+        // This can be > 100% if they close backlog, but it is the standard "Sales/Traffic" metric.
         const conversionBreakdown: ConversionBreakdownItem[] = advisors.map(advisor => {
             const convertedCount = conversionsByAdvisor.get(advisor.id) || 0;
-            const totalLeads = leadsByAdvisorMap.get(advisor.id) || 0;
+            const totalLeads = leadsByAdvisorMap.get(advisor.id) || 0; // Denominator = Assigned New Leads
             return { name: advisor.full_name, convertedCount, totalLeads, rate: totalLeads > 0 ? (convertedCount / totalLeads) * 100 : 0 };
         }).filter(item => item.totalLeads > 0 || item.convertedCount > 0);
 
-        // [NEW] Calculate appointments in period
-        leads.forEach(lead => {
+        // Appointments logic (exclude canceled)
+        allLeads.forEach(lead => {
             (lead.appointments || []).forEach(appt => {
-                const apptDate = new Date(appt.date);
-                if (apptDate >= start && apptDate <= end) {
+                if (appt.status !== 'canceled' && isInPeriod(appt.date)) {
                     periodAppointments++;
                 }
             });
@@ -392,6 +483,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             leadsBySource: leadsBySourceReport,
             conversionByAdvisor: conversionBreakdown
         });
+        setIsLoading(false);
     };
 
     const handleExportPDF = async () => {
@@ -501,16 +593,22 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             <div className={`space-y-6 ${isExporting ? 'pointer-events-none' : ''}`}>
                 <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-4 items-end">
                     <div className="w-full sm:flex-1">
-                        <Input id="report-start-date" label="Desde" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                        <Input id="report-start-date" label="Desde" type="date" max="2100-12-31" value={startDate} onChange={e => setStartDate(e.target.value)} />
                     </div>
                     <div className="w-full sm:flex-1">
-                        <Input id="report-end-date" label="Hasta" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        <Input id="report-end-date" label="Hasta" type="date" max="2100-12-31" value={endDate} onChange={e => setEndDate(e.target.value)} />
                     </div>
                     <Button onClick={handleGenerateReport} className="w-full sm:w-auto shadow-md">
                         <ChartBarIcon className="w-5 h-5 mr-2" />
                         Generar
                     </Button>
                 </div>
+                {error && (
+                    <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-xl text-sm font-medium border border-red-100 dark:border-red-800 flex items-center animate-fade-in-down">
+                        <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        {error}
+                    </div>
+                )}
 
                 {report && (
                     <>

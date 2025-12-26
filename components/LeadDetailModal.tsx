@@ -733,14 +733,6 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                                     </div>
                                                     <p className="text-xs text-gray-600 dark:text-gray-300 italic border-l-2 border-gray-200 dark:border-slate-600 pl-2">{item.data.details}</p>
                                                 </div>
-
-                                                {isAdmin && (
-                                                    <div className="flex justify-end pt-1">
-                                                        <button onClick={() => onDeleteAppointment(lead.id, item.data.id)} className="text-gray-300 hover:text-red-500 dark:hover:text-red-400">
-                                                            <TrashIcon className="w-3 h-3" />
-                                                        </button>
-                                                    </div>
-                                                )}
                                             </div>
                                         )) : <p className="text-gray-400 dark:text-gray-500 text-xs italic text-center py-2">No hay historial de citas.</p>}
                                     </div>
