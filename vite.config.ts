@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       }
     },
+    // [PRODUCTION] Remove console.log and console.warn in production builds
+    esbuild: {
+      drop: mode === 'production' ? ['console', 'debugger'] : [],
+    },
     test: {
       globals: true,
       environment: 'jsdom',
