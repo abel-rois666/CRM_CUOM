@@ -686,7 +686,7 @@ const LeadList: React.FC<LeadListProps> = ({
                                 setProcessingBulk(true);
                                 try {
                                     const ids = Array.from(selectedIds);
-                                    const { error } = await supabase.from('leads').update({ status_id: bulkTargetStatus }).in('id', ids);
+                                    const { error } = await (supabase.from('leads') as any).update({ status_id: bulkTargetStatus }).in('id', ids);
                                     if (error) throw error;
 
                                     // Actualizar localmente si es posible, si no Refresh
