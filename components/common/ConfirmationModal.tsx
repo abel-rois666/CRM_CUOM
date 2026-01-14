@@ -10,7 +10,8 @@ interface ConfirmationModalProps {
   message: React.ReactNode;
   confirmButtonText?: string;
   cancelButtonText?: string;
-  confirmButtonVariant?: 'primary' | 'danger';
+  confirmButtonVariant?: 'primary' | 'danger' | 'secondary';
+  hideConfirm?: boolean;
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -22,6 +23,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   confirmButtonText = 'Confirmar',
   cancelButtonText = 'Cancelar',
   confirmButtonVariant = 'primary',
+  hideConfirm = false,
 }) => {
   const handleConfirm = () => {
     onConfirm();
@@ -34,11 +36,13 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         <div className="text-gray-700 dark:text-gray-300">{message}</div>
         <div className="pt-2 flex justify-end space-x-2">
           <Button variant="secondary" onClick={onClose}>
-            {cancelButtonText}
+            {hideConfirm ? 'Cerrar' : cancelButtonText}
           </Button>
-          <Button variant={confirmButtonVariant} onClick={handleConfirm}>
-            {confirmButtonText}
-          </Button>
+          {!hideConfirm && (
+            <Button variant={confirmButtonVariant} onClick={handleConfirm}>
+              {confirmButtonText}
+            </Button>
+          )}
         </div>
       </div>
     </Modal>
@@ -46,3 +50,4 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 };
 
 export default ConfirmationModal;
+

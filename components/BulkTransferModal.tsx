@@ -17,7 +17,8 @@ interface BulkTransferModalProps {
     onClose: () => void;
     onSuccess: () => void;
     advisors: Profile[];
-    currentUser: Profile | null; // [NEW] Para registrar el autor
+    currentUser: Profile | null;
+    defaultSourceAdvisorId?: string; // Pre-select source advisor
 }
 
 const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
@@ -25,9 +26,10 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
     onClose,
     onSuccess,
     advisors,
-    currentUser, // [NEW]
+    currentUser,
+    defaultSourceAdvisorId,
 }) => {
-    const [sourceAdvisorId, setSourceAdvisorId] = useState('');
+    const [sourceAdvisorId, setSourceAdvisorId] = useState(defaultSourceAdvisorId || '');
     const [targetAdvisorId, setTargetAdvisorId] = useState('');
     const [transferMode, setTransferMode] = useState<'all' | 'quantity' | 'selection'>('all');
 
@@ -45,6 +47,29 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({
     const [totalLeads, setTotalLeads] = useState(0);
     const [processing, setProcessing] = useState(false);
     const [result, setResult] = useState<{ success: number; error?: string } | null>(null);
+
+    // Effect to set default source advisor when modal opens OR reset when closes
+    useEffect(() => {
+        if (isOpen) {
+            // When opening, set default if provided
+            if (defaultSourceAdvisorId) {
+                setSourceAdvisorId(defaultSourceAdvisorId);
+            }
+        } else {
+            // When closing, reset all state
+            setSourceAdvisorId('');
+            setTargetAdvisorId('');
+            setTransferMode('all');
+            setQuantity(10);
+            setOnlyActive(true);
+            setReason('');
+            setLeadsList([]);
+            setSelectedIds(new Set());
+            setListSearchTerm('');
+            setTotalLeads(0);
+            setResult(null);
+        }
+    }, [isOpen, defaultSourceAdvisorId]);
 
     // --- EFECTO DE CARGA DE DATOS ---
     useEffect(() => {

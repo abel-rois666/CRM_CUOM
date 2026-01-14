@@ -30,7 +30,8 @@ import { TIMEZONE_OPTIONS } from '../utils/constants';
 import EmailTemplateEditor, { EmailTemplateEditorHandle } from './common/EmailTemplateEditor';
 import { useConfig } from '../context/ConfigContext';
 import Tooltip from './common/Tooltip';
-import { generateMessage } from '../utils/aiAssistant'; // [FIX] Import added
+import { generateMessage } from '../utils/aiAssistant';
+import { useModal } from '../context/ModalContext';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -62,9 +63,11 @@ interface UserSettingsProps {
     profiles: Profile[];
     onProfilesUpdate: (profiles: Profile[]) => void;
     currentUserProfile: Profile | null;
+    onCloseSettingsModal: () => void;
 }
 
-const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate, currentUserProfile }) => {
+const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate, currentUserProfile, onCloseSettingsModal }) => {
+    const { openModal } = useModal();
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -72,6 +75,8 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
     const [loading, setLoading] = useState(false);
     const [userToEdit, setUserToEdit] = useState<Profile | null>(null);
     const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
+    const [userLeadCount, setUserLeadCount] = useState<number>(0);
+    const [checkingLeads, setCheckingLeads] = useState(false);
 
     const { success, error: toastError } = useToast();
 
@@ -160,13 +165,39 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
         }
     };
 
+    const checkUserLeads = async (user: Profile) => {
+        setCheckingLeads(true);
+        try {
+            const { count, error } = await supabase
+                .from('leads')
+                .select('*', { count: 'exact', head: true })
+                .eq('advisor_id', user.id);
+
+            if (error) throw error;
+            setUserLeadCount(count || 0);
+            setUserToDelete(user);
+        } catch (error: any) {
+            console.error('Error checking leads:', error);
+            toastError('Error al verificar leads del usuario');
+        } finally {
+            setCheckingLeads(false);
+        }
+    };
+
     const handleDeleteUser = async (userId: string) => {
+        // Double-check that user has no leads
+        if (userLeadCount > 0) {
+            toastError('Debes transferir los leads antes de eliminar este usuario.');
+            return;
+        }
+
         try {
             const { error } = await (supabase.rpc as any)('delete_user_by_id', { user_id_to_delete: userId });
             if (error) throw error;
             success('Usuario eliminado');
             onProfilesUpdate(profiles.filter(p => p.id !== userId)); // Refresh profiles
             setUserToDelete(null); // Close confirmation modal
+            setUserLeadCount(0);
         } catch (error: any) {
             console.error('Error deleting user:', error);
             toastError(error.message || 'Error al eliminar usuario');
@@ -236,7 +267,7 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
                             <Button variant="ghost" size="sm" onClick={() => setUserToEdit(profile)} aria-label={`Editar ${profile.full_name}`}>
                                 <EditIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-brand-secondary" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setUserToDelete(profile)} disabled={profile.id === currentUserProfile?.id} aria-label={`Eliminar ${profile.full_name}`}>
+                            <Button variant="ghost" size="sm" onClick={() => checkUserLeads(profile)} disabled={profile.id === currentUserProfile?.id || checkingLeads} aria-label={`Eliminar ${profile.full_name}`}>
                                 <TrashIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-500 disabled:text-gray-300" />
                             </Button>
                         </div>
@@ -256,12 +287,36 @@ const UserSettings: React.FC<UserSettingsProps> = ({ profiles, onProfilesUpdate,
             {userToDelete && (
                 <ConfirmationModal
                     isOpen={!!userToDelete}
-                    onClose={() => setUserToDelete(null)}
+                    onClose={() => { setUserToDelete(null); setUserLeadCount(0); }}
                     onConfirm={() => handleDeleteUser(userToDelete.id)}
-                    title="Confirmar Eliminación"
-                    message={<>¿Estás seguro de que quieres eliminar a <strong>{userToDelete.full_name}</strong>? Esta acción es irreversible.</>}
-                    confirmButtonText="Sí, Eliminar"
-                    confirmButtonVariant="danger"
+                    title={userLeadCount > 0 ? "⚠️ Acción Bloqueada" : "Confirmar Eliminación"}
+                    message={
+                        userLeadCount > 0 ? (
+                            <div className="space-y-3">
+                                <p>El usuario <strong>{userToDelete.full_name}</strong> tiene <strong className="text-red-600 dark:text-red-400">{userLeadCount} lead{userLeadCount > 1 ? 's' : ''}</strong> asignado{userLeadCount > 1 ? 's' : ''}.</p>
+                                <p className="text-amber-600 dark:text-amber-400 font-medium">Debes transferir todos sus leads a otro asesor antes de poder eliminar este usuario.</p>
+                                <button
+                                    onClick={() => {
+                                        onCloseSettingsModal();
+                                        openModal('bulkTransfer', { advisorId: userToDelete.id });
+                                        setUserToDelete(null);
+                                        setUserLeadCount(0);
+                                    }}
+                                    className="w-full mt-2 px-4 py-2 bg-brand-secondary hover:bg-brand-secondary/90 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                    </svg>
+                                    Ir a Reasignar Leads
+                                </button>
+                            </div>
+                        ) : (
+                            <>¿Estás seguro de que quieres eliminar a <strong>{userToDelete.full_name}</strong>? Esta acción es irreversible.</>
+                        )
+                    }
+                    confirmButtonText={userLeadCount > 0 ? "Entendido" : "Sí, Eliminar"}
+                    confirmButtonVariant={userLeadCount > 0 ? "secondary" : "danger"}
+                    hideConfirm={userLeadCount > 0}
                 />
             )}
         </div>
@@ -1856,7 +1911,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                 {/* Right Content */}
                 <div className="flex-1 p-6 overflow-y-auto bg-white dark:bg-slate-800 text-gray-900 dark:text-white min-w-0">
                     {activeTab === 'branding' && <PersonalizationSettings />}
-                    {activeTab === 'users' && <UserSettings profiles={props.profiles} onProfilesUpdate={props.onProfilesUpdate} currentUserProfile={props.currentUserProfile} />}
+                    {activeTab === 'users' && <UserSettings profiles={props.profiles} onProfilesUpdate={props.onProfilesUpdate} currentUserProfile={props.currentUserProfile} onCloseSettingsModal={props.onClose} />}
                     {activeTab === 'statuses' && <StatusSettings statuses={props.statuses} onStatusesUpdate={props.onStatusesUpdate} />}
                     {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}
                     {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}

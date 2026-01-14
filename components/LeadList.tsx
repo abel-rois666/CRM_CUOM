@@ -25,6 +25,7 @@ import Modal from './common/Modal';
 import Button from './common/Button';
 import { Select } from './common/FormElements';
 import CategorySettingsModal from './CategorySettingsModal';
+import { useModal } from '../context/ModalContext';
 
 import LeadHeader from './lead-list/LeadHeader';
 import LeadToolbar, { ViewMode } from './lead-list/LeadToolbar';
@@ -101,7 +102,18 @@ const LeadList: React.FC<LeadListProps> = ({
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
     const [isBulkTransferOpen, setIsBulkTransferOpen] = useState(false);
+    const [bulkTransferAdvisorId, setBulkTransferAdvisorId] = useState<string | undefined>(undefined);
     const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false); // [NEW]
+
+    // Listen for bulkTransfer modal from context (for opening from SettingsModal)
+    const { modals, closeModal } = useModal();
+    useEffect(() => {
+        if (modals.bulkTransfer.isOpen) {
+            setBulkTransferAdvisorId(modals.bulkTransfer.data?.advisorId);
+            setIsBulkTransferOpen(true);
+            closeModal('bulkTransfer');
+        }
+    }, [modals.bulkTransfer.isOpen, modals.bulkTransfer.data, closeModal]);
 
     // Debounce Local para Búsqueda
     const [localSearchTerm, setLocalSearchTerm] = useState<string>(currentFilters.searchTerm);
@@ -701,13 +713,18 @@ const LeadList: React.FC<LeadListProps> = ({
 
             <BulkTransferModal
                 isOpen={isBulkTransferOpen}
-                onClose={() => setIsBulkTransferOpen(false)}
+                onClose={() => {
+                    setIsBulkTransferOpen(false);
+                    setBulkTransferAdvisorId(undefined);
+                }}
                 advisors={advisors}
                 onSuccess={() => {
                     if (onRefresh) onRefresh();
                     setIsBulkTransferOpen(false);
+                    setBulkTransferAdvisorId(undefined);
                 }}
-                currentUser={currentUser} // [FIX] Passing current user
+                currentUser={currentUser}
+                defaultSourceAdvisorId={bulkTransferAdvisorId}
             />
 
             <BulkMessageModal

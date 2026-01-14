@@ -9,6 +9,7 @@ export type ModalKey =
     | 'whatsapp'
     | 'email'
     | 'bulkImport'
+    | 'bulkTransfer'
     | 'automationChoice';
 
 interface ModalState {
@@ -34,6 +35,7 @@ const defaultState: ModalsMap = {
     whatsapp: { isOpen: false },
     email: { isOpen: false },
     bulkImport: { isOpen: false },
+    bulkTransfer: { isOpen: false },
     automationChoice: { isOpen: false },
 };
 
