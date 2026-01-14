@@ -18,12 +18,13 @@ import {
 
 
 interface DashboardStatsProps {
-    leads: Lead[]; // Kept for compatibility if needed elsewhere, but mainly unused for stats now
-    metrics: DashboardMetrics | null; // <--- NEW PROP
+    leads: Lead[];
+    metrics: DashboardMetrics | null;
     statuses: Status[];
     advisors: Profile[];
     activeFilter: QuickFilterType;
     onFilterChange: (filter: QuickFilterType) => void;
+    userRole?: 'admin' | 'advisor' | 'moderator';
 }
 
 const tailwindColorMap: { [key: string]: string } = {
@@ -51,7 +52,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return null;
 };
 
-const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuses, advisors, activeFilter, onFilterChange }) => {
+const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuses, advisors, activeFilter, onFilterChange, userRole }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [activeTab, setActiveTab] = useState<'agenda' | 'analytics' | 'evaluation'>('agenda');
 
@@ -145,14 +146,16 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                         <ChartBarIcon className="w-4 h-4" />
                         Métricas Globales
                     </button>
-                    <button
-                        onClick={() => setActiveTab('evaluation')}
-                        aria-label="Ver Evaluación de Asesores"
-                        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'evaluation' ? 'bg-white dark:bg-slate-600 text-brand-primary dark:text-blue-300 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-brand-primary dark:hover:text-blue-300'}`}
-                    >
-                        <SparklesIcon className="w-4 h-4" />
-                        Evaluación Asesores
-                    </button>
+                    {userRole !== 'advisor' && (
+                        <button
+                            onClick={() => setActiveTab('evaluation')}
+                            aria-label="Ver Evaluación de Asesores"
+                            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'evaluation' ? 'bg-white dark:bg-slate-600 text-brand-primary dark:text-blue-300 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-brand-primary dark:hover:text-blue-300'}`}
+                        >
+                            <SparklesIcon className="w-4 h-4" />
+                            Evaluación Asesores
+                        </button>
+                    )}
                 </div>
                 <button
                     className="text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 p-2 rounded-full transition-colors self-end sm:self-auto"
@@ -340,7 +343,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ leads, metrics, statuse
                         </div>
                     )}
 
-                    {activeTab === 'evaluation' && (
+                    {activeTab === 'evaluation' && userRole !== 'advisor' && (
                         <div className="animate-fade-in">
                             <AdvisorEvaluation advisors={advisors} statuses={statuses} />
                         </div>

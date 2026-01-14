@@ -468,6 +468,7 @@ const LeadList: React.FC<LeadListProps> = ({
                 advisors={advisors}
                 activeFilter={quickFilter}
                 onFilterChange={handleDashboardCardClick}
+                userRole={userRole}
             />
 
             {/* Header Section */}

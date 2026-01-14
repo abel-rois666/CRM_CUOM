@@ -48,12 +48,16 @@ const LeadHeader: React.FC<LeadHeaderProps> = ({
                         <TransferIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reasignar</span>
                     </Button>
                 )}
-                <Button onClick={onOpenImport} variant="secondary" size="sm" className="px-3 sm:px-4">
-                    <ArrowUpTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Importar</span>
-                </Button>
-                <Button onClick={onOpenReports} variant="secondary" size="sm" className="px-3 sm:px-4">
-                    <ChartBarIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reporte</span>
-                </Button>
+                {(userRole === 'admin' || userRole === 'moderator') && (
+                    <Button onClick={onOpenImport} variant="secondary" size="sm" className="px-3 sm:px-4">
+                        <ArrowUpTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Importar</span>
+                    </Button>
+                )}
+                {(userRole === 'admin' || userRole === 'moderator') && (
+                    <Button onClick={onOpenReports} variant="secondary" size="sm" className="px-3 sm:px-4">
+                        <ChartBarIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reporte</span>
+                    </Button>
+                )}
                 {userRole === 'admin' && (
                     <Button onClick={onExportCSV} variant="secondary" size="sm" className="px-3 sm:px-4">
                         <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Exportar (Pagina)</span>
