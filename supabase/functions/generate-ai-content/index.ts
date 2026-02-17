@@ -27,43 +27,80 @@ serve(async (req) => {
         const { instruction, context, systemPrompt, model } = await req.json()
 
         // 3. Get API Key from Secrets
+        // @ts-ignore: Deno runtime
         const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY')
+
+        // Diagnostic logging
+        // @ts-ignore: Deno runtime
+        const allEnvKeys = Array.from(Object.keys(Deno.env.toObject())).filter(k => !k.startsWith('SB_') && k !== 'SUPABASE_URL' && k !== 'SUPABASE_ANON_KEY' && k !== 'SUPABASE_SERVICE_ROLE_KEY' && k !== 'SUPABASE_DB_URL')
+        console.log('Available custom env keys:', JSON.stringify(allEnvKeys))
+        console.log('OPENROUTER_API_KEY exists:', !!OPENROUTER_API_KEY)
+        console.log('OPENROUTER_API_KEY length:', OPENROUTER_API_KEY?.length || 0)
+
         if (!OPENROUTER_API_KEY) {
-            console.error('Missing OPENROUTER_API_KEY')
-            throw new Error('Server configuration error')
+            console.error('CRITICAL: OPENROUTER_API_KEY is not set. Available keys:', JSON.stringify(allEnvKeys))
+            throw new Error('Server configuration error: Missing OPENROUTER_API_KEY')
         }
 
         // 4. Construct Prompt
         const messages = [
-            { role: "system", content: systemPrompt || "You are a helpful assistant." },
+            { role: "system", content: (systemPrompt || "You are a helpful assistant.") + "\n\nIMPORTANTE: SIEMPRE responde en español." },
             {
                 role: "user",
                 content: context ? `${instruction}\n\nContexto:\n${context}` : instruction
             }
         ]
 
-        // 5. Call OpenRouter
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://crm-cuom.com", // Replace with actual domain
-                "X-Title": "CRM CUOM System"
-            },
-            body: JSON.stringify({
-                model: model || "meta-llama/llama-3.3-70b-instruct:free",
-                messages: messages
-            })
-        })
+        const fallbackModels = [
+            model || "arcee-ai/trinity-large-preview:free",
+            "deepseek/deepseek-r1-0528:free",
+        ]
 
-        if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.error?.message || `OpenRouter Error: ${response.statusText}`)
+        let lastError = ''
+        let generatedText = ''
+
+        for (const currentModel of fallbackModels) {
+            console.log('Trying model:', currentModel)
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://crm-cuom.com",
+                    "X-Title": "CRM CUOM System"
+                },
+                body: JSON.stringify({
+                    model: currentModel,
+                    messages: messages
+                })
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                generatedText = data.choices?.[0]?.message?.content || "No content generated"
+                console.log('Success with model:', currentModel)
+                break
+            }
+
+            // If rate-limited (429), try next model
+            const errorText = await response.text()
+            console.warn(`Model ${currentModel} failed (${response.status}):`, errorText)
+            lastError = errorText
+
+            if (response.status !== 429) {
+                // Non-rate-limit error, don't try fallbacks
+                try {
+                    const errorData = JSON.parse(errorText)
+                    throw new Error(errorData.error?.message || `OpenRouter Error ${response.status}`)
+                } catch (parseErr) {
+                    throw new Error(`OpenRouter Error ${response.status}: ${errorText}`)
+                }
+            }
         }
 
-        const data = await response.json()
-        const generatedText = data.choices?.[0]?.message?.content || "No content generated"
+        if (!generatedText) {
+            throw new Error('Todos los modelos están saturados. Intenta de nuevo en unos minutos.')
+        }
 
         // 6. Return Result
         return new Response(
