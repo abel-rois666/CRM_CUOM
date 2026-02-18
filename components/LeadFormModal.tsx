@@ -28,6 +28,8 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Estado para el toggle de nombre desconocido
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   // Hook Form Initialization
   const {
@@ -58,6 +60,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
   // Initialize Form State
   useEffect(() => {
     setDuplicateWarning(null);
+    setIsAnonymous(false);
 
     if (isOpen) {
       if (leadToEdit) {
@@ -96,6 +99,27 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
   const toTitleCase = (str: string) => {
     return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
   };
+
+  // Manejar el toggle de nombre desconocido
+  const handleAnonymousToggle = useCallback(async (checked: boolean) => {
+    setIsAnonymous(checked);
+
+    if (checked) {
+      // Contar leads genéricos existentes para generar el siguiente número
+      const { count } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .like('first_name', 'Lead-%');
+
+      const nextNumber = (count || 0) + 1;
+      setValue('first_name', `Lead-${nextNumber}`, { shouldValidate: true });
+      setValue('paternal_last_name', 'Sin Identificar', { shouldValidate: true });
+    } else {
+      // Limpiar los campos al desactivar
+      setValue('first_name', '', { shouldValidate: false });
+      setValue('paternal_last_name', '', { shouldValidate: false });
+    }
+  }, [setValue]);
 
   // Watch fields for duplicate check
   const watchedEmail = watch('email');
@@ -158,8 +182,9 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
 
     const leadPayload = {
       ...data,
-      first_name: toTitleCase(data.first_name.trim()),
-      paternal_last_name: toTitleCase(data.paternal_last_name.trim()),
+      // Si es anónimo, conservar el nombre genérico tal cual (sin toTitleCase que rompería Lead-N)
+      first_name: isAnonymous ? data.first_name : toTitleCase(data.first_name.trim()),
+      paternal_last_name: isAnonymous ? data.paternal_last_name : toTitleCase(data.paternal_last_name.trim()),
       maternal_last_name: data.maternal_last_name ? toTitleCase(data.maternal_last_name.trim()) : undefined,
       email: data.email?.trim() || undefined,
     };
@@ -173,6 +198,11 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
   const availableAdvisors = currentUser?.role === 'admin' || currentUser?.role === 'moderator'
     ? advisors
     : advisors.filter(a => a.id === currentUser?.id);
+
+  // Detectar si el lead que se edita ya tiene nombre genérico
+  const isEditingAnonymous = leadToEdit
+    ? /^Lead-\d+$/.test(leadToEdit.first_name)
+    : false;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={leadToEdit ? 'Editar Lead' : 'Nuevo Lead'} size="2xl">
@@ -192,17 +222,49 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
         )}
 
         <div className="bg-gray-50 dark:bg-slate-800/50 p-5 rounded-xl border border-gray-100 dark:border-slate-700">
-          <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Datos Personales</h4>
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Datos Personales</h4>
+
+            {/* Toggle de nombre desconocido — solo visible al crear, o si ya es anónimo */}
+            {(!leadToEdit || isEditingAnonymous) && (
+              <label className="flex items-center gap-2 cursor-pointer select-none group">
+                <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
+                  Nombre desconocido
+                </span>
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={isAnonymous}
+                    onChange={(e) => handleAnonymousToggle(e.target.checked)}
+                  />
+                  <div className={`w-10 h-5 rounded-full transition-colors duration-200 ${isAnonymous ? 'bg-amber-400' : 'bg-gray-300 dark:bg-slate-600'}`} />
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${isAnonymous ? 'translate-x-5' : 'translate-x-0'}`} />
+                </div>
+              </label>
+            )}
+          </div>
+
+          {/* Aviso cuando el modo anónimo está activo */}
+          {isAnonymous && (
+            <div className="mb-4 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+              <span>🏷️</span>
+              <span>Se asignará un nombre genérico. Puedes actualizarlo cuando se conozca el nombre real.</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
             <Input
               label="Nombre(s)"
               {...register('first_name')}
               autoComplete="given-name"
               error={errors.first_name?.message}
-              placeholder="Ej. María"
-              // Keep TitleCase behavior on Blur
+              placeholder={isAnonymous ? 'Generado automáticamente' : 'Ej. María'}
+              disabled={isAnonymous}
+              className={isAnonymous ? 'opacity-60 cursor-not-allowed' : ''}
+              // Keep TitleCase behavior on Blur (solo si no es anónimo)
               onBlur={(e) => {
-                setValue('first_name', toTitleCase(e.target.value.trim()));
+                if (!isAnonymous) setValue('first_name', toTitleCase(e.target.value.trim()), { shouldDirty: true, shouldValidate: true });
               }}
             />
             <Input
@@ -210,9 +272,11 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
               {...register('paternal_last_name')}
               autoComplete="family-name"
               error={errors.paternal_last_name?.message}
-              placeholder="Ej. López"
+              placeholder={isAnonymous ? 'Sin Identificar' : 'Ej. López'}
+              disabled={isAnonymous}
+              className={isAnonymous ? 'opacity-60 cursor-not-allowed' : ''}
               onBlur={(e) => {
-                setValue('paternal_last_name', toTitleCase(e.target.value.trim()));
+                if (!isAnonymous) setValue('paternal_last_name', toTitleCase(e.target.value.trim()), { shouldDirty: true, shouldValidate: true });
               }}
             />
           </div>
@@ -224,17 +288,12 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
               error={errors.maternal_last_name?.message}
               placeholder="Opcional"
               onBlur={(e) => {
-                setValue('maternal_last_name', toTitleCase(e.target.value.trim()));
+                setValue('maternal_last_name', toTitleCase(e.target.value.trim()), { shouldDirty: true, shouldValidate: true });
               }}
             />
             <Select
               label="Licenciatura de Interés"
               {...register('program_id')}
-              // Convert error to string safely or rely on helper logic if Select accepts string
-              // Assuming Select props: name, value undefined (handled by register), onChange (handled), error (string)
-              // To hook Select properly with register, we need to pass the props spread.
-              // Note: Our custom Select component might need 'error' prop.
-              // If 'register' returns ref, name, onChange, onBlur.
               error={errors.program_id?.message}
               options={licenciaturas.map(l => ({ value: l.id, label: l.name }))}
               placeholder="-- Seleccionar Licenciatura --"

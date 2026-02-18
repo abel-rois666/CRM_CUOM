@@ -96,6 +96,9 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
     source_id: sources.find(s => s.name === 'Base de Datos')?.id || sources[0]?.id || '',
   });
 
+  // Toggle: generar nombre genérico para filas sin nombre en el CSV
+  const [useGenericName, setUseGenericName] = useState(false);
+
   const [results, setResults] = useState<{ success: number; errors: string[] }>({ success: 0, errors: [] });
 
   const handleDownloadSample = () => {
@@ -216,6 +219,17 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
     let successCount = 0;
     const errorLog: string[] = [];
 
+    // Si el toggle está activo, obtener el contador de leads genéricos existentes
+    // Se hace UNA SOLA VEZ antes del loop para evitar colisiones
+    let genericCounter = 0;
+    if (useGenericName) {
+      const { count } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .like('first_name', 'Lead-%');
+      genericCounter = count || 0;
+    }
+
     const chunkSize = 50;
 
     for (let i = 0; i < csvData.length; i += chunkSize) {
@@ -227,13 +241,25 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
         const row = chunk[j];
         const rowNum = i + j + 2;
 
-        const firstName = row[mapping.first_name]?.trim();
-        const paternal = row[mapping.paternal_last_name]?.trim();
+        let firstName = row[mapping.first_name]?.trim();
+        let paternal = row[mapping.paternal_last_name]?.trim();
         const phone = row[mapping.phone]?.replace(/\D/g, '').trim();
 
-        if (!firstName || !paternal || !phone) {
-          errorLog.push(`Fila ${rowNum}: Omitida por falta de datos obligatorios.`);
+        // El teléfono siempre es obligatorio (es el identificador real del lead)
+        if (!phone) {
+          errorLog.push(`Fila ${rowNum}: Omitida — falta teléfono (obligatorio).`);
           continue;
+        }
+
+        // Si falta nombre y el toggle está activo, generar nombre genérico
+        if (!firstName || !paternal) {
+          if (!useGenericName) {
+            errorLog.push(`Fila ${rowNum}: Omitida — falta nombre o apellido. Activa "Nombre genérico" para importar de todos modos.`);
+            continue;
+          }
+          genericCounter++;
+          firstName = `Lead-${genericCounter}`;
+          paternal = 'Sin Identificar';
         }
 
         validChunkIndices.push(j);
@@ -448,6 +474,35 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
                 onChange={e => setDefaults(p => ({ ...p, source_id: e.target.value }))}
                 options={sources.map(s => ({ value: s.id, label: s.name }))}
               />
+            </div>
+
+            {/* Toggle: nombre genérico para filas sin nombre */}
+            <div className={`p-4 rounded-xl border transition-colors ${useGenericName
+                ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/50'
+                : 'bg-gray-50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700'
+              }`}>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <div className="relative mt-0.5 flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={useGenericName}
+                    onChange={(e) => setUseGenericName(e.target.checked)}
+                  />
+                  <div className={`w-10 h-5 rounded-full transition-colors duration-200 ${useGenericName ? 'bg-amber-400' : 'bg-gray-300 dark:bg-slate-600'
+                    }`} />
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${useGenericName ? 'translate-x-5' : 'translate-x-0'
+                    }`} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                    Generar nombre genérico para filas sin nombre
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Las filas con nombre vacío se guardarán como <span className="font-mono font-bold">Lead-N</span> / <span className="font-mono font-bold">Sin Identificar</span> en lugar de descartarse.
+                  </p>
+                </div>
+              </label>
             </div>
 
             <div className="flex justify-between pt-6 border-t border-gray-100">

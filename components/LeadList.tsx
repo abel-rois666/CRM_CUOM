@@ -653,6 +653,26 @@ const LeadList: React.FC<LeadListProps> = ({
                         setSelectedIds(new Set());
                         setIsBulkDeleteOpen(false);
                         toast.success(`Se eliminaron ${ids.length} prospectos correctamente.`);
+
+                        // ── Detectar página vacía ──────────────────────────────────
+                        // Si eliminamos todos los leads de la página actual y aún
+                        // quedan leads en otras páginas, retrocedemos de página.
+                        // Así evitamos mostrar una tabla vacía sin hacer refetch completo.
+                        const remainingTotal = totalLeads - ids.length;
+                        const leadsLeftOnPage = leads.length - ids.length;
+
+                        if (leadsLeftOnPage <= 0 && remainingTotal > 0) {
+                            // Hay leads en otras páginas: ir a la página anterior (o página 1)
+                            const prevPage = Math.max(1, page - 1);
+                            onPageChange(prevPage);
+                        } else if (remainingTotal <= 0) {
+                            // Se eliminaron todos los leads: refetch para limpiar estado del servidor
+                            if (onRefresh) onRefresh();
+                        }
+                        // Si quedan leads en la página actual, onLocalDeleteMany ya actualizó
+                        // el estado local y la tabla se re-renderiza sin necesidad de nada más.
+                        // ──────────────────────────────────────────────────────────
+
                     } catch (err: any) {
                         toast.error("Error al eliminar masivamente: " + err.message);
                     } finally {
