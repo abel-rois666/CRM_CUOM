@@ -26,6 +26,7 @@ import Button from './common/Button';
 import { Select } from './common/FormElements';
 import CategorySettingsModal from './CategorySettingsModal';
 import { useModal } from '../context/ModalContext';
+import { useToast } from '../context/ToastContext';
 
 import LeadHeader from './lead-list/LeadHeader';
 import LeadToolbar, { ViewMode } from './lead-list/LeadToolbar';
@@ -107,6 +108,7 @@ const LeadList: React.FC<LeadListProps> = ({
 
     // Listen for bulkTransfer modal from context (for opening from SettingsModal)
     const { modals, closeModal } = useModal();
+    const toast = useToast();
     useEffect(() => {
         if (modals.bulkTransfer.isOpen) {
             setBulkTransferAdvisorId(modals.bulkTransfer.data?.advisorId);
@@ -333,8 +335,9 @@ const LeadList: React.FC<LeadListProps> = ({
 
     const confirmIndividualDelete = async (id: string) => {
         const { error } = await supabase.from('leads').delete().eq('id', id);
-        if (error) { alert("Error al eliminar: " + error.message); }
+        if (error) { toast.error("Error al eliminar: " + error.message); }
         else {
+            toast.success("Prospecto eliminado correctamente.");
             onDelete(id);
             if (onRefresh) onRefresh();
         }
@@ -649,9 +652,9 @@ const LeadList: React.FC<LeadListProps> = ({
                         if (onLocalDeleteMany) onLocalDeleteMany(ids);
                         setSelectedIds(new Set());
                         setIsBulkDeleteOpen(false);
-                        alert(`Se eliminaron ${ids.length} prospectos correctamente.`);
+                        toast.success(`Se eliminaron ${ids.length} prospectos correctamente.`);
                     } catch (err: any) {
-                        alert("Error al eliminar masivamente: " + err.message);
+                        toast.error("Error al eliminar masivamente: " + err.message);
                     } finally {
                         setProcessingBulk(false);
                     }
@@ -699,7 +702,7 @@ const LeadList: React.FC<LeadListProps> = ({
                                     setSelectedIds(new Set());
                                     setIsBulkStatusOpen(false);
                                 } catch (err: any) {
-                                    alert("Error al actualizar estados: " + err.message);
+                                    toast.error("Error al actualizar estados: " + err.message);
                                 } finally {
                                     setProcessingBulk(false);
                                 }
