@@ -100,11 +100,11 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
             case 'name':
                 return (
                     <div className="relative z-10 flex items-center cursor-pointer w-full h-full" onClick={() => onViewDetails(lead, 'info')}>
-                        <div className="h-9 w-9 rounded-full bg-brand-secondary/10 dark:bg-blue-900/30 flex items-center justify-center text-brand-secondary dark:text-blue-400 font-bold text-sm mr-3 shrink-0">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center font-bold text-sm mr-3 shrink-0 ${isSelected ? 'bg-blue-200 text-blue-800 dark:bg-blue-600 dark:text-white' : 'bg-brand-secondary/10 dark:bg-blue-900/30 text-brand-secondary dark:text-blue-400'}`}>
                             {lead.first_name.charAt(0)}
                         </div>
                         <div className="min-w-[120px]">
-                            <div className="text-sm font-bold text-gray-900 dark:text-white truncate">{lead.first_name} {lead.paternal_last_name}</div>
+                            <div className={`text-sm font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900 dark:text-gray-400'}`}>{lead.first_name} {lead.paternal_last_name}</div>
                         </div>
                     </div>
                 );
@@ -189,7 +189,7 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
 
     // Base styles for the sticky cell: Opaque background to hide scrolled content, relative for pseudo-positioning
     // [FIX] Changed dark:bg-slate-900 to dark:bg-slate-800 to match LeadTable tbody color
-    const stickyBase = "sticky left-0 z-20 bg-white dark:bg-slate-800 border-r border-transparent shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]";
+    const stickyBase = `sticky left-0 z-20 border-r border-transparent shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-blue-100 dark:bg-slate-700' : 'bg-white dark:bg-slate-800'}`;
 
     // Dynamic overlay styles using 'before' pseudo-element to match row background without losing opacity
     let stickyOverlay = "before:absolute before:inset-0 before:transition-colors before:duration-200 before:pointer-events-none";
@@ -210,9 +210,9 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
     }
 
     if (isSelected) {
-        rowClasses += " bg-blue-50 dark:bg-blue-900/20";
+        rowClasses += " bg-blue-50 dark:bg-slate-700 !border-l-4 !border-l-blue-500";
         // Override overlay for selected state
-        stickyOverlay = "before:absolute before:inset-0 before:transition-colors before:duration-200 before:pointer-events-none before:bg-blue-50 before:dark:bg-blue-900/20";
+        stickyOverlay = "before:absolute before:inset-0 before:transition-colors before:duration-200 before:pointer-events-none before:bg-blue-50 before:dark:bg-slate-700";
     }
 
     return (
