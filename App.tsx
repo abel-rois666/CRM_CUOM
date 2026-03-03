@@ -23,6 +23,7 @@ const ReportModal = React.lazy(() => import('./components/ReportModal'));
 const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'));
 const AlertsModal = React.lazy(() => import('./components/AlertsModal'));
 const SetupWizard = React.lazy(() => import('./components/SetupWizard'));
+const ActivityReportModal = React.lazy(() => import('./components/ActivityReportModal'));
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
@@ -580,6 +581,7 @@ const AppContent: React.FC = () => {
           statusCategories={statusCategories}
           onRefreshCatalogs={refetch}
           clearSelectionSignal={clearSelectionSignal}
+          onOpenActivity={() => openModal('activityReport')}
         />
       </main>
 
@@ -674,6 +676,16 @@ const AppContent: React.FC = () => {
             statuses={statuses}
             sources={sources}
             licenciaturas={licenciaturas}
+          />
+        )}
+
+        {modals.activityReport.isOpen && (
+          <ActivityReportModal
+            isOpen={modals.activityReport.isOpen}
+            onClose={() => closeModal('activityReport')}
+            currentUser={profile}
+            advisors={assignableStaff}
+            statuses={statuses}
           />
         )}
       </Suspense>

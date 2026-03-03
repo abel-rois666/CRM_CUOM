@@ -5,6 +5,7 @@ import ArrowUpTrayIcon from '../icons/ArrowUpTrayIcon';
 import ChartBarIcon from '../icons/ChartBarIcon';
 import ArrowDownTrayIcon from '../icons/ArrowDownTrayIcon';
 import PlusIcon from '../icons/PlusIcon';
+import ClipboardListIcon from '../icons/ClipboardListIcon';
 
 interface LeadHeaderProps {
     totalLeads: number; // Filtrados / Resultset
@@ -16,6 +17,7 @@ interface LeadHeaderProps {
     onExportCSV: () => void;
     onAddNew: () => void;
     onOpenBulkTransfer: () => void;
+    onOpenActivity: () => void; // [NEW] Reporte de actividad (todos los roles)
 }
 
 const LeadHeader: React.FC<LeadHeaderProps> = ({
@@ -27,7 +29,8 @@ const LeadHeader: React.FC<LeadHeaderProps> = ({
     onOpenReports,
     onExportCSV,
     onAddNew,
-    onOpenBulkTransfer
+    onOpenBulkTransfer,
+    onOpenActivity,
 }) => {
     return (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
@@ -58,6 +61,10 @@ const LeadHeader: React.FC<LeadHeaderProps> = ({
                         <ChartBarIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Reporte</span>
                     </Button>
                 )}
+                {/* [NEW] Botón de Actividad — visible para TODOS los roles */}
+                <Button onClick={onOpenActivity} variant="secondary" size="sm" className="px-3 sm:px-4 border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800 dark:hover:bg-indigo-900/40" title="Actividad del día">
+                    <ClipboardListIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Actividad</span>
+                </Button>
                 {userRole === 'admin' && (
                     <Button onClick={onExportCSV} variant="secondary" size="sm" className="px-3 sm:px-4">
                         <ArrowDownTrayIcon className="w-5 h-5 sm:mr-2" /> <span className="hidden sm:inline">Exportar (Pagina)</span>

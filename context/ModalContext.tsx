@@ -10,7 +10,8 @@ export type ModalKey =
     | 'email'
     | 'bulkImport'
     | 'bulkTransfer'
-    | 'automationChoice';
+    | 'automationChoice'
+    | 'activityReport';
 
 interface ModalState {
     isOpen: boolean;
@@ -37,6 +38,7 @@ const defaultState: ModalsMap = {
     bulkImport: { isOpen: false },
     bulkTransfer: { isOpen: false },
     automationChoice: { isOpen: false },
+    activityReport: { isOpen: false },
 };
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);

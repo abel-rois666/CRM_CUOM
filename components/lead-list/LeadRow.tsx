@@ -2,6 +2,7 @@
 import React, { memo } from 'react';
 import { Lead } from '../../types';
 import { calculateLeadScore, getScoreColor, getScoreBreakdown, getLeadUrgency, getLastActivityDate } from '../../utils/leadScoring';
+import { formatDate } from '../../utils/dateUtils';
 import Badge from '../common/Badge';
 import BellAlertIcon from '../icons/BellAlertIcon';
 import ExclamationCircleIcon from '../icons/ExclamationCircleIcon';
@@ -147,14 +148,14 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
 
                 return (
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {lastDate.toLocaleDateString()}
+                        {formatDate(lastDate)}
                     </div>
                 );
             case 'registro':
                 return (
                     <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
                         <ClockIcon className="w-3 h-3" />
-                        {new Date(lead.registration_date).toLocaleDateString()}
+                        {formatDate(lead.registration_date)}
                     </div>
                 );
             case 'agenda':

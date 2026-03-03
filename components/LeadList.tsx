@@ -68,6 +68,7 @@ interface LeadListProps {
     statusCategories: StatusCategoryMetadata[]; // [NEW]
     onRefreshCatalogs: () => void; // [NEW]
     clearSelectionSignal?: number; // [NEW] Signal to clear selection remotely
+    onOpenActivity: () => void;   // [NEW] Reporte de actividad diaria
 }
 
 const LeadList: React.FC<LeadListProps> = ({
@@ -80,7 +81,8 @@ const LeadList: React.FC<LeadListProps> = ({
     lastUpdatedLead,
     statusCategories = [], // Default empty array to prevent crashes
     onRefreshCatalogs, // [NEW]
-    clearSelectionSignal = 0 // [NEW]
+    clearSelectionSignal = 0, // [NEW]
+    onOpenActivity,    // [NEW]
 }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
 
@@ -344,14 +346,26 @@ const LeadList: React.FC<LeadListProps> = ({
         setLeadToDelete(null);
     };
 
+    // Columnas que el servidor puede ordenar directamente (campo real en BD)
+    const SERVER_SORTABLE: Set<SortableColumn> = new Set([
+        'name', 'registration_date', 'status_id', 'advisor_id',
+        'email', 'phone', 'source', 'program_id',
+    ]);
+
     const handleSort = (column: SortableColumn) => {
-        if (column === sortColumn) {
-            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortColumn(column);
-            setSortDirection('asc');
-            if (column === 'urgency') setSortDirection('desc');
+        const newDirection = column === sortColumn
+            ? (sortDirection === 'asc' ? 'desc' : 'asc')
+            : (column === 'urgency' ? 'desc' : 'asc');
+
+        setSortColumn(column);
+        setSortDirection(newDirection);
+
+        if (SERVER_SORTABLE.has(column)) {
+            // ── Server-side sort: dispara una nueva query al servidor ──────
+            onFilterChange({ sortColumn: column, sortDirection: newDirection });
+            // onFilterChange ya hace reset a pág 1 (handleSetFilters en useCRMData)
         }
+        // Para urgencia, score, last_activity, agenda → solo se reordena la página actual (sortedLeads useMemo)
     };
 
     // Logic for Bulk Actions & Export reused/adapted
@@ -486,6 +500,7 @@ const LeadList: React.FC<LeadListProps> = ({
                     onExportCSV={handleExportCSV}
                     onAddNew={onAddNew}
                     onOpenBulkTransfer={() => setIsBulkTransferOpen(true)}
+                    onOpenActivity={onOpenActivity}
                 />
 
                 <LeadToolbar

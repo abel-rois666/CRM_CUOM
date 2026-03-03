@@ -13,8 +13,10 @@ export interface DataFilters {
   startDate: string;
   endDate: string;
   searchTerm: string;
-  category?: string; // Nuevo filtro por categoría de estado
-  quickFilter?: QuickFilterType; // [NEW] Filtro rápido de dashboard
+  category?: string;
+  quickFilter?: QuickFilterType;
+  sortColumn?: string;   // columna de ordenamiento server-side
+  sortDirection?: 'asc' | 'desc';
 }
 
 export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
@@ -34,8 +36,10 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     startDate: '',
     endDate: '',
     searchTerm: '',
-    category: 'active', // Por defecto mostramos leads activos
-    quickFilter: null // [NEW] Sin filtro rápido inicial
+    category: 'active',
+    quickFilter: null,
+    sortColumn: 'registration_date',
+    sortDirection: 'desc',
   });
 
   // --- CATÁLOGOS ---
@@ -169,10 +173,12 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
         }
       }
 
-      // Filtro de Fechas
+      // Filtro de Fechas — convertimos fecha local a UTC correctamente.
+      // Usar sufijo Z fijo causaría interpretar como medianoche UTC (≠ medianoche local).
       if (filters.startDate && filters.endDate) {
-        query = query.gte('registration_date', `${filters.startDate}T00:00:00.000Z`)
-          .lte('registration_date', `${filters.endDate}T23:59:59.999Z`);
+        const fromUTC = new Date(`${filters.startDate}T00:00:00`).toISOString();
+        const toUTC = new Date(`${filters.endDate}T23:59:59.999`).toISOString();
+        query = query.gte('registration_date', fromUTC).lte('registration_date', toUTC);
       }
 
       // Búsqueda de Texto (Usando la nueva columna search_text)
@@ -188,8 +194,22 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       const from = (safePage - 1) * safePageSize;
       const to = from + safePageSize - 1;
 
+      // Ordenamiento server-side — mapear nombre UI al campo real en BD
+      const SERVER_SORT_MAP: Record<string, string> = {
+        name: 'first_name',
+        registration_date: 'registration_date',
+        status_id: 'status_id',
+        advisor_id: 'advisor_id',
+        email: 'email',
+        phone: 'phone',
+        source: 'source_id',
+        program_id: 'program_id',
+      };
+      const sortCol = SERVER_SORT_MAP[filters.sortColumn || 'registration_date'] || 'registration_date';
+      const sortAsc = filters.sortDirection === 'asc';
+
       const { data, error, count } = await query
-        .order('registration_date', { ascending: false })
+        .order(sortCol, { ascending: sortAsc })
         .range(from, to);
 
       if (error) throw error;

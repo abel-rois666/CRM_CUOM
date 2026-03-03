@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Lead } from '../../types';
 import { calculateLeadScore, getScoreColor, getScoreBreakdown, getLeadUrgency, getLastActivityDate } from '../../utils/leadScoring';
+import { formatDate } from '../../utils/dateUtils';
 import Badge from '../common/Badge';
 import LeadRow from './LeadRow'; // [NEW] Memoized Row
 import { usePreferences } from '../../hooks/usePreferences';
@@ -450,7 +451,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                         <div>
                                             <span className="block text-[10px] uppercase tracking-wider text-gray-400">Últ. Actividad</span>
                                             <span className="font-medium text-gray-700 dark:text-gray-300 truncate block">
-                                                {lastActivityDate.toLocaleDateString()}
+                                                {formatDate(lastActivityDate)}
                                             </span>
                                         </div>
                                     )}
@@ -458,7 +459,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
                                     {columns.find(c => c.id === 'registro')?.visible && (
                                         <div>
                                             <span className="block text-[10px] uppercase tracking-wider text-gray-400">Registro</span>
-                                            <span className="font-medium">{new Date(lead.registration_date).toLocaleDateString()}</span>
+                                            <span className="font-medium">{formatDate(lead.registration_date)}</span>
                                         </div>
                                     )}
 
