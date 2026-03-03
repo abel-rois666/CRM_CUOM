@@ -1,5 +1,5 @@
 // components/ActivityReportModal.tsx
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import { Input, Select } from './common/FormElements';
@@ -20,14 +20,11 @@ interface ActivityEvent {
     advisorName: string;
     advisorId: string;
     type: ActivityType;
-    detail: string;   // texto completo – el truncado es solo visual
+    detail: string;      // texto completo – el truncado es solo visual
     timestamp: string;
 }
 
-interface StatusSummaryItem {
-    name: string;
-    count: number;
-}
+interface StatusSummaryItem { name: string; count: number; }
 
 interface ActivityReportModalProps {
     isOpen: boolean;
@@ -37,7 +34,7 @@ interface ActivityReportModalProps {
     statuses: Status[];
 }
 
-// ─── Config visual por tipo ────────────────────────────────────────────────────
+// ─── Config visual ─────────────────────────────────────────────────────────────
 const TYPE_CONFIG: Record<ActivityType, { label: string; emoji: string; bgClass: string; textClass: string }> = {
     new_lead: { label: 'Nuevo Lead', emoji: '🆕', bgClass: 'bg-blue-50 dark:bg-blue-900/20', textClass: 'text-blue-700 dark:text-blue-300' },
     status_change: { label: 'Cambio de Estatus', emoji: '🔄', bgClass: 'bg-amber-50 dark:bg-amber-900/20', textClass: 'text-amber-700 dark:text-amber-300' },
@@ -53,7 +50,7 @@ function formatDateLabel(dateStr: string): string {
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
-/** Convierte fecha local (YYYY-MM-DD) a ISO UTC sin bug de timezone */
+/** Convierte 'YYYY-MM-DD' a ISO UTC sin bug de timezone (medianoche local → UTC) */
 function toLocalISO(dateStr: string, time: 'start' | 'end'): string {
     return new Date(`${dateStr}${time === 'start' ? 'T00:00:00' : 'T23:59:59.999'}`).toISOString();
 }
@@ -83,11 +80,15 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
 
     const [startDate, setStartDate] = useState(today);
     const [endDate, setEndDate] = useState(today);
+
+    // ── Para asesores: fijo a su propio ID.
+    // ── Para admin/mod: selector libre; el FETCH siempre trae TODOS y se filtra en cliente.
     const [selectedAdvisorId, setSelectedAdvisorId] = useState<string>(
         isAdminOrMod ? 'all' : (currentUser?.id || '')
     );
-    const [events, setEvents] = useState<ActivityEvent[] | null>(null);
-    const [statusSummary, setStatusSummary] = useState<StatusSummaryItem[]>([]);
+
+    // allEvents = TODOS los eventos del periodo (sin filtro de asesor en el servidor)
+    const [allEvents, setAllEvents] = useState<ActivityEvent[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isExporting, setIsExporting] = useState(false);
@@ -95,55 +96,58 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
     const reportRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!isOpen) { setEvents(null); setError(null); setExpandedIds(new Set()); setStatusSummary([]); }
+        if (!isOpen) { setAllEvents(null); setError(null); setExpandedIds(new Set()); }
     }, [isOpen]);
 
     const toggleExpand = (id: string) => {
         setExpandedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
     };
 
-    // ── Fetch ───────────────────────────────────────────────────────────────────
+    // ── Fetch — SIEMPRE trae todos los asesores del periodo ─────────────────────
     const handleFetch = useCallback(async () => {
         if (!startDate || !endDate) { setError('Selecciona un periodo válido.'); return; }
         if (startDate > endDate) { setError('La fecha de inicio no puede ser mayor a la final.'); return; }
 
-        setError(null); setIsLoading(true); setEvents(null); setStatusSummary([]); setExpandedIds(new Set());
+        setError(null); setIsLoading(true); setAllEvents(null); setExpandedIds(new Set());
         try {
             const from = toLocalISO(startDate, 'start');
             const to = toLocalISO(endDate, 'end');
-            const filterAdvisorId = isAdminOrMod
-                ? (selectedAdvisorId !== 'all' ? selectedAdvisorId : null)
-                : currentUser?.id;
+
+            // Para asesores (no admin/mod): restringir server-side a su propio ID
+            const serverAdvisorId = isAdminOrMod ? null : currentUser?.id;
 
             // 1. Leads nuevos
             let q1 = (supabase as any)
                 .from('leads')
                 .select('id, first_name, paternal_last_name, advisor_id, registration_date')
                 .gte('registration_date', from).lte('registration_date', to);
-            if (filterAdvisorId) q1 = q1.eq('advisor_id', filterAdvisorId);
+            if (serverAdvisorId) q1 = q1.eq('advisor_id', serverAdvisorId);
             const { data: newLeadsData, error: e1 } = await q1;
             if (e1) throw e1;
 
             // 2. Cambios de estatus
-            const { data: histData, error: e2 } = await (supabase as any)
+            let q2 = (supabase as any)
                 .from('status_history')
                 .select('id, lead_id, new_status_id, date, leads(first_name, paternal_last_name, advisor_id)')
                 .gte('date', from).lte('date', to);
+            const { data: histData, error: e2 } = await q2;
             if (e2) throw e2;
 
             // 3. Notas
-            const { data: notesData, error: e3 } = await (supabase as any)
+            let q3 = (supabase as any)
                 .from('follow_ups')
                 .select('id, lead_id, notes, created_at, leads(first_name, paternal_last_name, advisor_id)')
                 .gte('created_at', from).lte('created_at', to);
+            const { data: notesData, error: e3 } = await q3;
             if (e3) throw e3;
 
             // 4. Citas
-            const { data: apptData, error: e4 } = await (supabase as any)
+            let q4 = (supabase as any)
                 .from('appointments')
                 .select('id, lead_id, title, created_at, status, leads(first_name, paternal_last_name, advisor_id)')
                 .gte('created_at', from).lte('created_at', to)
                 .neq('status', 'canceled');
+            const { data: apptData, error: e4 } = await q4;
             if (e4) throw e4;
 
             const advisorMap = new Map(advisors.map(a => [a.id, a.full_name]));
@@ -151,59 +155,73 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
             const result: ActivityEvent[] = [];
             let seq = 0;
 
-            // ── Resumen de cambios de estatus ──────────────────────────────────────
-            const statusCountMap = new Map<string, number>();
+            const push = (event: ActivityEvent) => {
+                // Para asesores: solo sus registros (double-check)
+                if (serverAdvisorId && event.advisorId !== serverAdvisorId) return;
+                result.push(event);
+            };
 
             (newLeadsData || []).forEach((lead: any) => {
-                if (filterAdvisorId && lead.advisor_id !== filterAdvisorId) return;
-                result.push({ id: `nl-${seq++}`, leadId: lead.id, leadName: `${lead.first_name} ${lead.paternal_last_name}`, advisorId: lead.advisor_id, advisorName: advisorMap.get(lead.advisor_id) || 'Sin Asignar', type: 'new_lead', detail: 'Registro creado', timestamp: lead.registration_date });
+                push({ id: `nl-${seq++}`, leadId: lead.id, leadName: `${lead.first_name} ${lead.paternal_last_name}`, advisorId: lead.advisor_id || '', advisorName: advisorMap.get(lead.advisor_id) || 'Sin Asignar', type: 'new_lead', detail: 'Registro creado', timestamp: lead.registration_date });
             });
 
             (histData || []).forEach((h: any) => {
-                const advisorId = h.leads?.advisor_id;
-                if (filterAdvisorId && advisorId !== filterAdvisorId) return;
+                const advisorId = h.leads?.advisor_id || '';
                 const statusName = statusMap.get(h.new_status_id) || 'Desconocido';
-                statusCountMap.set(statusName, (statusCountMap.get(statusName) || 0) + 1);
-                result.push({ id: `sh-${seq++}`, leadId: h.lead_id, leadName: h.leads ? `${h.leads.first_name} ${h.leads.paternal_last_name}` : 'Lead eliminado', advisorId: advisorId || '', advisorName: advisorMap.get(advisorId) || 'Sin Asignar', type: 'status_change', detail: `→ ${statusName}`, timestamp: h.date });
+                push({ id: `sh-${seq++}`, leadId: h.lead_id, leadName: h.leads ? `${h.leads.first_name} ${h.leads.paternal_last_name}` : 'Lead eliminado', advisorId, advisorName: advisorMap.get(advisorId) || 'Sin Asignar', type: 'status_change', detail: `→ ${statusName}`, timestamp: h.date });
             });
 
             (notesData || []).forEach((n: any) => {
-                const advisorId = n.leads?.advisor_id;
-                if (filterAdvisorId && advisorId !== filterAdvisorId) return;
-                result.push({ id: `fu-${seq++}`, leadId: n.lead_id, leadName: n.leads ? `${n.leads.first_name} ${n.leads.paternal_last_name}` : 'Lead eliminado', advisorId: advisorId || '', advisorName: advisorMap.get(advisorId) || 'Sin Asignar', type: 'note_added', detail: n.notes || '', timestamp: n.created_at });
+                const advisorId = n.leads?.advisor_id || '';
+                push({ id: `fu-${seq++}`, leadId: n.lead_id, leadName: n.leads ? `${n.leads.first_name} ${n.leads.paternal_last_name}` : 'Lead eliminado', advisorId, advisorName: advisorMap.get(advisorId) || 'Sin Asignar', type: 'note_added', detail: n.notes || '', timestamp: n.created_at });
             });
 
             (apptData || []).forEach((a: any) => {
-                const advisorId = a.leads?.advisor_id;
-                if (filterAdvisorId && advisorId !== filterAdvisorId) return;
-                result.push({ id: `ap-${seq++}`, leadId: a.lead_id, leadName: a.leads ? `${a.leads.first_name} ${a.leads.paternal_last_name}` : 'Lead eliminado', advisorId: advisorId || '', advisorName: advisorMap.get(advisorId) || 'Sin Asignar', type: 'appointment', detail: a.title || 'Cita agendada', timestamp: a.created_at });
+                const advisorId = a.leads?.advisor_id || '';
+                push({ id: `ap-${seq++}`, leadId: a.lead_id, leadName: a.leads ? `${a.leads.first_name} ${a.leads.paternal_last_name}` : 'Lead eliminado', advisorId, advisorName: advisorMap.get(advisorId) || 'Sin Asignar', type: 'appointment', detail: a.title || 'Cita agendada', timestamp: a.created_at });
             });
 
             result.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            setEvents(result);
-            setStatusSummary(
-                Array.from(statusCountMap.entries())
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([name, count]) => ({ name, count }))
-            );
+            setAllEvents(result);
         } catch (err: any) {
             setError('Error al cargar la actividad: ' + (err.message || 'Error desconocido'));
         } finally {
             setIsLoading(false);
         }
-    }, [startDate, endDate, selectedAdvisorId, currentUser, advisors, statuses, isAdminOrMod]);
+    }, [startDate, endDate, currentUser, advisors, statuses, isAdminOrMod]);
+
+    // ── Filtrado CLIENT-SIDE al cambiar asesor — INSTANTÁNEO, sin red ──────────
+    const events = useMemo<ActivityEvent[] | null>(() => {
+        if (!allEvents) return null;
+        if (!isAdminOrMod || selectedAdvisorId === 'all') return allEvents;
+        return allEvents.filter(ev => ev.advisorId === selectedAdvisorId);
+    }, [allEvents, selectedAdvisorId, isAdminOrMod]);
+
+    // ── Resumen de cambios de estatus (derivado de events filtrados) ────────────
+    const statusSummary = useMemo<StatusSummaryItem[]>(() => {
+        if (!events) return [];
+        const map = new Map<string, number>();
+        events.forEach(ev => {
+            if (ev.type !== 'status_change') return;
+            const name = ev.detail.replace('→ ', '');
+            map.set(name, (map.get(name) || 0) + 1);
+        });
+        return Array.from(map.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => ({ name, count }));
+    }, [events]);
 
     // ── Contadores de cabecera ──────────────────────────────────────────────────
-    const counts = (events || []).reduce((acc, e) => {
-        acc[e.type] = (acc[e.type] || 0) + 1; return acc;
-    }, {} as Record<ActivityType, number>);
+    const counts = useMemo(() =>
+        (events || []).reduce((acc, e) => {
+            acc[e.type] = (acc[e.type] || 0) + 1; return acc;
+        }, {} as Record<ActivityType, number>)
+        , [events]);
 
     // ── Export PDF — html2canvas + smart row-boundary split ────────────────────
     const handleExportPDF = async () => {
         if (!reportRef.current || !events) return;
         setIsExporting(true);
-
-        // Expandir todas las notas para el PDF
         setExpandedIds(new Set(events.filter(e => e.type === 'note_added').map(e => e.id)));
         await new Promise(r => setTimeout(r, 350));
 
@@ -212,16 +230,10 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
             const html2canvas = (await import('html2canvas')).default;
             const content = reportRef.current!;
 
-            // ── 1. Clonar y montar en DOM para medir ────────────────────────────────
             const clone = content.cloneNode(true) as HTMLElement;
-            clone.style.cssText = `
-        width:1100px; padding:32px 40px; background:#fff;
-        position:absolute; left:-9999px; top:0;
-        font-family:Arial,Helvetica,sans-serif;
-      `;
+            clone.style.cssText = `width:1100px;padding:32px 40px;background:#fff;position:absolute;left:-9999px;top:0;font-family:Arial,Helvetica,sans-serif;`;
             document.body.appendChild(clone);
 
-            // Normalizar colores oklch/oklab → rgb para que html2canvas los entienda
             Array.from(clone.querySelectorAll('*')).forEach((el) => {
                 const e = el as HTMLElement;
                 const cs = window.getComputedStyle(e);
@@ -229,108 +241,75 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                 if (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)')
                     e.style.backgroundColor = normalizeColor(cs.backgroundColor);
                 if (cs.borderColor) e.style.borderColor = normalizeColor(cs.borderColor);
-                if (cs.borderTopColor) e.style.borderTopColor = normalizeColor(cs.borderTopColor);
-                if (cs.borderBottomColor) e.style.borderBottomColor = normalizeColor(cs.borderBottomColor);
             });
 
-            // ── 2. Medir posición de filas en el CLONE (antes de renderizar a canvas)
             const cloneRect = clone.getBoundingClientRect();
             const tableRows = clone.querySelectorAll('table tbody tr');
-            // Safe break points (fin de cada fila) en px relativo a la parte superior del clone
             const rowBreaksPx: number[] = [0];
             tableRows.forEach(row => {
-                const r = row.getBoundingClientRect();
-                rowBreaksPx.push(Math.round(r.bottom - cloneRect.top));
+                rowBreaksPx.push(Math.round(row.getBoundingClientRect().bottom - cloneRect.top));
             });
             rowBreaksPx.push(Math.round(cloneRect.height));
 
-            // ── 3. Renderizar a canvas ───────────────────────────────────────────────
-            const canvas = await html2canvas(clone, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-                windowWidth: 1100,
-            });
+            const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1100 });
             document.body.removeChild(clone);
 
-            // ── 4. Calcular PDF pages con corte en límite de fila ──────────────────
             const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-            const pdfW = pdf.internal.pageSize.getWidth();   // 210mm
-            const pdfH = pdf.internal.pageSize.getHeight();  // 297mm
-            const MARGIN = 12; // mm
+            const pdfW = pdf.internal.pageSize.getWidth();
+            const pdfH = pdf.internal.pageSize.getHeight();
+            const MARGIN = 12;
             const usableW = pdfW - 2 * MARGIN;
             const usableH = pdfH - 2 * MARGIN;
-
-            // Factor de conversión: clone pixels → canvas pixels (scale=2, width=1100 → 2200)
-            const scaleFactor = canvas.height / cloneRect.height; // ~2
-            // mm por pixel de canvas
-            const mmPerCanvasPx = usableW / canvas.width;
-            // Altura máxima de página en canvas pixels
-            const pageHeightCanvasPx = usableH / mmPerCanvasPx;
-
-            // Convertir rowBreaks de clone-px a canvas-px
+            const mmPerPx = usableW / canvas.width;
+            const pageHpx = usableH / mmPerPx;
+            const scaleFactor = canvas.height / cloneRect.height;
             const rowBreaksCanvas = rowBreaksPx.map(bp => Math.round(bp * scaleFactor));
 
             const label = startDate === endDate ? startDate : `${startDate}_${endDate}`;
-            let pageStart = 0;
-            let pageIdx = 0;
+            let pageStart = 0, pageIdx = 0;
 
             while (pageStart < canvas.height) {
                 if (pageIdx > 0) pdf.addPage();
-
-                const idealEnd = pageStart + pageHeightCanvasPx;
-
-                // Buscar el safe break más grande que quepa en esta página
+                const idealEnd = pageStart + pageHpx;
                 let safeEnd = Math.min(idealEnd, canvas.height);
                 if (idealEnd < canvas.height) {
-                    // Retroceder al límite de fila más cercano por debajo de idealEnd
                     for (let i = rowBreaksCanvas.length - 1; i >= 0; i--) {
-                        if (rowBreaksCanvas[i] <= idealEnd && rowBreaksCanvas[i] > pageStart) {
-                            safeEnd = rowBreaksCanvas[i];
-                            break;
-                        }
+                        if (rowBreaksCanvas[i] <= idealEnd && rowBreaksCanvas[i] > pageStart) { safeEnd = rowBreaksCanvas[i]; break; }
                     }
-                    // Si ningún break cabe (fila única más alta que una página), cortar en idealEnd
                     if (safeEnd === pageStart) safeEnd = idealEnd;
                 }
-
                 const segH = Math.ceil(safeEnd - pageStart);
-
-                // Crear canvas segmento
                 const seg = document.createElement('canvas');
-                seg.width = canvas.width;
-                seg.height = segH;
+                seg.width = canvas.width; seg.height = segH;
                 const ctx = seg.getContext('2d')!;
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, seg.width, seg.height);
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, seg.width, seg.height);
                 ctx.drawImage(canvas, 0, pageStart, canvas.width, segH, 0, 0, canvas.width, segH);
-
-                const segData = seg.toDataURL('image/png');
-                const segMmH = segH * mmPerCanvasPx;  // altura real en mm
-
-                pdf.addImage(segData, 'PNG', MARGIN, MARGIN, usableW, segMmH);
-
-                pageStart = safeEnd;
-                pageIdx++;
+                pdf.addImage(seg.toDataURL('image/png'), 'PNG', MARGIN, MARGIN, usableW, segH * mmPerPx);
+                pageStart = safeEnd; pageIdx++;
             }
-
             pdf.save(`actividad_${label}.pdf`);
         } catch (err) {
             console.error('Error PDF:', err);
-            alert('Error al generar PDF. Intenta de nuevo.');
+            alert('Error al generar PDF.');
         } finally {
             setIsExporting(false);
             setExpandedIds(new Set());
         }
     };
 
-    // ── Opciones ────────────────────────────────────────────────────────────────
+    // ── Opciones de asesor ──────────────────────────────────────────────────────
     const advisorOptions = [
         { value: 'all', label: 'Todos los asesores' },
         ...advisors.map(a => ({ value: a.id, label: a.full_name })),
     ];
     const showAdvisorCol = isAdminOrMod && selectedAdvisorId === 'all';
+
+    // ── Nombre del asesor seleccionado (para header del reporte) ───────────────
+    const advisorLabel = !isAdminOrMod
+        ? currentUser?.full_name
+        : selectedAdvisorId !== 'all'
+            ? advisors.find(a => a.id === selectedAdvisorId)?.full_name
+            : undefined;
 
     // ─── Render ──────────────────────────────────────────────────────────────────
     return (
@@ -358,14 +337,25 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                     </div>
                     {isAdminOrMod && (
                         <div className="w-full sm:flex-1 min-w-[180px]">
+                            {/* Selector de asesor: solo filtra en cliente — sin nueva query */}
                             <Select id="act-advisor" label="Asesor" value={selectedAdvisorId}
-                                onChange={e => setSelectedAdvisorId(e.target.value)} options={advisorOptions} />
+                                onChange={e => setSelectedAdvisorId(e.target.value)}
+                                options={advisorOptions}
+                                disabled={allEvents === null} // desabilitado hasta primer fetch
+                            />
                         </div>
                     )}
-                    <Button onClick={handleFetch} disabled={isLoading} className="w-full sm:w-auto shadow-md whitespace-nowrap">
-                        <ChartBarIcon className="w-5 h-5 mr-2" />
-                        {isLoading ? 'Cargando…' : 'Ver Actividad'}
-                    </Button>
+                    <div className="flex flex-col items-start sm:items-end gap-1">
+                        <Button onClick={handleFetch} disabled={isLoading} className="w-full sm:w-auto shadow-md whitespace-nowrap">
+                            <ChartBarIcon className="w-5 h-5 mr-2" />
+                            {isLoading ? 'Cargando…' : 'Ver Actividad'}
+                        </Button>
+                        {isAdminOrMod && allEvents !== null && (
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 text-right">
+                                Cambia el asesor sin recargar · El botón actualiza las fechas
+                            </p>
+                        )}
+                    </div>
                 </div>
 
                 {error && (
@@ -391,8 +381,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                                     {startDate === endDate
                                         ? `Día: ${formatDateLabel(startDate)}`
                                         : `${formatDateLabel(startDate)} — ${formatDateLabel(endDate)}`}
-                                    {isAdminOrMod && selectedAdvisorId !== 'all' && <span className="ml-2">· {advisors.find(a => a.id === selectedAdvisorId)?.full_name}</span>}
-                                    {!isAdminOrMod && <span className="ml-2">· {currentUser?.full_name}</span>}
+                                    {advisorLabel && <span className="ml-2">· {advisorLabel}</span>}
                                 </p>
                             </div>
                             <Button onClick={handleExportPDF} variant="secondary" disabled={isExporting || events.length === 0}
@@ -401,7 +390,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                             </Button>
                         </div>
 
-                        {/* ── Tarjetas de resumen de eventos ────────────────────────── */}
+                        {/* ── Tarjetas de resumen ── */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {(Object.entries(TYPE_CONFIG) as [ActivityType, typeof TYPE_CONFIG[ActivityType]][]).map(([type, cfg]) => (
                                 <div key={type} className={`flex items-center gap-3 p-3 rounded-xl ${cfg.bgClass}`}>
@@ -414,7 +403,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                             ))}
                         </div>
 
-                        {/* ── Resumen de cambios de estatus ────────────────────────── */}
+                        {/* ── Desglose de cambios de estatus ── */}
                         {statusSummary.length > 0 && (
                             <div className="rounded-xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10 p-4">
                                 <h4 className="text-sm font-bold text-amber-800 dark:text-amber-300 mb-3 flex items-center gap-2">
@@ -427,8 +416,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                                     {statusSummary.map(({ name, count }) => {
                                         const pct = counts['status_change'] ? Math.round((count / counts['status_change']) * 100) : 0;
                                         return (
-                                            <div key={name}
-                                                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 shadow-sm">
+                                            <div key={name} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 shadow-sm">
                                                 <span className="text-lg font-black text-amber-700 dark:text-amber-300 leading-none">{count}</span>
                                                 <div>
                                                     <p className="text-xs font-semibold text-gray-800 dark:text-white leading-tight">{name}</p>
@@ -441,7 +429,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                             </div>
                         )}
 
-                        {/* ── Tabla de actividad ────────────────────────────────────── */}
+                        {/* ── Tabla de actividad ── */}
                         {events.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
                                 <CalendarIcon className="w-12 h-12 mb-3 opacity-30" />
@@ -518,6 +506,9 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                         {events.length > 0 && (
                             <p className="text-xs text-right text-gray-400 dark:text-gray-500">
                                 {events.length} evento{events.length !== 1 ? 's' : ''} en el periodo
+                                {allEvents && allEvents.length !== events.length && (
+                                    <span className="ml-1">· {allEvents.length} totales en el periodo</span>
+                                )}
                             </p>
                         )}
                     </div>
