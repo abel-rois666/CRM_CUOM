@@ -15,31 +15,30 @@ serve(async (req) => {
 
     try {
         // 1. Verify Authentication
-        // The user's JWT is automatically validated by Supabase Edge Functions when passed in Authorization header
-        // access to context.user is available but we can rely on RLS/Auth layer mostly.
-        // However, we should check if the Authorization header is present to ensure it's an authenticated request.
         const authHeader = req.headers.get('Authorization')
         if (!authHeader) {
             throw new Error('Missing Authorization header')
         }
 
         // 2. Parse Request Body
-        const { instruction, context, systemPrompt, model } = await req.json()
+        // Nota: el campo `model` del body es ignorado intencionalmente.
+        // Se fuerza el uso de los modelos de Groq definidos en fallbackModels.
+        const { instruction, context, systemPrompt } = await req.json()
 
-        // 3. Get API Key from Secrets
+        // 3. Get Groq API Key from Secrets
         // @ts-ignore: Deno runtime
-        const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY')
+        const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY')
 
         // Diagnostic logging
         // @ts-ignore: Deno runtime
         const allEnvKeys = Array.from(Object.keys(Deno.env.toObject())).filter(k => !k.startsWith('SB_') && k !== 'SUPABASE_URL' && k !== 'SUPABASE_ANON_KEY' && k !== 'SUPABASE_SERVICE_ROLE_KEY' && k !== 'SUPABASE_DB_URL')
         console.log('Available custom env keys:', JSON.stringify(allEnvKeys))
-        console.log('OPENROUTER_API_KEY exists:', !!OPENROUTER_API_KEY)
-        console.log('OPENROUTER_API_KEY length:', OPENROUTER_API_KEY?.length || 0)
+        console.log('GROQ_API_KEY exists:', !!GROQ_API_KEY)
+        console.log('GROQ_API_KEY length:', GROQ_API_KEY?.length || 0)
 
-        if (!OPENROUTER_API_KEY) {
-            console.error('CRITICAL: OPENROUTER_API_KEY is not set. Available keys:', JSON.stringify(allEnvKeys))
-            throw new Error('Server configuration error: Missing OPENROUTER_API_KEY')
+        if (!GROQ_API_KEY) {
+            console.error('CRITICAL: GROQ_API_KEY is not set. Available keys:', JSON.stringify(allEnvKeys))
+            throw new Error('Server configuration error: Missing GROQ_API_KEY')
         }
 
         // 4. Construct Prompt
@@ -51,9 +50,10 @@ serve(async (req) => {
             }
         ]
 
+        // 5. Define Groq fallback model chain
         const fallbackModels = [
-            model || "arcee-ai/trinity-large-preview:free",
-            "deepseek/deepseek-r1-0528:free",
+            "llama-3.3-70b-versatile", // Modelo principal
+            "qwen/qwen3-32b",           // Modelo de respaldo
         ]
 
         let lastError = ''
@@ -61,13 +61,11 @@ serve(async (req) => {
 
         for (const currentModel of fallbackModels) {
             console.log('Trying model:', currentModel)
-            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+                    "Authorization": `Bearer ${GROQ_API_KEY}`,
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://crm-cuom.com",
-                    "X-Title": "CRM CUOM System"
                 },
                 body: JSON.stringify({
                     model: currentModel,
@@ -91,9 +89,9 @@ serve(async (req) => {
                 // Non-rate-limit error, don't try fallbacks
                 try {
                     const errorData = JSON.parse(errorText)
-                    throw new Error(errorData.error?.message || `OpenRouter Error ${response.status}`)
+                    throw new Error(errorData.error?.message || `Groq API Error ${response.status}`)
                 } catch (parseErr) {
-                    throw new Error(`OpenRouter Error ${response.status}: ${errorText}`)
+                    throw new Error(`Groq API Error ${response.status}: ${errorText}`)
                 }
             }
         }
