@@ -24,7 +24,6 @@ const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'))
 const AlertsModal = React.lazy(() => import('./components/AlertsModal'));
 const SetupWizard = React.lazy(() => import('./components/SetupWizard'));
 const ActivityReportModal = React.lazy(() => import('./components/ActivityReportModal'));
-const LegalPolicies = React.lazy(() => import('./components/LegalPolicies'));
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
@@ -105,17 +104,6 @@ const AppContent: React.FC = () => {
   const assignableStaff = profiles.filter(p =>
     p.role === 'advisor' || p.role === 'moderator' || p.role === 'admin'
   );
-
-  // ── Ruta pública: página legal (no requiere autenticación) ──────────────
-  // Acceso: /legal  — URL limpia requerida por Meta App Review
-  if (window.location.pathname.startsWith('/legal')) {
-    return (
-      <Suspense fallback={<LeadListSkeleton />}>
-        <LegalPolicies />
-      </Suspense>
-    );
-  }
-
   if (authLoading || checkingSetup) return <LeadListSkeleton />;
   if (!session) return <LoginPage />;
 

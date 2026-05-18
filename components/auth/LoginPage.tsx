@@ -119,7 +119,7 @@ const LoginPage: React.FC = () => {
           <p className="text-xs text-gray-500 font-medium">© 2025 CRM CUOM. Todos los derechos reservados.</p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <a
-              href="/legal#privacidad"
+              href="/privacidad.html"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-gray-400 hover:text-brand-secondary underline transition-colors"
@@ -128,7 +128,7 @@ const LoginPage: React.FC = () => {
             </a>
             <span className="text-gray-300 text-xs">·</span>
             <a
-              href="/legal#terminos"
+              href="/terminos.html"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-gray-400 hover:text-brand-secondary underline transition-colors"
@@ -137,7 +137,7 @@ const LoginPage: React.FC = () => {
             </a>
             <span className="text-gray-300 text-xs">·</span>
             <a
-              href="/legal#eliminacion"
+              href="/eliminacion.html"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-gray-400 hover:text-brand-secondary underline transition-colors"
