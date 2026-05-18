@@ -107,8 +107,8 @@ const AppContent: React.FC = () => {
   );
 
   // ── Ruta pública: página legal (no requiere autenticación) ──────────────
-  // Acceso: /#/legal  — URL requerida por Meta App Review
-  if (window.location.hash.startsWith('#/legal')) {
+  // Acceso: /legal  — URL limpia requerida por Meta App Review
+  if (window.location.pathname.startsWith('/legal')) {
     return (
       <Suspense fallback={<LeadListSkeleton />}>
         <LegalPolicies />
