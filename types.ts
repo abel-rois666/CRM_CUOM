@@ -94,6 +94,7 @@ export interface Lead {
   follow_ups?: FollowUp[];
   appointments?: Appointment[];
   status_history?: StatusChange[];
+  has_unread_messages?: boolean;
 }
 
 // --- Plantillas ---

@@ -104,8 +104,14 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
                         <div className={`h-9 w-9 rounded-full flex items-center justify-center font-bold text-sm mr-3 shrink-0 ${isSelected ? 'bg-blue-200 text-blue-800 dark:bg-blue-600 dark:text-white' : 'bg-brand-secondary/10 dark:bg-blue-900/30 text-brand-secondary dark:text-blue-400'}`}>
                             {lead.first_name.charAt(0)}
                         </div>
-                        <div className="min-w-[120px]">
-                            <div className={`text-sm font-bold truncate ${isSelected ? 'text-blue-950' : 'text-gray-900 dark:text-gray-400'}`}>{lead.first_name} {lead.paternal_last_name}</div>
+                        <div className="min-w-[120px] flex items-center gap-2">
+                            <div className={`text-sm truncate ${isSelected ? 'text-blue-950' : 'text-gray-900 dark:text-gray-400'} ${lead.has_unread_messages ? 'font-bold text-sky-700 dark:text-sky-300' : 'font-bold'}`}>{lead.first_name} {lead.paternal_last_name}</div>
+                            {lead.has_unread_messages && (
+                                <span className="flex h-2.5 w-2.5 relative" title="Mensaje Nuevo sin leer">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500"></span>
+                                </span>
+                            )}
                         </div>
                     </div>
                 );
@@ -198,7 +204,10 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
     // Helper to constructing hover classes: Light hover | Dark hover
     // We use dark:group-hover:before:... to ensure specific dark mode handling
 
-    if (urgencyLevel === 3) {
+    if (lead.has_unread_messages && !isSelected) {
+        rowClasses = "group bg-sky-50/50 dark:bg-sky-900/20 hover:bg-sky-50 dark:hover:bg-sky-900/30 border-l-4 border-sky-400";
+        stickyOverlay += " group-hover:before:bg-sky-50 dark:group-hover:before:bg-sky-900/30 before:bg-sky-50/50 before:dark:bg-sky-900/20";
+    } else if (urgencyLevel === 3) {
         rowClasses = "group bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 border-l-4 border-red-500";
         stickyOverlay += " group-hover:before:bg-red-50 dark:group-hover:before:bg-red-900/20";
     } else if (urgencyLevel === 2) {

@@ -15,6 +15,8 @@ interface WhatsAppMessage {
   message_body : string;
   status       : string | null;
   created_at   : string;
+  media_url?   : string | null;
+  media_type?  : string | null;
 }
 
 interface WhatsAppChatProps {
@@ -94,7 +96,11 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
     setIsLoading(false);
   }, [leadId]);
 
-  useEffect(() => { fetchMessages(); }, [fetchMessages]);
+  useEffect(() => { 
+    fetchMessages(); 
+    // Marcar como leído
+    supabase.from('leads').update({ has_unread_messages: false }).eq('id', leadId).then();
+  }, [fetchMessages, leadId]);
 
   // -------------------------------------------------------------------------
   // Realtime — INSERT en whatsapp_messages
@@ -263,7 +269,39 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
                           transition-opacity duration-300
                         `}
                       >
-                        <p className="whitespace-pre-wrap break-words">{msg.message_body}</p>
+                        {msg.media_type === 'image' && msg.media_url && (
+                          <div className="relative group mb-2 inline-block">
+                            <img src={msg.media_url} alt="Multimedia" className="max-w-full h-auto rounded-lg" style={{ maxHeight: '250px' }} />
+                            <a 
+                              href={msg.media_url} 
+                              download 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="absolute bottom-2 right-2 bg-black/50 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Descargar imagen"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            </a>
+                          </div>
+                        )}
+                        {msg.media_type === 'audio' && msg.media_url && (
+                          <audio controls src={msg.media_url} className="w-full max-w-[240px] mb-2" />
+                        )}
+                        {msg.media_type === 'document' && msg.media_url && (
+                          <a 
+                            href={msg.media_url} 
+                            download 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="flex items-center gap-2 px-3 py-2 bg-black/5 dark:bg-white/10 rounded-lg hover:bg-black/10 dark:hover:bg-white/20 transition-colors mb-2 text-sm font-semibold text-blue-600 dark:text-blue-400"
+                          >
+                            <span>📄</span>
+                            Descargar Documento
+                          </a>
+                        )}
+                        {msg.message_body && (
+                          <p className="whitespace-pre-wrap break-words">{msg.message_body}</p>
+                        )}
                         <div className={`flex items-center gap-1 mt-1 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
                           <span className="text-[10px] text-gray-400">
                             {isTempSending ? 'Enviando...' : formatTime(msg.created_at)}

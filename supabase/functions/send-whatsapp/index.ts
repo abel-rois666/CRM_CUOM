@@ -41,6 +41,7 @@ function buildMetaPayload(
     message: string,
     templateName?: string,
     templateVariables?: string[],
+    languageCode: string = 'es_MX'
 ): Record<string, unknown> {
     if (isTemplate && templateName) {
         const hasVars = Array.isArray(templateVariables) && templateVariables.length > 0
@@ -51,7 +52,7 @@ function buildMetaPayload(
             type             : 'template',
             template         : {
                 name    : templateName,
-                language: { code: 'es_MX' },
+                language: { code: languageCode },
                 ...(hasVars && {
                     components: [
                         {
@@ -134,6 +135,7 @@ serve(async (req) => {
             isTemplate        = false,
             templateName,
             templateVariables,
+            languageCode      = 'es_MX',
         } = await req.json()
 
         // Validación: o hay mensaje de texto, o hay nombre de plantilla
@@ -191,7 +193,7 @@ serve(async (req) => {
         // 4. Construir payload y enviar a Meta WhatsApp Cloud API
         // -----------------------------------------------------------------------
         const metaUrl     = `https://graph.facebook.com/v19.0/${WA_PHONE_NUMBER_ID}/messages`
-        const metaPayload = buildMetaPayload(cleanPhone, isTemplate, message, templateName, templateVariables)
+        const metaPayload = buildMetaPayload(cleanPhone, isTemplate, message, templateName, templateVariables, languageCode)
 
         console.log(
             `Sending WhatsApp ${isTemplate ? `template "${templateName}"` : 'text'} to ${cleanPhone}`

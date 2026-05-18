@@ -520,6 +520,8 @@ const LeadList: React.FC<LeadListProps> = ({
                     currentCalendarView={currentCalendarView as any}
                     statusCategories={effectiveCategories}
                     onOpenSettings={() => setIsCategorySettingsOpen(true)}
+                    hasUnreadMessages={currentFilters.hasUnreadMessages}
+                    onToggleUnreadMessages={() => onFilterChange({ hasUnreadMessages: !currentFilters.hasUnreadMessages })}
                 />
             </div>
 

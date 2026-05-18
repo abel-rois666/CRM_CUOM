@@ -35,6 +35,15 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ userId }) =
     }
   };
 
+  const handleNotificationClick = (notif: any) => {
+    markAsRead(notif.id);
+    if (notif.link && notif.link.startsWith('/whatsapp/')) {
+      const leadId = notif.link.replace('/whatsapp/', '');
+      window.dispatchEvent(new CustomEvent('openWhatsAppFromNotification', { detail: leadId }));
+      setIsOpen(false);
+    }
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -77,7 +86,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ userId }) =
                     <li
                       key={notif.id}
                       className={`p-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors relative group ${!notif.is_read ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}
-                      onClick={() => markAsRead(notif.id)}
+                      onClick={() => handleNotificationClick(notif)}
                     >
                       <div className="flex gap-3 items-start">
                         {getIcon(notif.type)}

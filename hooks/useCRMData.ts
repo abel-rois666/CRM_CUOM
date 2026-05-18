@@ -17,6 +17,7 @@ export interface DataFilters {
   quickFilter?: QuickFilterType;
   sortColumn?: string;   // columna de ordenamiento server-side
   sortDirection?: 'asc' | 'desc';
+  hasUnreadMessages?: boolean; // [NEW] Filter for unread messages
 }
 
 export const useCRMData = (session: Session | null, userRole?: 'admin' | 'advisor' | 'moderator', userId?: string) => {
@@ -40,7 +41,11 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     quickFilter: null,
     sortColumn: 'registration_date',
     sortDirection: 'desc',
+    hasUnreadMessages: false,
   });
+
+  // --- UNREAD WHATSAPP GLOBAL COUNTER ---
+  const [unreadWhatsAppCount, setUnreadWhatsAppCount] = useState(0);
 
   // --- CATÁLOGOS ---
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -157,6 +162,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       if (filters.advisorId !== 'all') query = query.eq('advisor_id', filters.advisorId);
       if (filters.statusId !== 'all') query = query.eq('status_id', filters.statusId);
       if (filters.programId !== 'all') query = query.eq('program_id', filters.programId);
+      if (filters.hasUnreadMessages) query = query.eq('has_unread_messages', true);
 
       // Filtro de Categoría (Usando los IDs de los estados cargados)
       if (filters.category && filters.category !== 'all') {
@@ -241,6 +247,20 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     }
   }, [session]);
 
+  const fetchUnreadCount = useCallback(async () => {
+    if (!session?.access_token) return;
+    try {
+      let query = supabase.from('leads').select('id', { count: 'exact', head: true }).eq('has_unread_messages', true);
+      if (userRole === 'advisor' && userId) {
+        query = query.eq('advisor_id', userId);
+      }
+      const { count, error } = await query;
+      if (!error) setUnreadWhatsAppCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  }, [session, userRole, userId]);
+
   // Efectos de carga inicial
   useEffect(() => {
     if (!catalogsLoaded) fetchCatalogs();
@@ -249,7 +269,8 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
   useEffect(() => {
     fetchLeads();
     fetchMetrics();
-  }, [fetchLeads, fetchMetrics]);
+    fetchUnreadCount();
+  }, [fetchLeads, fetchMetrics, fetchUnreadCount]);
 
   // 3. SUSCRIPCIÓN A REALTIME (Adaptada para Paginación)
   useEffect(() => {
@@ -263,6 +284,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
         async (payload) => {
           // Refrescar métricas ante cualquier cambio
           fetchMetrics();
+          fetchUnreadCount();
 
           // --- EVENTO INSERT ---
           if (payload.eventType === 'INSERT') {
@@ -383,6 +405,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     setStatusCategories,
 
     dashboardMetrics, // <--- EXPOSED
+    unreadWhatsAppCount, // <--- EXPOSED
 
     updateLocalLead,
     addLocalLead,

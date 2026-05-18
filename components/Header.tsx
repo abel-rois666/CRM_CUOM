@@ -12,13 +12,14 @@ interface HeaderProps {
   onOpenSettings: () => void;
   userProfile: Profile | null;
   onLogout: () => void;
+  unreadWhatsAppCount?: number;
 }
 
 import { useConfig } from '../context/ConfigContext';
 
 // ... (other imports)
 
-const Header: React.FC<HeaderProps> = ({ onOpenSettings, userProfile, onLogout }) => {
+const Header: React.FC<HeaderProps> = ({ onOpenSettings, userProfile, onLogout, unreadWhatsAppCount = 0 }) => {
   const firstName = userProfile?.full_name?.split(' ')[0];
   const { settings } = useConfig();
 
@@ -46,7 +47,16 @@ const Header: React.FC<HeaderProps> = ({ onOpenSettings, userProfile, onLogout }
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
 
             {/* 1. Centro de Notificaciones */}
-            <div className="border-r border-white/10 pr-2 sm:pr-4 mr-2 flex items-center gap-1">
+            <div className="border-r border-white/10 pr-2 sm:pr-4 mr-2 flex items-center gap-2 sm:gap-4">
+              {unreadWhatsAppCount > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-green-500/20 text-green-300 rounded-full border border-green-500/30" title={`${unreadWhatsAppCount} Mensajes de WhatsApp sin leer`}>
+                  <div className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  </div>
+                  <span className="text-xs font-bold leading-none">{unreadWhatsAppCount}</span>
+                </div>
+              )}
               <ThemeToggle />
               <NotificationDropdown userId={userProfile?.id} />
             </div>

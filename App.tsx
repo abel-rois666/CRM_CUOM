@@ -61,7 +61,8 @@ const AppContent: React.FC = () => {
     dashboardMetrics,
     statusCategories,
     refreshCatalogs,
-    checkSetupStatus
+    checkSetupStatus,
+    unreadWhatsAppCount
   } = useCRMData(session, profile?.role, profile?.id);
 
   const { modals, openModal, closeModal, updateModalData } = useModal(); // [NEW]
@@ -100,6 +101,26 @@ const AppContent: React.FC = () => {
 
   // [REMOVED] initialEmailTemplateId etc. (Use modal data)
 
+
+  // [NEW] Event listener global para Notificaciones Push (Campana)
+  React.useEffect(() => {
+    const handleOpenWhatsAppEvent = async (e: any) => {
+      const leadId = e.detail;
+      // Fetch the full lead to pass it to the modal
+      const { data, error } = await supabase.from('leads').select('*').eq('id', leadId).single();
+      if (data) {
+        // En lugar de llamar openModal directamente, usamos handleViewDetails que también carga follow_ups
+        // Haremos un mock de handleViewDetails para reutilizar la lógica o simplemente llamamos a handleViewDetails si está definido abajo.
+        // Dado que handleViewDetails está definido más abajo, usaremos una llamada directa a openModal para evitar dependencias circulares complejas, 
+        // pero preferiblemente el modal carga sus propios follow_ups. En nuestro caso, LeadDetailModal lo hace a través de handleViewDetails.
+        // Change to 'whatsapp' directly to open the WhatsAppModal instead of LeadDetailModal
+        openModal('whatsapp', { lead: data });
+      }
+    };
+    
+    window.addEventListener('openWhatsAppFromNotification', handleOpenWhatsAppEvent);
+    return () => window.removeEventListener('openWhatsAppFromNotification', handleOpenWhatsAppEvent);
+  }, [openModal]);
 
   const assignableStaff = profiles.filter(p =>
     p.role === 'advisor' || p.role === 'moderator' || p.role === 'admin'
@@ -537,7 +558,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors duration-300">
-      <Header onOpenSettings={() => { openModal('settings'); setClearSelectionSignal(p => p + 1); }} userProfile={profile} onLogout={signOut} />
+      <Header onOpenSettings={() => { openModal('settings'); setClearSelectionSignal(p => p + 1); }} userProfile={profile} onLogout={signOut} unreadWhatsAppCount={unreadWhatsAppCount} />
       <main>
         <LeadList
           loading={loadingData || loadingLeads}

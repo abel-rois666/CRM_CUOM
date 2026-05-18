@@ -244,7 +244,7 @@ const AdminWhatsAppInbox: React.FC<AdminWhatsAppInboxProps> = ({
 
     const { error: updateErr } = await supabase
       .from('leads')
-      .update({ advisor_id: advisorId })
+      .update({ advisor_id: advisorId } as never)
       .eq('id', leadId);
 
     if (updateErr) {

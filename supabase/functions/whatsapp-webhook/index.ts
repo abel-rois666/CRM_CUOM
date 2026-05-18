@@ -37,6 +37,9 @@ interface MetaEntry {
                 timestamp: string
                 type     : string
                 text?    : { body: string }
+                image?   : { id: string; mime_type: string; caption?: string }
+                audio?   : { id: string; mime_type: string }
+                document?: { id: string; mime_type: string; caption?: string; filename?: string }
             }[]
             statuses?: MetaStatusUpdate[]
         }
@@ -67,11 +70,10 @@ function getSupabaseClient() {
 // Ejecuta 4 queries en paralelo; si alguno falla lanza un error.
 // ---------------------------------------------------------------------------
 async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>) {
-    const [statusRes, sourceRes, programRes, adminRes] = await Promise.all([
+    const [statusRes, sourceRes, programRes] = await Promise.all([
         supabase.from('statuses').select('id').ilike('name', '%sin contactar%').limit(1).maybeSingle(),
         supabase.from('sources').select('id').ilike('name', '%whatsapp%').limit(1).maybeSingle(),
         supabase.from('licenciaturas').select('id').ilike('name', '%por definir%').limit(1).maybeSingle(),
-        supabase.from('profiles').select('id').eq('role', 'admin').limit(1).maybeSingle(),
     ])
 
     // Fallbacks: si "Sin Contactar" no existe, toma el primer status disponible
@@ -89,14 +91,132 @@ async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>)
     }
 
     const sourceId  = sourceRes.data?.id
-    const advisorId = adminRes.data?.id
+    const advisorId = await getAssignedAdvisorId(supabase)
 
     if (!statusId)  throw new Error('No hay ningún status en la tabla statuses.')
     if (!sourceId)  throw new Error('No hay ninguna fuente "WhatsApp" en sources.')
     if (!programId) throw new Error('No hay ningún programa en licenciaturas.')
-    if (!advisorId) throw new Error('No hay ningún perfil admin en profiles.')
+    if (!advisorId) throw new Error('No hay ningún perfil admin para asignar como fallback.')
 
     return { statusId, sourceId, programId, advisorId }
+}
+
+// ---------------------------------------------------------------------------
+// Utilidad: Obtener el asesor correcto según las reglas de enrutamiento
+// ---------------------------------------------------------------------------
+async function getAssignedAdvisorId(supabase: ReturnType<typeof getSupabaseClient>): Promise<string | undefined> {
+    try {
+        const { data: routingData } = await supabase
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'whatsapp_routing')
+            .maybeSingle()
+
+        const cfg = routingData?.value || { auto_assign: false, strategy: 'round_robin' }
+
+        if (cfg.auto_assign) {
+            // Solo asesores o coordinadores
+            const { data: eligibleAdvisors } = await supabase
+                .from('profiles')
+                .select('id, role')
+                .in('role', ['advisor', 'moderator', 'asesor', 'coordinador'])
+                .order('created_at', { ascending: true })
+
+            if (eligibleAdvisors && eligibleAdvisors.length > 0) {
+                if (cfg.strategy === 'least_leads') {
+                    // Buscar al asesor con menos leads
+                    const { data: leadsData } = await supabase
+                        .from('leads')
+                        .select('advisor_id')
+
+                    const leadsCount: Record<string, number> = {}
+                    eligibleAdvisors.forEach((a: any) => leadsCount[a.id] = 0)
+                    
+                    leadsData?.forEach((lead: any) => {
+                        if (lead.advisor_id && leadsCount[lead.advisor_id] !== undefined) {
+                            leadsCount[lead.advisor_id]++
+                        }
+                    })
+
+                    let leastLeadsAdvisor = eligibleAdvisors[0].id
+                    let minCount = Infinity
+
+                    for (const id in leadsCount) {
+                        if (leadsCount[id] < minCount) {
+                            minCount = leadsCount[id]
+                            leastLeadsAdvisor = id
+                        }
+                    }
+
+                    return leastLeadsAdvisor
+                } else {
+                    // Default / Round Robin
+                    const { data: lastAssignedData } = await supabase
+                        .from('system_settings')
+                        .select('value')
+                        .eq('key', 'last_assigned_whatsapp_advisor')
+                        .maybeSingle()
+
+                    const lastAssignedId = lastAssignedData?.value?.id
+
+                    let nextIndex = 0
+                    if (lastAssignedId) {
+                        const currentIndex = eligibleAdvisors.findIndex((a: any) => a.id === lastAssignedId)
+                        if (currentIndex !== -1) {
+                            nextIndex = (currentIndex + 1) % eligibleAdvisors.length
+                        }
+                    }
+
+                    const nextAdvisorId = eligibleAdvisors[nextIndex].id
+
+                    // Actualizar el puntero en background
+                    try {
+                        await supabase.from('system_settings').upsert({
+                            key: 'last_assigned_whatsapp_advisor',
+                            value: { id: nextAdvisorId }
+                        }, { onConflict: 'key' })
+                    } catch (upsertError: any) {
+                        console.error('Error actualizando puntero de reparto:', upsertError.message)
+                    }
+
+                    return nextAdvisorId
+                }
+            }
+        }
+    } catch (e: any) {
+        console.error('Error en enrutamiento:', e.message)
+    }
+
+    // Fallback: Cualquier asesor o moderador (en lugar de admin)
+    try {
+        const { data: fallbackAdvisor } = await supabase
+            .from('profiles')
+            .select('id')
+            .in('role', ['advisor', 'moderator', 'asesor', 'coordinador'])
+            .limit(1)
+            .maybeSingle()
+
+        if (fallbackAdvisor) {
+            console.log('Asignación de respaldo activada: Asesor/Coordinador')
+            return fallbackAdvisor.id
+        }
+    } catch (fallbackErr: any) {
+        console.error('Error buscando asesor de respaldo:', fallbackErr.message)
+    }
+
+    // Último recurso absoluto: Admin
+    try {
+        const { data: adminRes } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('role', 'admin')
+            .limit(1)
+            .maybeSingle()
+            
+        return adminRes?.id
+    } catch (e) {
+        return undefined
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -108,19 +228,39 @@ async function handleInboundMessage(
     waMessageId : string,
     messageBody : string,
     profileName : string,
+    mediaUrl?   : string,
+    mediaType?  : string,
 ) {
     let leadId: string | null = null
 
     // 1. Buscar lead por teléfono
     const { data: existingLead } = await supabase
         .from('leads')
-        .select('id')
+        .select('id, has_unread_messages, advisor_id, first_name')
         .ilike('phone', `%${from}%`)
         .maybeSingle()
 
     if (existingLead) {
         leadId = existingLead.id
         console.log(`Lead existente encontrado: ${leadId}`)
+        
+        // Activar la alerta de mensaje no leído
+        await supabase
+            .from('leads')
+            .update({ has_unread_messages: true, updated_at: new Date().toISOString() })
+            .eq('id', leadId)
+            
+        // Si no tenía mensajes sin leer, disparamos una nueva notificación Push
+        if (!existingLead.has_unread_messages && existingLead.advisor_id) {
+            await supabase.from('notifications').insert({
+                user_id: existingLead.advisor_id,
+                title: 'Nuevo Mensaje de WhatsApp',
+                message: `${existingLead.first_name || 'El prospecto'} te ha enviado un nuevo mensaje.`,
+                type: 'info',
+                link: `/whatsapp/${leadId}`
+            });
+        }
+            
     } else {
         // 2. Lead nuevo — auto-crear respetando NOT NULL
         console.log(`Número desconocido ${from}. Creando lead...`)
@@ -141,6 +281,7 @@ async function handleInboundMessage(
                     program_id        : programId,
                     advisor_id        : advisorId,   // Bandeja del admin
                     registration_date : new Date().toISOString(),
+                    has_unread_messages: true,
                 })
                 .select('id')
                 .single()
@@ -150,6 +291,17 @@ async function handleInboundMessage(
             } else {
                 leadId = newLead.id
                 console.log(`Lead creado: ${leadId} (${firstName} ${paternalLastName})`)
+                
+                // Disparar notificación Push para el asesor asignado
+                if (advisorId) {
+                    await supabase.from('notifications').insert({
+                        user_id: advisorId,
+                        title: 'Nuevo Prospecto por WhatsApp',
+                        message: `${firstName} se ha comunicado por primera vez.`,
+                        type: 'info',
+                        link: `/whatsapp/${leadId}`
+                    });
+                }
             }
         } catch (resolveErr: any) {
             console.error('No se pudieron resolver UUIDs para el lead:', resolveErr.message)
@@ -166,6 +318,8 @@ async function handleInboundMessage(
             wa_message_id  : waMessageId,
             wa_sender_phone: from,
             status         : 'received',
+            media_url      : mediaUrl ?? null,
+            media_type     : mediaType ?? null,
         })
 
     if (msgErr) {
@@ -281,7 +435,95 @@ serve(async (req) => {
 
         // ── Rama B: mensajes no-texto (imagen, audio, video, etc.) ───────
         if (message && message.type !== 'text') {
-            console.log(`Mensaje tipo "${message.type}" recibido de ${message.from}. Solo texto soportado.`)
+            const type = message.type;
+            const from = message.from;
+            const waMessageId = message.id;
+            const profileName = value.contacts?.[0]?.profile?.name || `Lead-${from.slice(-4)}`;
+
+            if (type === 'image' || type === 'audio' || type === 'document') {
+                const mediaObj = type === 'image' ? message.image : (type === 'audio' ? message.audio : message.document);
+                const mediaId = mediaObj?.id;
+                const mimeType = mediaObj?.mime_type || '';
+
+                if (mediaId) {
+                    try {
+                        // @ts-ignore
+                        const WA_ACCESS_TOKEN = Deno.env.get('WA_ACCESS_TOKEN')
+                        
+                        // 1. Obtener URL de descarga temporal desde Meta
+                        const urlRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
+                            headers: { 'Authorization': `Bearer ${WA_ACCESS_TOKEN}` }
+                        })
+                        const urlData = await urlRes.json()
+                        const mediaDownloadUrl = urlData.url
+
+                        if (mediaDownloadUrl) {
+                            // 2. Descargar el archivo binario desde Meta
+                            const mediaRes = await fetch(mediaDownloadUrl, {
+                                headers: { 'Authorization': `Bearer ${WA_ACCESS_TOKEN}` }
+                            })
+                            const arrayBuffer = await mediaRes.arrayBuffer()
+                            
+                            // 3. Subir a Supabase Storage
+                            let ext = type === 'image' ? 'jpeg' : (type === 'audio' ? 'ogg' : 'bin')
+                            if (mimeType.includes('png')) ext = 'png'
+                            if (mimeType.includes('mp4') || mimeType.includes('aac')) ext = 'm4a'
+                            if (mimeType.includes('pdf')) ext = 'pdf'
+                            
+                            // Si el documento trae nombre de archivo, intentamos extraer su extensión real
+                            if (type === 'document' && message.document?.filename) {
+                                const parts = message.document.filename.split('.')
+                                if (parts.length > 1) {
+                                    ext = parts.pop() || ext;
+                                }
+                            }
+                            
+                            const fileName = `${waMessageId}.${ext}`
+                            
+                            const { error: uploadError } = await supabase.storage
+                                .from('whatsapp_media')
+                                .upload(fileName, arrayBuffer, {
+                                    contentType: mimeType || (type === 'image' ? 'image/jpeg' : (type === 'audio' ? 'audio/ogg' : 'application/octet-stream')),
+                                    upsert: true
+                                })
+
+                            if (uploadError) {
+                                console.error('Error subiendo archivo a Supabase Storage:', uploadError)
+                            } else {
+                                // 4. Obtener URL Pública
+                                const { data: publicUrlData } = supabase.storage
+                                    .from('whatsapp_media')
+                                    .getPublicUrl(fileName)
+                                
+                                const publicUrl = publicUrlData.publicUrl
+                                
+                                // Extraer caption si existe
+                                const caption = (mediaObj as any)?.caption;
+                                const defaultMessage = type === 'image' ? '📷 Imagen recibida' : (type === 'audio' ? '🎵 Audio recibido' : '📄 Documento recibido');
+                                const finalMessageBody = caption ? caption : defaultMessage;
+
+                                // 5. Insertar en base de datos usando handleInboundMessage
+                                await handleInboundMessage(
+                                    supabase, 
+                                    from, 
+                                    waMessageId, 
+                                    finalMessageBody, 
+                                    profileName,
+                                    publicUrl,
+                                    type
+                                )
+                                // Terminar ejecución exitosamente
+                                return new Response('EVENT_RECEIVED', { status: 200 })
+                            }
+                        }
+                    } catch (e: any) {
+                        console.error('Error procesando multimedia:', e.message)
+                        // No lanzamos error para que no se rompa el webhook y devuelva 200
+                    }
+                }
+            }
+
+            console.log(`Mensaje tipo "${message.type}" recibido de ${message.from}. Fallback a nota silenciosa.`)
             // Guardamos un registro del mensaje no soportado si el lead existe
             try {
                 const { data: lead } = await supabase
@@ -294,7 +536,7 @@ serve(async (req) => {
                     await supabase.from('whatsapp_messages').insert({
                         lead_id        : lead.id,
                         direction      : 'inbound',
-                        message_body   : `[Mensaje de tipo "${message.type}" — no soportado en texto]`,
+                        message_body   : `[Mensaje de tipo "${message.type}" — no soportado o error en descarga]`,
                         wa_message_id  : message.id,
                         wa_sender_phone: message.from,
                         status         : 'received',

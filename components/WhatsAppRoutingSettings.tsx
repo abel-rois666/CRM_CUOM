@@ -109,8 +109,8 @@ const WhatsAppRoutingSettings: React.FC = () => {
       if (error) {
         console.error('Error loading routing config:', error.message);
         toast.error('No se pudo cargar la configuración de enrutamiento.');
-      } else if (data?.value) {
-        const cfg = data.value as RoutingConfig;
+      } else if ((data as any)?.value) {
+        const cfg = (data as any).value as RoutingConfig;
         const autoAssign = cfg.auto_assign === true;
         const strategy   = cfg.strategy === 'least_leads' ? 'least_leads' : 'round_robin';
 
@@ -150,7 +150,7 @@ const WhatsAppRoutingSettings: React.FC = () => {
     const { error } = await supabase
       .from('system_settings')
       .upsert(
-        { key: SETTING_KEY, value: payload },
+        { key: SETTING_KEY, value: payload } as any,
         { onConflict: 'key' }
       );
 
