@@ -35,7 +35,7 @@ interface LeadTableProps {
     statusMap: Map<string, { name: string; color: string; category: string }>;
     licenciaturaMap: Map<string, string>;
     sourceMap: Map<string, string>;
-    onViewDetails: (lead: Lead, tab?: 'info' | 'activity' | 'appointments') => void;
+    onViewDetails: (lead: Lead, tab?: 'info' | 'activity' | 'appointments' | 'whatsapp' | 'summary') => void;
     onOpenWhatsApp: (lead: Lead) => void;
     onOpenEmail: (lead: Lead) => void;
     onEdit: (lead: Lead) => void;

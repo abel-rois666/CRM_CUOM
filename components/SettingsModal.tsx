@@ -32,6 +32,8 @@ import { useConfig } from '../context/ConfigContext';
 import Tooltip from './common/Tooltip';
 import { generateMessage } from '../utils/aiAssistant';
 import { useModal } from '../context/ModalContext';
+import WhatsAppRoutingSettings from './WhatsAppRoutingSettings';
+import AdminWhatsAppInbox from './AdminWhatsAppInbox';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -1851,6 +1853,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
         { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
         { id: 'licenciaturas', label: 'Oferta Académica', icon: <AcademicCapIcon className="w-6 h-6 flex-shrink-0" />, allowedRoles: ['admin'] },
+        { id: 'whatsapp_admin', label: 'WhatsApp Admin', icon: <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
 
         // Plantillas visibles para todos los roles con permisos de gestión
         { id: 'whatsapp', label: 'Plantillas WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin', 'advisor', 'moderator'] },
@@ -1917,6 +1920,27 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                     {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}
                     {activeTab === 'whatsapp' && <WhatsappTemplateSettings templates={props.whatsappTemplates} onTemplatesUpdate={props.onWhatsappTemplatesUpdate} userProfile={props.currentUserProfile} />}
                     {activeTab === 'email' && <EmailTemplateSettings templates={props.emailTemplates} onTemplatesUpdate={props.onEmailTemplatesUpdate} userProfile={props.currentUserProfile} />}
+                    {activeTab === 'whatsapp_admin' && (
+                        <div className="space-y-6">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800 dark:text-white">Integración WhatsApp</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    Configura el enrutamiento automático de leads y gestiona la bandeja de distribución.
+                                </p>
+                            </div>
+                            <WhatsAppRoutingSettings />
+                            <div className="pt-2">
+                                <h4 className="text-base font-bold text-gray-800 dark:text-gray-100 mb-4">Bandeja de Distribución</h4>
+                                <AdminWhatsAppInbox
+                                    currentAdminId={props.currentUserProfile?.id ?? ''}
+                                    onLeadAssigned={(_leadId, _advisorId) => {
+                                        // El estado global de leads se actualiza
+                                        // vía Realtime en AdminWhatsAppInbox.
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
                     {activeTab === 'audit' && <LoginHistorySettings />}
                 </div>
             </div>

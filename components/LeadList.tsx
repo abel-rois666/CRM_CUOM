@@ -53,7 +53,7 @@ interface LeadListProps {
     onAddNew: () => void;
     onEdit: (lead: Lead) => void;
     onDelete: (leadId: string) => void;
-    onViewDetails: (lead: Lead, tab?: 'info' | 'activity' | 'appointments') => void;
+    onViewDetails: (lead: Lead, tab?: 'info' | 'activity' | 'appointments' | 'whatsapp' | 'summary') => void;
     onOpenReports: () => void;
     onOpenImport: () => void;
     onOpenWhatsApp: (lead: Lead) => void;
@@ -567,7 +567,7 @@ const LeadList: React.FC<LeadListProps> = ({
                                     licenciaturaMap={licenciaturaMap}
                                     sourceMap={sourceMap}
                                     onViewDetails={onViewDetails}
-                                    onOpenWhatsApp={onOpenWhatsApp}
+                                    onOpenWhatsApp={(lead) => onViewDetails(lead, 'whatsapp')}
                                     onOpenEmail={onOpenEmail}
                                     onEdit={onEdit}
                                     onDeleteClick={setLeadToDelete}
@@ -606,7 +606,7 @@ const LeadList: React.FC<LeadListProps> = ({
                                 onEdit={onEdit}
                                 onDelete={(id) => setLeadToDelete(id)}
                                 onViewDetails={onViewDetails}
-                                onOpenWhatsApp={onOpenWhatsApp}
+                                onOpenWhatsApp={(lead) => onViewDetails(lead, 'whatsapp')}
                                 onOpenEmail={onOpenEmail}
                                 onLeadMove={handleLeadMove}
                             />

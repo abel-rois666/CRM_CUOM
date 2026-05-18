@@ -115,8 +115,36 @@ const LoginPage: React.FC = () => {
         </form>
 
         {/* Footer */}
-        <div className="mt-8 text-center border-t border-gray-100 pt-6">
+        <div className="mt-8 text-center border-t border-gray-100 pt-6 space-y-2">
           <p className="text-xs text-gray-500 font-medium">© 2025 CRM CUOM. Todos los derechos reservados.</p>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <a
+              href="/#/legal#privacidad"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-400 hover:text-brand-secondary underline transition-colors"
+            >
+              Aviso de Privacidad
+            </a>
+            <span className="text-gray-300 text-xs">·</span>
+            <a
+              href="/#/legal#terminos"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-400 hover:text-brand-secondary underline transition-colors"
+            >
+              Términos de Servicio
+            </a>
+            <span className="text-gray-300 text-xs">·</span>
+            <a
+              href="/#/legal#eliminacion"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-400 hover:text-brand-secondary underline transition-colors"
+            >
+              Eliminación de Datos
+            </a>
+          </div>
         </div>
       </div>
     </main>

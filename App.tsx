@@ -24,6 +24,7 @@ const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'))
 const AlertsModal = React.lazy(() => import('./components/AlertsModal'));
 const SetupWizard = React.lazy(() => import('./components/SetupWizard'));
 const ActivityReportModal = React.lazy(() => import('./components/ActivityReportModal'));
+const LegalPolicies = React.lazy(() => import('./components/LegalPolicies'));
 
 const AppContent: React.FC = () => {
   const { session, profile, loading: authLoading, signOut } = useAuth();
@@ -105,6 +106,16 @@ const AppContent: React.FC = () => {
     p.role === 'advisor' || p.role === 'moderator' || p.role === 'admin'
   );
 
+  // ── Ruta pública: página legal (no requiere autenticación) ──────────────
+  // Acceso: /#/legal  — URL requerida por Meta App Review
+  if (window.location.hash.startsWith('#/legal')) {
+    return (
+      <Suspense fallback={<LeadListSkeleton />}>
+        <LegalPolicies />
+      </Suspense>
+    );
+  }
+
   if (authLoading || checkingSetup) return <LeadListSkeleton />;
   if (!session) return <LoginPage />;
 
@@ -131,7 +142,7 @@ const AppContent: React.FC = () => {
     openModal('leadForm', lead);
   };
 
-  const handleViewDetails = async (lead: Lead, tab: 'info' | 'activity' | 'appointments' = 'info') => {
+  const handleViewDetails = async (lead: Lead, tab: 'info' | 'activity' | 'appointments' | 'whatsapp' | 'summary' = 'info') => {
     // Optimistic open
     openModal('detailView', { lead, initialTab: tab });
 

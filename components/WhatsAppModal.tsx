@@ -2,32 +2,38 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './common/Modal';
 import Button from './common/Button';
-import { Select, TextArea, Input } from './common/FormElements';
+import { Select } from './common/FormElements';
 import { Lead, WhatsAppTemplate, Licenciatura } from '../types';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
-import { generateMessage } from '../utils/aiAssistant';
-import SparklesIcon from './icons/SparklesIcon';
-import BoltIcon from './icons/BoltIcon'; // [NEW]
-import Tooltip from './common/Tooltip'; // [NEW]
+import { supabase } from '../lib/supabase';
+import MessageInput from './MessageInput';
 
 interface WhatsAppModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  lead: Lead | null;
-  templates: WhatsAppTemplate[];
-  licenciaturas: Licenciatura[]; // [NEW] Para resolver IDs
+  isOpen           : boolean;
+  onClose          : () => void;
+  lead             : Lead | null;
+  templates        : WhatsAppTemplate[];
+  licenciaturas    : Licenciatura[];
   initialTemplateId?: string;
-  onMessageSent: (leadId: string, note: string) => void;
+  onMessageSent    : (leadId: string, note: string) => void;
 }
 
-const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, templates, licenciaturas, initialTemplateId, onMessageSent }) => {
+const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
+  isOpen,
+  onClose,
+  lead,
+  templates,
+  licenciaturas,
+  initialTemplateId,
+  onMessageSent,
+}) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  const [message, setMessage] = useState('');
-  const [extraInstructions, setExtraInstructions] = useState(''); // [NEW] Estado para instrucciones
-  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false); // AI State
-  const [aiMode, setAiMode] = useState<'quick' | 'advanced'>('advanced'); // [NEW]
+  const [message,             setMessage]            = useState('');
+  const [isSending,           setIsSending]          = useState(false);
 
+  // -------------------------------------------------------------------------
+  // Reset al abrir / cambiar plantilla inicial
+  // -------------------------------------------------------------------------
   useEffect(() => {
     if (isOpen) {
       if (initialTemplateId) {
@@ -35,14 +41,11 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
         if (template) {
           setSelectedTemplateId(template.id);
           setMessage(template.content);
-          setGeneratedLink(null);
           return;
         }
       }
       setSelectedTemplateId('');
       setMessage('');
-      setExtraInstructions(''); // Reset
-      setGeneratedLink(null);
     }
   }, [isOpen, initialTemplateId, templates]);
 
@@ -50,56 +53,44 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
     const templateId = e.target.value;
     setSelectedTemplateId(templateId);
     const template = templates.find(t => t.id === templateId);
-    if (template) setMessage(template.content);
-    else setMessage('');
-    setGeneratedLink(null);
+    setMessage(template ? template.content : '');
   };
 
-  const cleanPhoneNumber = (phone: string) => {
-    let cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 10) cleaned = `52${cleaned}`;
-    return cleaned;
-  };
+  // -------------------------------------------------------------------------
+  // Envío via Edge Function send-whatsapp
+  // Recibe el mensaje ya redactado desde MessageInput.onSendMessage
+  // -------------------------------------------------------------------------
+  const handleSend = async (finalMessage: string) => {
+    if (!lead || !finalMessage.trim()) return;
 
-  const handleGenerateLink = () => {
-    if (!lead || !message) return;
-    const phone = cleanPhoneNumber(lead.phone);
-    const encodedMessage = encodeURIComponent(message);
-    setGeneratedLink(`https://api.whatsapp.com/send?phone=${phone}&text=${encodedMessage}`);
-  };
-
-  const handleSend = () => {
-    if (generatedLink && lead) {
-      window.open(generatedLink, '_blank');
-      onMessageSent(lead.id, `📱 WhatsApp enviado: ${message}`);
-      onClose();
-    }
-  };
-
-  const handleAiGenerate = async (mode: 'quick' | 'advanced') => {
-    if (!lead) return;
-    setAiMode(mode);
-    setIsGenerating(true);
+    setIsSending(true);
     try {
-      // Contexto simple para la IA
-      const lastNote = lead.follow_ups && lead.follow_ups.length > 0 ? lead.follow_ups[0].notes : 'Ninguna nota reciente';
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          leadId : lead.id,
+          phone  : lead.phone,
+          message: finalMessage.trim(),
+        },
+      });
 
-      // Resolver nombre del programa
-      const programName = licenciaturas.find(l => l.id === lead.program_id)?.name || 'nuestro programa académico';
+      if (error) {
+        console.error('Error invocando send-whatsapp:', error);
+        alert(`Error al enviar el mensaje: ${error.message || 'Por favor intenta de nuevo.'}`);
+        return;
+      }
 
-      const context = `
-      Última interacción: ${lastNote}.
-      Programa de interés (Nombre real): ${programName}.
-      `;
+      if (!data?.success) {
+        alert(`Error de WhatsApp: ${data?.error || 'No se pudo enviar el mensaje.'}`);
+        return;
+      }
 
-      const text = await generateMessage(lead, context, 'whatsapp', extraInstructions, mode); // [UPDATED]
-      setMessage(text);
-      setGeneratedLink(null); // Reset link since message changed
-    } catch (error) {
-      console.error(error);
-      alert("No se pudo generar el mensaje. Por favor intenta de nuevo.");
+      onMessageSent(lead.id, `📱 WhatsApp enviado: ${finalMessage.trim()}`);
+      onClose();
+    } catch (err: any) {
+      console.error('Unexpected error sending WhatsApp:', err);
+      alert(`Error inesperado: ${err.message || 'Por favor intenta de nuevo.'}`);
     } finally {
-      setIsGenerating(false);
+      setIsSending(false);
     }
   };
 
@@ -108,16 +99,21 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Enviar WhatsApp" size="md">
       <div className="space-y-5">
+
+        {/* Cabecera del lead */}
         <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex items-center gap-3">
           <div className="bg-green-100 p-2 rounded-full text-green-600">
             <ChatBubbleLeftRightIcon className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-sm font-bold text-green-800">{lead.first_name} {lead.paternal_last_name}</p>
+            <p className="text-sm font-bold text-green-800">
+              {lead.first_name} {lead.paternal_last_name}
+            </p>
             <p className="text-xs text-green-600 font-mono">{lead.phone}</p>
           </div>
         </div>
 
+        {/* Selector de plantilla */}
         <Select
           id="whatsapp-template-select"
           label="Cargar Plantilla"
@@ -127,78 +123,29 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({ isOpen, onClose, lead, te
           options={templates.map(t => ({ value: t.id, label: t.name }))}
         />
 
-        <div className="space-y-4">
-          {/* Instrucciones Extra y Botón */}
-          <div className="flex items-end gap-2">
-            <div className="flex-grow">
-              <Input
-                id="whatsapp-extra-instructions"
-                value={extraInstructions}
-                onChange={(e) => setExtraInstructions(e.target.value)}
-                placeholder="Ej: Ofrece 10% de beca, Sé formal..."
-                label="Instrucción extra (Opcional)"
-              />
-            </div>
+        {/* Caja de Herramientas Inteligente (IA + Textarea + Envío) */}
+        <MessageInput
+          onSendMessage={handleSend}
+          leadContext={{ lead, licenciaturas }}
+          isSending={isSending}
+          initialMessage={message}
+          showTextarea={true}
+        />
 
-            <Tooltip content="IA Rápida: Mensaje breve y directo." position="top">
-              <button
-                onClick={() => handleAiGenerate('quick')}
-                disabled={isGenerating}
-                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5 ${isGenerating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-400 to-cyan-400 hover:from-blue-500 hover:to-cyan-500 text-white'}`}
-              >
-                <BoltIcon className={`w-3 h-3 ${isGenerating && aiMode === 'quick' ? 'animate-spin' : ''}`} />
-                {isGenerating && aiMode === 'quick' ? '...' : 'IA Rápida'}
-              </button>
-            </Tooltip>
-
-            <Tooltip content="IA Avanzada: Mensaje detallado y persuasivo." position="top">
-              <button
-                onClick={() => handleAiGenerate('advanced')}
-                disabled={isGenerating}
-                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm transition-all transform hover:-translate-y-0.5 ${isGenerating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-purple-200 dark:shadow-none hover:shadow-md'}`}
-              >
-                <SparklesIcon className={`w-3 h-3 ${isGenerating && aiMode === 'advanced' ? 'animate-spin' : ''}`} />
-                {isGenerating && aiMode === 'advanced' ? '...' : 'IA Avanzada'}
-              </button>
-            </Tooltip>
-          </div>
-
-          <TextArea
-            id="whatsapp-message"
-            label="Mensaje"
-            value={message}
-            onChange={(e) => { setMessage(e.target.value); setGeneratedLink(null); }}
-            rows={6}
-            placeholder="El mensaje generado aparecerá aquí..."
-          />
-        </div>
-
-        {generatedLink && (
-          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-500 break-all font-mono animate-fade-in">
-            {generatedLink}
-          </div>
-        )}
-
+        {/* Footer */}
         <div className="pt-4 flex justify-between items-center border-t border-gray-100">
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          {!generatedLink ? (
-            <Button
-              onClick={handleGenerateLink}
-              disabled={!message || !lead.phone}
-              variant="primary"
-              className="shadow-lg shadow-brand-secondary/20"
-            >
-              Generar Enlace
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button onClick={() => setGeneratedLink(null)} variant="secondary">Editar</Button>
-              <Button onClick={handleSend} className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200 border-transparent focus:ring-green-500">
-                Abrir y Registrar
-              </Button>
-            </div>
-          )}
+          <Button variant="ghost" onClick={onClose} disabled={isSending}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => handleSend(message)}
+            disabled={!message.trim() || !lead.phone || isSending}
+            className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200 border-transparent focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSending ? 'Enviando...' : '📱 Enviar WhatsApp'}
+          </Button>
         </div>
+
       </div>
     </Modal>
   );

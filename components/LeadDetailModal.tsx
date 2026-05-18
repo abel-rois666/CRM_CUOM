@@ -18,8 +18,8 @@ import TransferLeadModal from './TransferLeadModal';
 import FollowUpFormModal from './FollowUpFormModal';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
 import UserIcon from './icons/UserIcon';
-import SparklesIcon from './icons/SparklesIcon'; // [NEW]
-import { generateLeadSummary } from '../utils/aiAssistant'; // [NEW]
+import SparklesIcon from './icons/SparklesIcon';
+import { generateLeadSummary } from '../utils/aiAssistant';
 import ListBulletIcon from './icons/ListBulletIcon';
 import ClockIcon from './icons/ClockIcon';
 import TagIcon from './icons/TagIcon';
@@ -27,6 +27,8 @@ import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChevronRightIcon from './icons/ChevronRightIcon';
+import WhatsAppChat from './WhatsAppChat'; // [NEW] Chat en tiempo real
+import { supabase } from '../lib/supabase'; // [NEW] Para fetch de mensajes WA
 
 const PencilIcon = EditIcon; // Alias for code compatibility
 
@@ -46,7 +48,7 @@ interface LeadDetailModalProps {
     onDeleteAppointment: (leadId: string, appointmentId: string) => void;
     onTransferLead: (leadId: string, newAdvisorId: string, reason: string) => void;
     currentUser: Profile | null;
-    initialTab?: 'info' | 'activity' | 'appointments' | 'summary';
+    initialTab?: 'info' | 'activity' | 'appointments' | 'summary' | 'whatsapp';
     onOpenWhatsApp?: (lead: Lead) => void;
     onOpenEmail?: (lead: Lead) => void;
 }
@@ -285,7 +287,7 @@ const CollapsibleSection: React.FC<{
 
 // --- MAIN COMPONENT ---
 const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info', onOpenWhatsApp, onOpenEmail }) => {
-    const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary'>(initialTab);
+    const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary' | 'whatsapp'>(initialTab);
 
     const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
     const [editingAppointment, setEditingAppointment] = useState<any>(null); // [NEW] Track which appointment is being edited
@@ -395,7 +397,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
         onUpdateLead(lead.id, { [e.target.name]: e.target.value });
     };
 
-    // [NEW] Estados para resumen inteligente
+    // [NEW] Estados para resumen inteligente del lead
     const [summary, setSummary] = useState<string | null>(null);
     const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -413,6 +415,92 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
         } finally {
             setIsSummarizing(false);
         }
+    };
+
+    // [NEW] Estados para resumen IA de la conversación de WhatsApp
+    const [waSummary, setWaSummary] = useState<string | null>(null);
+    const [isSummarizingWA, setIsSummarizingWA] = useState(false);
+    const [waSummarySaved, setWaSummarySaved] = useState(false);
+
+    const handleGenerateWASummary = async () => {
+        if (!lead) return;
+        setIsSummarizingWA(true);
+        setWaSummary(null);
+        setWaSummarySaved(false);
+        try {
+            // 1. Obtener mensajes de WhatsApp del lead
+            const { data: waMessages, error: waError } = await supabase
+                .from('whatsapp_messages')
+                .select('direction, message_body, created_at')
+                .eq('lead_id', lead.id)
+                .order('created_at', { ascending: true });
+
+            if (waError) throw new Error(waError.message);
+
+            if (!waMessages || waMessages.length === 0) {
+                setWaSummary('No hay mensajes de WhatsApp registrados para este prospecto.');
+                return;
+            }
+
+            // 2. Construir perfil del lead para dar contexto completo a la IA
+            const statusName  = statuses.find(s => s.id === lead.status_id)?.name   || 'Desconocido';
+            const programName = licenciaturaMap.get(lead.program_id)                 || 'No especificado';
+            const sourceName  = sourceMap.get(lead.source_id)                        || 'No especificado';
+
+            const leadProfile = [
+                '=== PERFIL DEL PROSPECTO ===',
+                `Nombre:           ${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name ?? ''}`.trim(),
+                `Programa interés: ${programName}`,
+                `Estado CRM:       ${statusName}`,
+                `Origen:           ${sourceName}`,
+                `Teléfono:         ${lead.phone}`,
+                `Email:            ${lead.email || 'No proporcionado'}`,
+                `Registrado:       ${new Date(lead.registration_date).toLocaleDateString('es-MX')}`,
+                '',
+                '=== CONVERSACIÓN DE WHATSAPP ===',
+            ].join('\n');
+
+            // 3. Formatear los mensajes del chat como texto plano
+            const messagesText = waMessages
+                .map(m => {
+                    const speaker = m.direction === 'outbound' ? 'Asesor' : 'Prospecto';
+                    const time = new Date(m.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+                    return `[${time}] ${speaker}: ${m.message_body}`;
+                })
+                .join('\n');
+
+            // Contexto completo = perfil + historial de chat
+            const fullContext = `${leadProfile}\n${messagesText}`;
+
+            // 4. Llamar a la Edge Function de IA con contexto enriquecido
+            const { data: aiData, error: aiError } = await supabase.functions.invoke('generate-ai-content', {
+                body: {
+                    instruction: 'Genera un breve resumen analítico de esta conversación de WhatsApp, destacando el nivel de interés del prospecto y el siguiente paso a tomar.',
+                    context: fullContext,
+                    systemPrompt: `Eres un analista de CRM universitario experto en ventas educativas. Tienes acceso al perfil completo del prospecto y a su conversación de WhatsApp con el asesor. Devuelve un resumen ejecutivo breve (máximo 4 líneas) que incluya: nivel de interés real, situación actual y el próximo paso más efectivo a tomar.`,
+                },
+            });
+
+            if (aiError || !aiData?.content) throw new Error(aiError?.message || 'La IA no devolvió contenido.');
+
+            setWaSummary(aiData.content);
+        } catch (err: any) {
+            console.error('Error generando resumen WA:', err);
+            setWaSummary('No se pudo generar el resumen. Intenta de nuevo.');
+        } finally {
+            setIsSummarizingWA(false);
+        }
+    };
+
+    const handleSaveWASummaryAsNote = () => {
+        if (!waSummary || !lead) return;
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        onAddFollowUp(lead.id, {
+            date: today.toISOString(),
+            notes: `🤖 Resumen IA de conversación WhatsApp:\n${waSummary}`,
+        });
+        setWaSummarySaved(true);
     };
 
     if (!lead) return null;
@@ -481,7 +569,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                             { id: 'summary', label: 'Resumen IA', icon: <SparklesIcon className="w-4 h-4" /> },
                             { id: 'info', label: 'Información', icon: <UserIcon className="w-4 h-4" /> },
                             { id: 'activity', label: 'Historial', icon: <ListBulletIcon className="w-4 h-4" /> },
-                            { id: 'appointments', label: 'Agenda', icon: <CalendarIcon className="w-4 h-4" /> }
+                            { id: 'appointments', label: 'Agenda', icon: <CalendarIcon className="w-4 h-4" /> },
+                            { id: 'whatsapp', label: 'WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-4 h-4" /> },
                         ].map((tab) => (
                             <button
                                 key={tab.id}
@@ -842,6 +931,71 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* TAB 4: WHATSAPP EN TIEMPO REAL */}
+                        {activeTab === 'whatsapp' && (
+                            <div className="animate-fade-in space-y-4">
+
+                                {/* Botón de Resumen IA de la conversación */}
+                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/50 rounded-xl p-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-bold text-green-800 dark:text-green-300">Análisis IA de la conversación</p>
+                                            <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">La IA leerá todos los mensajes y generará un resumen ejecutivo del estado del prospecto.</p>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            onClick={handleGenerateWASummary}
+                                            disabled={isSummarizingWA}
+                                            leftIcon={<SparklesIcon className="w-4 h-4" />}
+                                            className="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white border-none shadow-md shadow-green-200 dark:shadow-none"
+                                        >
+                                            {isSummarizingWA ? 'Analizando...' : 'Generar Resumen'}
+                                        </Button>
+                                    </div>
+
+                                    {/* Resultado del resumen */}
+                                    {waSummary && (
+                                        <div className="mt-4 animate-fade-in">
+                                            <div className="bg-white dark:bg-slate-800 rounded-lg border border-green-200 dark:border-green-800 p-4 relative shadow-sm">
+                                                <div className="absolute top-0 left-0 w-1 h-full bg-green-500 rounded-l-lg" />
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed pl-2">
+                                                    {waSummary}
+                                                </p>
+                                            </div>
+                                            <div className="mt-3 flex justify-end gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => { setWaSummary(null); setWaSummarySaved(false); }}
+                                                    className="text-gray-500"
+                                                >
+                                                    Descartar
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    onClick={handleSaveWASummaryAsNote}
+                                                    disabled={waSummarySaved}
+                                                    leftIcon={waSummarySaved ? <CheckCircleIcon className="w-4 h-4 text-green-500" /> : <PlusIcon className="w-4 h-4" />}
+                                                >
+                                                    {waSummarySaved ? 'Guardado en Historial' : 'Guardar como Nota'}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Chat en tiempo real */}
+                                <WhatsAppChat
+                                    leadId={lead.id}
+                                    phone={lead.phone}
+                                    lead={lead}
+                                    licenciaturas={licenciaturas}
+                                />
+
                             </div>
                         )}
 
