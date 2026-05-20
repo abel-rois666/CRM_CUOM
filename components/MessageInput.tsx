@@ -208,6 +208,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const template = metaTemplates.find((t) => t.name === selectedTemplateName);
     const languageCode = template?.language || 'es'; // Fallback seguro
 
+    // Generar el texto exacto que se previsualiza para guardarlo en la base de datos
+    let previewText = '';
+    const header = template?.components.find((c: any) => c.type === 'HEADER');
+    if (header && header.format === 'TEXT' && header.text) previewText += `*${header.text}*\n\n`;
+    
+    let bodyPreview = template?.components.find((c: any) => c.type === 'BODY')?.text || '';
+    templateVariableValues.forEach((val, idx) => {
+      bodyPreview = bodyPreview.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), val.trim());
+    });
+    previewText += bodyPreview;
+    
+    const footer = template?.components.find((c: any) => c.type === 'FOOTER');
+    if (footer && footer.text) previewText += `\n\n_${footer.text}_`; // Guardar footer en itálica simulada
+
     setIsSendingTemplate(true);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke('send-whatsapp', {
@@ -218,11 +232,21 @@ const MessageInput: React.FC<MessageInputProps> = ({
           templateName     : selectedTemplateName,
           templateVariables: templateVariableValues,
           languageCode     : languageCode,
+          previewText      : previewText, // <-- Nuevo campo para el historial
         },
       });
 
       if (invokeError || !data?.success) {
-        const errMsg = data?.error ?? invokeError?.message ?? 'Por favor intenta de nuevo.';
+        let errMsg = data?.details ?? data?.error ?? invokeError?.message ?? 'Por favor intenta de nuevo.';
+        
+        // Extraer el error real de la API si supabase-js devuelve un error 400/500 (context)
+        if (invokeError && 'context' in invokeError) {
+          try {
+            const errBody = await (invokeError as any).context.json();
+            errMsg = errBody.details || errBody.error || errMsg;
+          } catch (e) { /* ignorar si no es JSON */ }
+        }
+
         alert(`Error al enviar plantilla: ${errMsg}`);
         return;
       }
@@ -349,6 +373,50 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         required
                       />
                     ))}
+                  </div>
+                )}
+
+                {/* VISTA PREVIA DE PLANTILLA */}
+                {selectedTemplateName && (
+                  <div className="relative mt-2 p-3 bg-[#efeae2] dark:bg-[#0b141a] rounded-lg border border-[#d1c9c1] dark:border-[#202c33] shadow-inner overflow-hidden">
+                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">Vista Previa</p>
+                    <div className="relative bg-white dark:bg-[#202C33] p-3 rounded-xl rounded-tl-none shadow-sm text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed inline-block max-w-full break-words">
+                      {/* Triangulito simulando burbuja de WhatsApp */}
+                      <div className="absolute top-0 -left-2 w-0 h-0 border-t-[10px] border-t-white dark:border-t-[#202C33] border-l-[10px] border-l-transparent"></div>
+                      {(() => {
+                        const template = metaTemplates.find(t => t.name === selectedTemplateName);
+                        let previewText = '';
+                        
+                        // Agregar HEADER si existe (ej. texto)
+                        const header = template?.components.find((c: any) => c.type === 'HEADER');
+                        if (header && header.format === 'TEXT' && header.text) {
+                          previewText += `*${header.text}*\n\n`; // WhatsApp bold
+                        }
+
+                        // Agregar BODY
+                        const body = template?.components.find((c: any) => c.type === 'BODY')?.text || '';
+                        let bodyPreview = body;
+                        templateVariableValues.forEach((val, idx) => {
+                          const replacement = val.trim() !== '' ? val : `[Variable ${idx + 1}]`;
+                          bodyPreview = bodyPreview.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), replacement);
+                        });
+                        previewText += bodyPreview;
+
+                        // Agregar FOOTER si existe
+                        const footer = template?.components.find((c: any) => c.type === 'FOOTER');
+                        if (footer && footer.text) {
+                          previewText += `\n\n<span class="text-xs text-gray-400 dark:text-gray-500">${footer.text}</span>`;
+                        }
+
+                        if (!previewText) return <span className="text-gray-400 italic">Sin contenido preview</span>;
+
+                        return (
+                          <div dangerouslySetInnerHTML={{ 
+                            __html: previewText.replace(/\n/g, '<br/>')
+                          }} />
+                        );
+                      })()}
+                    </div>
                   </div>
                 )}
 

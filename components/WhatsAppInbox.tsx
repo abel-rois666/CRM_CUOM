@@ -176,8 +176,7 @@ const WhatsAppInbox: React.FC<WhatsAppInboxProps> = ({ currentAdminId, onLeadAss
 
     setAssigning((prev) => new Set(prev).add(leadId));
 
-    const { error: updateError } = await supabase
-      .from('leads')
+    const { error: updateError } = await (supabase.from('leads') as any)
       .update({ advisor_id: advisorId })
       .eq('id', leadId);
 

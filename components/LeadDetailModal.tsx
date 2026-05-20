@@ -1,6 +1,6 @@
 // components/LeadDetailModal.tsx
 import React, { useState, useMemo } from 'react';
-import { Lead, Profile, Status, FollowUp, Source, Appointment, Licenciatura } from '../types';
+import { Lead, Profile, Status, FollowUp, Source, Appointment, Licenciatura, Turno } from '../types';
 import { calculateLeadScore, getScoreColor, getScoreLabel, getScoreBreakdown } from '../utils/leadScoring';
 import Modal from './common/Modal';
 import Button from './common/Button';
@@ -40,6 +40,7 @@ interface LeadDetailModalProps {
     statuses: Status[];
     sources: Source[];
     licenciaturas: Licenciatura[];
+    turnos: Turno[];
     onAddFollowUp: (leadId: string, followUp: Omit<FollowUp, 'id' | 'lead_id'>) => void;
     onDeleteFollowUp: (leadId: string, followUpId: string) => void;
     onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
@@ -286,7 +287,7 @@ const CollapsibleSection: React.FC<{
 };
 
 // --- MAIN COMPONENT ---
-const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info', onOpenWhatsApp, onOpenEmail }) => {
+const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, turnos, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info', onOpenWhatsApp, onOpenEmail }) => {
     const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary' | 'whatsapp'>(initialTab);
 
     const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
@@ -302,6 +303,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
 
     const sourceMap = useMemo(() => new Map(sources.map(s => [s.id, s.name])), [sources]);
     const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
+    const turnoMap = useMemo(() => new Map(turnos.map(t => [t.id, t.name])), [turnos]);
     const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color }])), [statuses]);
 
     const { activeAppointment, pastAppointments } = useMemo(() => {
@@ -461,8 +463,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
             ].join('\n');
 
             // 3. Formatear los mensajes del chat como texto plano
-            const messagesText = waMessages
-                .map(m => {
+            const messagesText = (waMessages || [])
+                .map((m: any) => {
                     const speaker = m.direction === 'outbound' ? 'Asesor' : 'Prospecto';
                     const time = new Date(m.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
                     return `[${time}] ${speaker}: ${m.message_body}`;
@@ -672,9 +674,15 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
 
                                     <div className="bg-blue-50/50 dark:bg-blue-900/20 p-3 sm:p-4 rounded-lg border border-blue-100 dark:border-blue-800/50">
                                         <h5 className="font-bold text-blue-900 dark:text-blue-300 mb-2 border-b border-blue-200 dark:border-blue-800 pb-1 text-xs sm:text-sm uppercase tracking-wide">Interés Académico</h5>
-                                        <div className="text-center py-0.5">
-                                            <p className="text-[10px] text-blue-500 dark:text-blue-400 uppercase tracking-wide font-bold mb-0.5">Licenciatura</p>
-                                            <p className="text-sm sm:text-base font-bold text-brand-primary dark:text-blue-200">{licenciaturaMap.get(lead.program_id)}</p>
+                                        <div className="grid grid-cols-2 gap-2 text-center py-0.5">
+                                            <div>
+                                                <p className="text-[10px] text-blue-500 dark:text-blue-400 uppercase tracking-wide font-bold mb-0.5">Licenciatura</p>
+                                                <p className="text-sm sm:text-base font-bold text-brand-primary dark:text-blue-200">{licenciaturaMap.get(lead.program_id)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-blue-500 dark:text-blue-400 uppercase tracking-wide font-bold mb-0.5">Turno</p>
+                                                <p className="text-sm sm:text-base font-bold text-brand-primary dark:text-blue-200">{lead.turno_id ? turnoMap.get(lead.turno_id) || 'Sin definir' : 'Sin definir'}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

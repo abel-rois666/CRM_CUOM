@@ -68,6 +68,12 @@ CREATE TABLE IF NOT EXISTS public.licenciaturas (
   name TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.turnos (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- CONFIGURACIÓN DINÁMICA DE CATEGORÍAS DE ESTADO
 CREATE TABLE IF NOT EXISTS public.status_categories (
   key TEXT PRIMARY KEY CHECK (key IN ('active', 'won', 'lost')),
@@ -104,12 +110,14 @@ CREATE TABLE IF NOT EXISTS public.leads (
   email TEXT,
   phone TEXT NOT NULL,
   program_id UUID REFERENCES public.licenciaturas(id) ON DELETE SET NULL,
+  turno_id UUID REFERENCES public.turnos(id) ON DELETE SET NULL,
   status_id UUID REFERENCES public.statuses(id) ON DELETE SET NULL,
   advisor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   source_id UUID REFERENCES public.sources(id) ON DELETE SET NULL,
   registration_date TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
-  search_text TEXT -- [OPTIMIZACIÓN] Campo calculado para búsquedas rápidas
+  search_text TEXT, -- [OPTIMIZACIÓN] Campo calculado para búsquedas rápidas
+  has_unread_messages BOOLEAN DEFAULT FALSE -- [NEW] Para alertas de WhatsApp
 );
 
 -- DETALLES Y ACTIVIDAD
@@ -142,6 +150,17 @@ CREATE TABLE IF NOT EXISTS public.status_history (
   new_status_id UUID REFERENCES public.statuses(id) ON DELETE SET NULL,
   date TIMESTAMPTZ DEFAULT now(),
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.whatsapp_messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE,
+  direction TEXT CHECK (direction IN ('inbound', 'outbound')),
+  message_body TEXT NOT NULL,
+  status TEXT,
+  media_url TEXT,
+  media_type TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- SISTEMA Y SETTINGS
@@ -246,10 +265,12 @@ ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.statuses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.licenciaturas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.turnos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.organization_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.status_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.whatsapp_messages ENABLE ROW LEVEL SECURITY;
 
 -- Profiles
 CREATE POLICY "Staff can view all profiles" ON public.profiles FOR SELECT TO authenticated USING (true);
@@ -274,11 +295,14 @@ CREATE POLICY "Lectura General Sources" ON public.sources FOR SELECT TO authenti
 CREATE POLICY "Escritura Admin Sources" ON public.sources FOR ALL TO authenticated USING ( public.is_role('admin') );
 CREATE POLICY "Lectura General Licenciaturas" ON public.licenciaturas FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Escritura Admin Licenciaturas" ON public.licenciaturas FOR ALL TO authenticated USING ( public.is_role('admin') );
+CREATE POLICY "Lectura General Turnos" ON public.turnos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Escritura Admin Turnos" ON public.turnos FOR ALL TO authenticated USING ( public.is_role('admin') );
 CREATE POLICY "Staff full access status_categories" ON public.status_categories FOR ALL TO authenticated USING (true);
 
--- Templates: Compartidos
+-- Templates & Messages: Compartidos
 CREATE POLICY "Staff full access whatsapp_templates" ON public.whatsapp_templates FOR ALL TO authenticated USING (true);
 CREATE POLICY "Staff full access email_templates" ON public.email_templates FOR ALL TO authenticated USING (true);
+CREATE POLICY "Staff full access whatsapp_messages" ON public.whatsapp_messages FOR ALL TO authenticated USING (true);
 
 -- Settings & System
 CREATE POLICY "Staff full access organization_settings" ON public.organization_settings FOR ALL TO authenticated USING (true);
@@ -526,5 +550,18 @@ VALUES
   ('won', 'Inscritos', '🎓', 'text-green-600 dark:text-green-400', 2),
   ('lost', 'Bajas', '❌', 'text-red-600 dark:text-red-400', 3)
 ON CONFLICT (key) DO NOTHING;
+
+-- Seed default turnos
+INSERT INTO public.turnos (name) VALUES 
+  ('Matutino'),
+  ('Vespertino'),
+  ('Mixto'),
+  ('Sin definir')
+ON CONFLICT (name) DO NOTHING;
+
+-- Seed default licenciatura
+INSERT INTO public.licenciaturas (name) VALUES 
+  ('Sin definir')
+ON CONFLICT (name) DO NOTHING;
 
 -- FIN DEL ESQUEMA

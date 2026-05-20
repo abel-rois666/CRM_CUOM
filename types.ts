@@ -43,6 +43,11 @@ export interface Licenciatura {
   name: string;
 }
 
+export interface Turno {
+  id: string;
+  name: string;
+}
+
 // --- Actividades y Sub-Entidades ---
 export interface FollowUp {
   id: string;
@@ -95,6 +100,7 @@ export interface Lead {
   appointments?: Appointment[];
   status_history?: StatusChange[];
   has_unread_messages?: boolean;
+  turno_id?: string | null;
 }
 
 // --- Plantillas ---

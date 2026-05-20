@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { Lead, Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, DashboardMetrics, QuickFilterType } from '../types';
+import { Lead, Profile, Status, Source, Licenciatura, Turno, WhatsAppTemplate, EmailTemplate, DashboardMetrics, QuickFilterType } from '../types';
 import { useToast } from '../context/ToastContext';
 
 // Interfaz para los filtros que se enviarán a la BD
@@ -54,6 +54,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
 
   const [sources, setSources] = useState<Source[]>([]);
   const [licenciaturas, setLicenciaturas] = useState<Licenciatura[]>([]);
+  const [turnos, setTurnos] = useState<Turno[]>([]);
   const [whatsappTemplates, setWhatsappTemplates] = useState<WhatsAppTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [statusCategories, setStatusCategories] = useState<any[]>([]); // [NEW] Metadata de categorías
@@ -89,6 +90,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
         supabase.from('whatsapp_templates').select('*'),
         supabase.from('email_templates').select('*'),
         supabase.from('status_categories').select('*').order('order_index'), // [NEW] Fetch categories
+        supabase.from('turnos').select('*'),
       ]);
 
       const getData = <T>(index: number, fallback: T[] = []): T[] => {
@@ -103,6 +105,7 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
       setWhatsappTemplates(getData<WhatsAppTemplate>(4));
       setEmailTemplates(getData<EmailTemplate>(5));
       setStatusCategories(getData<any>(6)); // [NEW] Set categories
+      setTurnos(getData<Turno>(7));
 
       setCatalogsLoaded(true);
     } catch (error) {
@@ -393,12 +396,14 @@ export const useCRMData = (session: Session | null, userRole?: 'admin' | 'adviso
     statuses,
     sources,
     licenciaturas,
+    turnos,
     whatsappTemplates,
     emailTemplates,
     setProfiles,
     setStatuses,
     setSources,
     setLicenciaturas,
+    setTurnos,
     setWhatsappTemplates,
     setEmailTemplates,
     statusCategories, // [NEW]

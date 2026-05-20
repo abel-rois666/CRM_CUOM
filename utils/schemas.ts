@@ -47,14 +47,15 @@ export const leadSchema = z.object({
 
     phone: z
         .string()
-        .min(10, { message: "El teléfono debe tener 10 dígitos" })
-        .max(10, { message: "El teléfono debe tener 10 dígitos" })
+        .min(7, { message: "El teléfono debe tener al menos 7 dígitos" })
+        .max(15, { message: "El teléfono no puede exceder 15 dígitos" })
         .regex(/^\d+$/, { message: "Solo se permiten números" }),
 
     program_id: z.string().min(1, { message: "Debes seleccionar una licenciatura" }),
     advisor_id: z.string().min(1, { message: "Debes asignar un asesor" }),
     status_id: z.string().min(1, { message: "Debes seleccionar un estatus" }),
     source_id: z.string().min(1, { message: "Debes seleccionar un origen" }),
+    turno_id: z.string().optional().or(z.literal('')),
 });
 
 export type LeadFormData = z.infer<typeof leadSchema>;

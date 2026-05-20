@@ -45,12 +45,14 @@ const AppContent: React.FC = () => {
     statuses,
     sources,
     licenciaturas,
+    turnos,
     whatsappTemplates,
     emailTemplates,
     setProfiles,
     setStatuses,
     setSources,
     setLicenciaturas,
+    setTurnos,
     setWhatsappTemplates,
     setEmailTemplates,
     updateLocalLead,
@@ -109,12 +111,8 @@ const AppContent: React.FC = () => {
       // Fetch the full lead to pass it to the modal
       const { data, error } = await supabase.from('leads').select('*').eq('id', leadId).single();
       if (data) {
-        // En lugar de llamar openModal directamente, usamos handleViewDetails que también carga follow_ups
-        // Haremos un mock de handleViewDetails para reutilizar la lógica o simplemente llamamos a handleViewDetails si está definido abajo.
-        // Dado que handleViewDetails está definido más abajo, usaremos una llamada directa a openModal para evitar dependencias circulares complejas, 
-        // pero preferiblemente el modal carga sus propios follow_ups. En nuestro caso, LeadDetailModal lo hace a través de handleViewDetails.
-        // Change to 'whatsapp' directly to open the WhatsAppModal instead of LeadDetailModal
-        openModal('whatsapp', { lead: data });
+        // Redirigir a la sección de conversación de whats app en la ficha del lead (LeadDetailModal)
+        openModal('detailView', { lead: data, initialTab: 'whatsapp' });
       }
     };
     
@@ -623,6 +621,7 @@ const AppContent: React.FC = () => {
           statuses={statuses}
           sources={sources}
           licenciaturas={licenciaturas}
+          turnos={turnos}
           currentUser={profile}
         />
       )}
@@ -638,6 +637,7 @@ const AppContent: React.FC = () => {
             statuses={statuses}
             sources={sources}
             licenciaturas={licenciaturas}
+            turnos={turnos}
             onAddFollowUp={handleAddFollowUp}
             onDeleteFollowUp={handleDeleteFollowUp}
             onUpdateLead={handleUpdateLeadDetails}
@@ -664,6 +664,7 @@ const AppContent: React.FC = () => {
             statuses={statuses}
             sources={sources}
             licenciaturas={licenciaturas}
+            turnos={turnos}
             whatsappTemplates={whatsappTemplates}
             emailTemplates={emailTemplates}
             currentUserProfile={profile}
@@ -671,6 +672,7 @@ const AppContent: React.FC = () => {
             onStatusesUpdate={setStatuses}
             onSourcesUpdate={setSources}
             onLicenciaturasUpdate={setLicenciaturas}
+            onTurnosUpdate={setTurnos}
             onWhatsappTemplatesUpdate={setWhatsappTemplates}
             onEmailTemplatesUpdate={setEmailTemplates}
           />

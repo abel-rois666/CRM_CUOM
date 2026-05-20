@@ -73,14 +73,19 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
         },
       });
 
-      if (error) {
-        console.error('Error invocando send-whatsapp:', error);
-        alert(`Error al enviar el mensaje: ${error.message || 'Por favor intenta de nuevo.'}`);
-        return;
-      }
+      if (error || !data?.success) {
+        let errMsg = data?.details ?? data?.error ?? error?.message ?? 'No se pudo enviar el mensaje.';
+        
+        // Extraer el error real de la API si supabase-js devuelve un error 400/500 (context)
+        if (error && 'context' in error) {
+          try {
+            const errBody = await (error as any).context.json();
+            errMsg = errBody.details || errBody.error || errMsg;
+          } catch (e) { /* ignorar si no es JSON */ }
+        }
 
-      if (!data?.success) {
-        alert(`Error de WhatsApp: ${data?.error || 'No se pudo enviar el mensaje.'}`);
+        console.error('Error invocando send-whatsapp:', error);
+        alert(`Error al enviar el mensaje: ${errMsg}`);
         return;
       }
 

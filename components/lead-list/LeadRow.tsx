@@ -117,8 +117,36 @@ const LeadRow: React.FC<LeadRowProps> = memo(({
                 );
             case 'email':
                 return <span className="text-sm text-gray-600 dark:text-gray-300">{lead.email || '-'}</span>;
-            case 'phone':
-                return <span className="text-sm text-gray-600 dark:text-gray-300">{lead.phone || '-'}</span>;
+            case 'phone': {
+                if (!lead.phone) return <span className="text-sm text-gray-400">-</span>;
+                const digits = lead.phone.replace(/\D/g, '');
+                // Detectar prefijo: México (521 o 52), luego otros
+                let prefix = '';
+                let local = digits;
+                if (digits.startsWith('521') && digits.length > 12) {
+                    prefix = '+52'; local = digits.slice(3);
+                } else if (digits.startsWith('521')) {
+                    prefix = '+52'; local = digits.slice(3);
+                } else if (digits.startsWith('52') && digits.length >= 12) {
+                    prefix = '+52'; local = digits.slice(2);
+                } else if (digits.length > 10) {
+                    // Otro país: mostrar los últimos 10 como número local y el resto como prefijo
+                    prefix = `+${digits.slice(0, digits.length - 10)}`;
+                    local = digits.slice(digits.length - 10);
+                }
+                return (
+                    <span className="flex items-center gap-1">
+                        {prefix && (
+                            <span className="text-xs font-semibold text-brand-secondary/80 bg-brand-secondary/8 dark:bg-brand-secondary/15 px-1.5 py-0.5 rounded-md leading-none">
+                                {prefix}
+                            </span>
+                        )}
+                        <span className="text-sm text-gray-700 dark:text-gray-200 font-medium tracking-wide">
+                            {local}
+                        </span>
+                    </span>
+                );
+            }
             case 'advisor':
                 return <span className="text-sm text-gray-600 dark:text-gray-300">{advisorMap.get(lead.advisor_id) || <span className="text-gray-400 italic">Sin asignar</span>}</span>;
             case 'status':

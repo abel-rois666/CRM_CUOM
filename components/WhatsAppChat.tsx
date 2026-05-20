@@ -99,7 +99,7 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
   useEffect(() => { 
     fetchMessages(); 
     // Marcar como leído
-    supabase.from('leads').update({ has_unread_messages: false }).eq('id', leadId).then();
+    (supabase.from('leads') as any).update({ has_unread_messages: false }).eq('id', leadId).then();
   }, [fetchMessages, leadId]);
 
   // -------------------------------------------------------------------------
@@ -154,7 +154,14 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
       setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
 
       if (invokeError || !data?.success) {
-        alert(`Error al enviar: ${data?.error ?? invokeError?.message ?? 'Por favor intenta de nuevo.'}`);
+        let errMsg = data?.details ?? data?.error ?? invokeError?.message ?? 'Por favor intenta de nuevo.';
+        if (invokeError && 'context' in invokeError) {
+          try {
+            const errBody = await (invokeError as any).context.json();
+            errMsg = errBody.details || errBody.error || errMsg;
+          } catch (e) { /* ignorar */ }
+        }
+        alert(`Error al enviar: ${errMsg}`);
       }
     } catch (err: any) {
       // Garantizar limpieza también si el fetch mismo lanza (red, timeout, etc.)

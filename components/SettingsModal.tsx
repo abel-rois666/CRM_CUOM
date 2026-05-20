@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Input, Select, TextArea } from './common/FormElements';
 import { createClient } from '@supabase/supabase-js';
-import { Profile, Status, Source, Licenciatura, WhatsAppTemplate, EmailTemplate, StatusCategory } from '../types';
+import { Profile, Status, Source, Licenciatura, Turno, WhatsAppTemplate, EmailTemplate, StatusCategory } from '../types';
 import Modal from './common/Modal';
 import Button from './common/Button';
 import PlusIcon from './icons/PlusIcon';
@@ -22,6 +22,7 @@ import EnvelopeIcon from './icons/EnvelopeIcon';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
 import CameraIcon from './icons/CameraIcon';
+import ClockIcon from './icons/ClockIcon';
 import ChevronLeftIcon from './icons/ChevronLeftIcon'; // [NEW]
 import ChevronRightIcon from './icons/ChevronRightIcon'; // [NEW]
 import BoltIcon from './icons/BoltIcon';
@@ -42,6 +43,7 @@ interface SettingsModalProps {
     statuses: Status[];
     sources: Source[];
     licenciaturas: Licenciatura[];
+    turnos: Turno[];
     whatsappTemplates: WhatsAppTemplate[];
     emailTemplates: EmailTemplate[];
     currentUserProfile: Profile | null;
@@ -49,6 +51,7 @@ interface SettingsModalProps {
     onStatusesUpdate: (statuses: Status[]) => void;
     onSourcesUpdate: (sources: Source[]) => void;
     onLicenciaturasUpdate: (licenciaturas: Licenciatura[]) => void;
+    onTurnosUpdate: (turnos: Turno[]) => void;
     onWhatsappTemplatesUpdate: (templates: WhatsAppTemplate[]) => void;
     onEmailTemplatesUpdate: (templates: EmailTemplate[]) => void;
 }
@@ -906,7 +909,165 @@ const LicenciaturaSettings: React.FC<{ licenciaturas: Licenciatura[], onLicencia
             />
         </div>
     );
-}
+};
+
+// COMPONENTE PARA TURNOS
+const TurnoSettings: React.FC<{ turnos: Turno[], onTurnosUpdate: (turnos: Turno[]) => void }> = ({ turnos, onTurnosUpdate }) => {
+    const [name, setName] = useState('');
+    const [turnoToDelete, setTurnoToDelete] = useState<Turno | null>(null);
+    const [turnoToEdit, setTurnoToEdit] = useState<Turno | null>(null);
+    const { success, error: toastError } = useToast();
+
+    const handleSave = async () => {
+        if (!name.trim()) return;
+
+        if (turnoToEdit) {
+            const { data, error } = await (supabase as any)
+                .from('turnos')
+                .update({ name: name.trim() })
+                .eq('id', turnoToEdit.id)
+                .select()
+                .single();
+
+            if (error) {
+                console.error(error);
+                toastError("Error al actualizar turno");
+            } else {
+                onTurnosUpdate(turnos.map(t => t.id === turnoToEdit.id ? data : t));
+                success("Turno actualizado");
+                setTurnoToEdit(null);
+                setName('');
+            }
+        } else {
+            const { data, error } = await (supabase as any).from('turnos').insert({ name: name.trim() }).select().single();
+            if (error) {
+                console.error(error);
+                toastError("Error al crear turno");
+                return;
+            }
+            onTurnosUpdate([...turnos, data]);
+            success("Turno creado");
+            setName('');
+        }
+    };
+
+    const handleEditClick = (t: Turno) => {
+        setTurnoToEdit(t);
+        setName(t.name);
+    };
+
+    const handleCancelEdit = () => {
+        setTurnoToEdit(null);
+        setName('');
+    };
+
+    const handleVerifyAndDelete = async (t: Turno) => {
+        const { count, error: checkError } = await supabase
+            .from('leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('turno_id', t.id);
+
+        if (checkError) console.error(checkError);
+
+        if (count && count > 0) {
+            toastError(`No se puede eliminar "${t.name}" porque hay leads asignados a este turno.`);
+            return;
+        }
+
+        setTurnoToDelete(t);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!turnoToDelete) return;
+
+        const { error } = await supabase.from('turnos').delete().eq('id', turnoToDelete.id);
+        if (error) {
+            if (error.code === '23503') {
+                toastError(`No se puede eliminar "${turnoToDelete.name}" porque está en uso.`);
+            } else {
+                toastError(`Error al eliminar turno: ${error.message}`);
+            }
+            console.error(error);
+        } else {
+            onTurnosUpdate(turnos.filter(t => t.id !== turnoToDelete.id));
+            success("Turno eliminado");
+            setTurnoToDelete(null);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gestionar Turnos</h3>
+
+            <div className={`space-y-4 border p-5 rounded-2xl shadow-sm transition-colors ${turnoToEdit ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700'}`}>
+                <h4 className={`font-semibold ${turnoToEdit ? 'text-blue-800 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                    {turnoToEdit ? `Editando: ${turnoToEdit.name}` : 'Añadir Nuevo Turno'}
+                </h4>
+
+                <div className="flex flex-col sm:flex-row gap-3 items-end">
+                    <div className="flex-grow w-full">
+                        <Input
+                            id="turno-name"
+                            name="turno-name"
+                            aria-label="Nombre del Turno"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            placeholder="Nombre del Turno (Ej: Matutino, Vespertino)"
+                        />
+                    </div>
+
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        {turnoToEdit && (
+                            <Button variant="ghost" onClick={handleCancelEdit}>Cancelar</Button>
+                        )}
+                        <Button
+                            onClick={handleSave}
+                            size="sm"
+                            leftIcon={!turnoToEdit ? <PlusIcon className="w-4 h-4" /> : undefined}
+                            className={turnoToEdit ? "shadow-blue-200" : ""}
+                        >
+                            {turnoToEdit ? 'Actualizar' : 'Añadir Turno'}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            <hr className="my-6 border-gray-100 dark:border-slate-700" />
+
+            <h4 className="font-semibold text-gray-700 dark:text-gray-300">Turnos Actuales</h4>
+            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {turnos.map(t => (
+                    <li key={t.id} className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm hover:border-brand-secondary/30 transition-colors">
+                        <span className="font-medium text-gray-700 dark:text-gray-200">{t.name}</span>
+                        <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleEditClick(t)} title="Editar Nombre">
+                                <EditIcon className="w-4 h-4 text-blue-500" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleVerifyAndDelete(t)} title="Eliminar">
+                                <TrashIcon className="w-4 h-4 text-red-500" />
+                            </Button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+            <ConfirmationModal
+                isOpen={!!turnoToDelete}
+                onClose={() => setTurnoToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title="¿Eliminar Turno?"
+                message={
+                    <>
+                        Se eliminará <strong>{turnoToDelete?.name}</strong> del catálogo.
+                        <br /><br />
+                        <span className="text-red-600 font-bold">Esta acción no se puede deshacer.</span>
+                    </>
+                }
+                confirmButtonText="Eliminar Definitivamente"
+                confirmButtonVariant="danger"
+            />
+        </div>
+    );
+};
 
 const WhatsappTemplateSettings: React.FC<{
     templates: WhatsAppTemplate[],
@@ -1853,6 +2014,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         { id: 'statuses', label: 'Estados', icon: <TagIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
         { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
         { id: 'licenciaturas', label: 'Oferta Académica', icon: <AcademicCapIcon className="w-6 h-6 flex-shrink-0" />, allowedRoles: ['admin'] },
+        { id: 'turnos', label: 'Turnos', icon: <ClockIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
         { id: 'whatsapp_admin', label: 'WhatsApp Admin', icon: <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
 
         // Plantillas visibles para todos los roles con permisos de gestión
@@ -1918,6 +2080,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                     {activeTab === 'statuses' && <StatusSettings statuses={props.statuses} onStatusesUpdate={props.onStatusesUpdate} />}
                     {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}
                     {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}
+                    {activeTab === 'turnos' && <TurnoSettings turnos={props.turnos} onTurnosUpdate={props.onTurnosUpdate} />}
                     {activeTab === 'whatsapp' && <WhatsappTemplateSettings templates={props.whatsappTemplates} onTemplatesUpdate={props.onWhatsappTemplatesUpdate} userProfile={props.currentUserProfile} />}
                     {activeTab === 'email' && <EmailTemplateSettings templates={props.emailTemplates} onTemplatesUpdate={props.onEmailTemplatesUpdate} userProfile={props.currentUserProfile} />}
                     {activeTab === 'whatsapp_admin' && (

@@ -87,8 +87,13 @@ function buildDbMessageBody(
     message: string,
     templateName?: string,
     templateVariables?: string[],
+    previewText?: string,
 ): string {
     if (!isTemplate || !templateName) return message
+
+    if (previewText) {
+        return `[✨ Plantilla Oficial: ${templateName}]\n\n${previewText}`
+    }
 
     const vars = Array.isArray(templateVariables) && templateVariables.length > 0
         ? ` | Variables: ${templateVariables.join(', ')}`
@@ -131,11 +136,12 @@ serve(async (req) => {
         const {
             leadId,
             phone,
-            message           = '',      // Puede ser vacío cuando se usa plantilla
+            message           = '',
             isTemplate        = false,
             templateName,
             templateVariables,
             languageCode      = 'es_MX',
+            previewText,
         } = await req.json()
 
         // Validación: o hay mensaje de texto, o hay nombre de plantilla
@@ -231,7 +237,7 @@ serve(async (req) => {
             auth: { persistSession: false },
         })
 
-        const dbMessageBody = buildDbMessageBody(isTemplate, message, templateName, templateVariables)
+        const dbMessageBody = buildDbMessageBody(isTemplate, message, templateName, templateVariables, previewText)
 
         const { error: dbError } = await supabase
             .from('whatsapp_messages')

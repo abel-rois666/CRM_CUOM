@@ -70,10 +70,11 @@ function getSupabaseClient() {
 // Ejecuta 4 queries en paralelo; si alguno falla lanza un error.
 // ---------------------------------------------------------------------------
 async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>) {
-    const [statusRes, sourceRes, programRes] = await Promise.all([
+    const [statusRes, sourceRes, programRes, turnoRes] = await Promise.all([
         supabase.from('statuses').select('id').ilike('name', '%sin contactar%').limit(1).maybeSingle(),
         supabase.from('sources').select('id').ilike('name', '%whatsapp%').limit(1).maybeSingle(),
-        supabase.from('licenciaturas').select('id').ilike('name', '%por definir%').limit(1).maybeSingle(),
+        supabase.from('licenciaturas').select('id').ilike('name', '%sin definir%').limit(1).maybeSingle(),
+        supabase.from('turnos').select('id').ilike('name', '%sin definir%').limit(1).maybeSingle(),
     ])
 
     // Fallbacks: si "Sin Contactar" no existe, toma el primer status disponible
@@ -83,11 +84,35 @@ async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>)
         statusId = data?.id
     }
 
-    // Fallback: si "Por Definir" no existe, toma la primera licenciatura
+    // Fallback de Licenciatura por defecto
     let programId = programRes.data?.id
     if (!programId) {
-        const { data } = await supabase.from('licenciaturas').select('id').order('name').limit(1).maybeSingle()
-        programId = data?.id
+        // Buscar alternativa 'Por definir'
+        const { data: fallbackProgram } = await supabase.from('licenciaturas').select('id').ilike('name', '%por definir%').limit(1).maybeSingle()
+        programId = fallbackProgram?.id
+    }
+    if (!programId) {
+        // Si no existe ninguna variante, intentamos crear "Sin definir" automáticamente
+        const { data: newProg, error: insertError } = await supabase.from('licenciaturas').insert({ name: 'Sin definir' }).select('id').single()
+        if (!insertError && newProg) {
+            programId = newProg.id
+        } else {
+            const { data } = await supabase.from('licenciaturas').select('id').order('name').limit(1).maybeSingle()
+            programId = data?.id
+        }
+    }
+
+    // Fallback de Turno por defecto
+    let turnoId = turnoRes.data?.id
+    if (!turnoId) {
+        // Intentar insertar "Sin definir" automáticamente
+        const { data: newTurno, error: insertError } = await supabase.from('turnos').insert({ name: 'Sin definir' }).select('id').single()
+        if (!insertError && newTurno) {
+            turnoId = newTurno.id
+        } else {
+            const { data } = await supabase.from('turnos').select('id').order('name').limit(1).maybeSingle()
+            turnoId = data?.id
+        }
     }
 
     const sourceId  = sourceRes.data?.id
@@ -98,7 +123,7 @@ async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>)
     if (!programId) throw new Error('No hay ningún programa en licenciaturas.')
     if (!advisorId) throw new Error('No hay ningún perfil admin para asignar como fallback.')
 
-    return { statusId, sourceId, programId, advisorId }
+    return { statusId, sourceId, programId, advisorId, turnoId }
 }
 
 // ---------------------------------------------------------------------------
@@ -233,12 +258,38 @@ async function handleInboundMessage(
 ) {
     let leadId: string | null = null
 
-    // 1. Buscar lead por teléfono
-    const { data: existingLead } = await supabase
+    // 1. Buscar lead por teléfono — matching en dos pasos para manejar prefijos
+    // Paso A: Coincidencia exacta (leads automáticos de WhatsApp con número completo)
+    let existingLead: { id: string; has_unread_messages: boolean; advisor_id: string; first_name: string } | null = null;
+    const exactMatch = await supabase
         .from('leads')
         .select('id, has_unread_messages, advisor_id, first_name')
-        .ilike('phone', `%${from}%`)
+        .eq('phone', from)
         .maybeSingle()
+
+    if (exactMatch.data) {
+        existingLead = exactMatch.data
+    } else {
+        // Paso B: Buscar por los últimos 10 dígitos (leads manuales sin prefijo)
+        // Tomar los últimos 10 dígitos del número recibido como sufijo de búsqueda
+        const last10 = from.replace(/\D/g, '').slice(-10)
+        if (last10.length === 10) {
+            const fuzzyMatch = await supabase
+                .from('leads')
+                .select('id, has_unread_messages, advisor_id, first_name')
+                .ilike('phone', `%${last10}`)
+                .maybeSingle()
+            if (fuzzyMatch.data) {
+                existingLead = fuzzyMatch.data
+                // Actualizar el teléfono al formato E.164 completo para futuras coincidencias exactas
+                await supabase
+                    .from('leads')
+                    .update({ phone: from })
+                    .eq('id', fuzzyMatch.data.id)
+                console.log(`Teléfono del lead ${fuzzyMatch.data.id} normalizado a ${from}`)
+            }
+        }
+    }
 
     if (existingLead) {
         leadId = existingLead.id
@@ -251,21 +302,41 @@ async function handleInboundMessage(
             .eq('id', leadId)
             
         // Si no tenía mensajes sin leer, disparamos una nueva notificación Push
-        if (!existingLead.has_unread_messages && existingLead.advisor_id) {
-            await supabase.from('notifications').insert({
-                user_id: existingLead.advisor_id,
-                title: 'Nuevo Mensaje de WhatsApp',
-                message: `${existingLead.first_name || 'El prospecto'} te ha enviado un nuevo mensaje.`,
-                type: 'info',
-                link: `/whatsapp/${leadId}`
-            });
+        if (!existingLead.has_unread_messages) {
+            // Notificar al asesor asignado
+            if (existingLead.advisor_id) {
+                await supabase.from('notifications').insert({
+                    user_id: existingLead.advisor_id,
+                    title: 'Nuevo Mensaje de WhatsApp',
+                    message: `${existingLead.first_name || 'El prospecto'} te ha enviado un nuevo mensaje.`,
+                    type: 'info',
+                    link: `/whatsapp/${leadId}`
+                });
+            }
+
+            // Notificar también a los administradores
+            const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+            if (admins && admins.length > 0) {
+                const adminNotifs = admins
+                    .filter(admin => admin.id !== existingLead.advisor_id) // Evitar duplicados si el admin es el asesor
+                    .map(admin => ({
+                        user_id: admin.id,
+                        title: 'Nuevo Mensaje de WhatsApp (Admin)',
+                        message: `${existingLead.first_name || 'El prospecto'} te ha enviado un nuevo mensaje.`,
+                        type: 'info',
+                        link: `/whatsapp/${leadId}`
+                    }));
+                if (adminNotifs.length > 0) {
+                    await supabase.from('notifications').insert(adminNotifs);
+                }
+            }
         }
             
     } else {
         // 2. Lead nuevo — auto-crear respetando NOT NULL
         console.log(`Número desconocido ${from}. Creando lead...`)
         try {
-            const { statusId, sourceId, programId, advisorId } = await resolveNewLeadIds(supabase)
+            const { statusId, sourceId, programId, advisorId, turnoId } = await resolveNewLeadIds(supabase)
 
             const firstName       = profileName.split(' ')[0]
             const paternalLastName = profileName.split(' ').slice(1).join(' ').trim() || 'Sin Identificar'
@@ -279,6 +350,7 @@ async function handleInboundMessage(
                     status_id         : statusId,
                     source_id         : sourceId,
                     program_id        : programId,
+                    turno_id          : turnoId,
                     advisor_id        : advisorId,   // Bandeja del admin
                     registration_date : new Date().toISOString(),
                     has_unread_messages: true,
@@ -292,7 +364,7 @@ async function handleInboundMessage(
                 leadId = newLead.id
                 console.log(`Lead creado: ${leadId} (${firstName} ${paternalLastName})`)
                 
-                // Disparar notificación Push para el asesor asignado
+                // Disparar notificación Push
                 if (advisorId) {
                     await supabase.from('notifications').insert({
                         user_id: advisorId,
@@ -301,6 +373,23 @@ async function handleInboundMessage(
                         type: 'info',
                         link: `/whatsapp/${leadId}`
                     });
+                }
+
+                // Notificar a admins
+                const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+                if (admins && admins.length > 0) {
+                    const adminNotifs = admins
+                        .filter(admin => admin.id !== advisorId)
+                        .map(admin => ({
+                            user_id: admin.id,
+                            title: 'Nuevo Prospecto por WhatsApp (Admin)',
+                            message: `${firstName} se ha comunicado por primera vez.`,
+                            type: 'info',
+                            link: `/whatsapp/${leadId}`
+                        }));
+                    if (adminNotifs.length > 0) {
+                        await supabase.from('notifications').insert(adminNotifs);
+                    }
                 }
             }
         } catch (resolveErr: any) {
@@ -415,13 +504,30 @@ serve(async (req) => {
 
         const supabase = getSupabaseClient()
 
-        // ── Rama A: mensajes de texto entrantes ──────────────────────────
+        // ── Rama A: mensajes de texto/botones entrantes ──────────────────
         const message = value.messages?.[0]
 
-        if (message && message.type === 'text') {
+        if (message && (message.type === 'text' || message.type === 'button' || message.type === 'interactive')) {
             const from        = message.from
             const waMessageId = message.id
-            const messageBody = message.text?.body ?? ''
+            let messageBody = ''
+
+            // Extraer el texto real dependiendo del tipo
+            if (message.type === 'text') {
+                messageBody = message.text?.body ?? ''
+            } else if (message.type === 'button') {
+                messageBody = `[Botón seleccionado]: ${message.button?.text ?? ''}`
+            } else if (message.type === 'interactive') {
+                const interactive = message.interactive
+                if (interactive?.type === 'button_reply') {
+                    messageBody = `[Opción seleccionada]: ${interactive.button_reply?.title ?? ''}`
+                } else if (interactive?.type === 'list_reply') {
+                    messageBody = `[Lista seleccionada]: ${interactive.list_reply?.title ?? ''}\n${interactive.list_reply?.description ?? ''}`
+                } else {
+                    messageBody = '[Interacción recibida]'
+                }
+            }
+
             const profileName = value.contacts?.[0]?.profile?.name || `Lead-${from.slice(-4)}`
 
             console.log(`Inbound de ${from} (${profileName}): "${messageBody}"`)
@@ -433,8 +539,8 @@ serve(async (req) => {
             }
         }
 
-        // ── Rama B: mensajes no-texto (imagen, audio, video, etc.) ───────
-        if (message && message.type !== 'text') {
+        // ── Rama B: mensajes multimedia (imagen, audio, video, etc.) ───────
+        if (message && message.type !== 'text' && message.type !== 'button' && message.type !== 'interactive') {
             const type = message.type;
             const from = message.from;
             const waMessageId = message.id;
