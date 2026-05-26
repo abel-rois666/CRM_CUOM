@@ -21,7 +21,12 @@ const corsHeaders = {
 // ---------------------------------------------------------------------------
 function normalizePhone(raw: string): string {
     const digits = raw.replace(/\D/g, '')
+    // Si tiene 10 dígitos, asume México y agrega 52
     if (digits.length === 10) return `52${digits}`
+    // Si tiene 13 dígitos y empieza con 521, quita el 1 (regla estricta de Meta para MX)
+    if (digits.length === 13 && digits.startsWith('521')) {
+        return `52${digits.slice(3)}`
+    }
     return digits
 }
 

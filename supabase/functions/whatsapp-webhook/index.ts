@@ -40,6 +40,19 @@ interface MetaEntry {
                 image?   : { id: string; mime_type: string; caption?: string }
                 audio?   : { id: string; mime_type: string }
                 document?: { id: string; mime_type: string; caption?: string; filename?: string }
+                button?  : { text: string; payload?: string }
+                interactive?: {
+                    type: string
+                    button_reply?: { id: string; title: string; payload?: string }
+                    list_reply?: { id: string; title: string; description?: string }
+                }
+                referral?: {
+                    source_url: string
+                    source_type: string
+                    source_id: string
+                    headline: string
+                    body: string
+                }
             }[]
             statuses?: MetaStatusUpdate[]
         }
@@ -69,10 +82,13 @@ function getSupabaseClient() {
 // Utilidad: resolver UUIDs obligatorios para crear un lead nuevo
 // Ejecuta 4 queries en paralelo; si alguno falla lanza un error.
 // ---------------------------------------------------------------------------
-async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>) {
+async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>, isAd?: boolean) {
+    const sourceQuery = isAd ? '%facebook (campañas whatsapp)%' : '%whatsapp%'
+    const fallbackSourceName = isAd ? 'Facebook (Campañas WhatsApp)' : 'WhatsApp'
+
     const [statusRes, sourceRes, programRes, turnoRes] = await Promise.all([
         supabase.from('statuses').select('id').ilike('name', '%sin contactar%').limit(1).maybeSingle(),
-        supabase.from('sources').select('id').ilike('name', '%whatsapp%').limit(1).maybeSingle(),
+        supabase.from('sources').select('id').ilike('name', sourceQuery).limit(1).maybeSingle(),
         supabase.from('licenciaturas').select('id').ilike('name', '%sin definir%').limit(1).maybeSingle(),
         supabase.from('turnos').select('id').ilike('name', '%sin definir%').limit(1).maybeSingle(),
     ])
@@ -115,11 +131,21 @@ async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>)
         }
     }
 
-    const sourceId  = sourceRes.data?.id
+    let sourceId  = sourceRes.data?.id
+    if (!sourceId) {
+        const { data: newSource, error: insertError } = await supabase.from('sources').insert({ name: fallbackSourceName }).select('id').single()
+        if (!insertError && newSource) {
+            sourceId = newSource.id
+        } else {
+            const { data } = await supabase.from('sources').select('id').order('name').limit(1).maybeSingle()
+            sourceId = data?.id
+        }
+    }
+    
     const advisorId = await getAssignedAdvisorId(supabase)
 
     if (!statusId)  throw new Error('No hay ningún status en la tabla statuses.')
-    if (!sourceId)  throw new Error('No hay ninguna fuente "WhatsApp" en sources.')
+    if (!sourceId)  throw new Error('No hay ninguna fuente base en sources.')
     if (!programId) throw new Error('No hay ningún programa en licenciaturas.')
     if (!advisorId) throw new Error('No hay ningún perfil admin para asignar como fallback.')
 
@@ -131,21 +157,51 @@ async function resolveNewLeadIds(supabase: ReturnType<typeof getSupabaseClient>)
 // ---------------------------------------------------------------------------
 async function getAssignedAdvisorId(supabase: ReturnType<typeof getSupabaseClient>): Promise<string | undefined> {
     try {
-        const { data: routingData } = await supabase
+        const { data: routingData, error: routingErr } = await supabase
             .from('system_settings')
             .select('value')
             .eq('key', 'whatsapp_routing')
             .maybeSingle()
 
-        const cfg = routingData?.value || { auto_assign: false, strategy: 'round_robin' }
+        console.log(`🔀 [ROUTING] Raw value type=${typeof routingData?.value} error=${routingErr?.message || 'none'}`)
+        console.log(`🔀 [ROUTING] Raw value=${JSON.stringify(routingData?.value)}`)
+
+        let cfg = { auto_assign: false, strategy: 'round_robin', excluded_advisors: [] as string[] }
+        if (routingData?.value) {
+            try {
+                cfg = typeof routingData.value === 'string' ? JSON.parse(routingData.value) : routingData.value
+            } catch (e: any) {
+                console.error(`🔀 [ROUTING] Error parseando config: ${e.message}`)
+            }
+        }
+
+        console.log(`🔀 [ROUTING] Parsed cfg: auto_assign=${cfg.auto_assign} strategy=${cfg.strategy} excluded=${JSON.stringify(cfg.excluded_advisors)}`)
 
         if (cfg.auto_assign) {
             // Solo asesores o coordinadores
-            const { data: eligibleAdvisors } = await supabase
+            const { data: allEligibleAdvisors, error: advisorErr } = await supabase
                 .from('profiles')
-                .select('id, role')
+                .select('id, role, full_name')
                 .in('role', ['advisor', 'moderator', 'asesor', 'coordinador'])
-                .order('created_at', { ascending: true })
+                .order('full_name', { ascending: true })
+
+            console.log(`🔀 [ROUTING] Asesores encontrados: ${allEligibleAdvisors?.length ?? 0} error=${advisorErr?.message || 'none'}`)
+            allEligibleAdvisors?.forEach((a: any, i: number) => {
+                console.log(`   asesor[${i}]: id=${a.id} name=${a.full_name} role=${a.role}`)
+            })
+
+            let eligibleAdvisors = allEligibleAdvisors || []
+            if (cfg.excluded_advisors && Array.isArray(cfg.excluded_advisors) && cfg.excluded_advisors.length > 0) {
+                console.log(`🔀 [ROUTING] Excluyendo: ${JSON.stringify(cfg.excluded_advisors)}`)
+                eligibleAdvisors = eligibleAdvisors.filter((a: any) => !cfg.excluded_advisors.includes(a.id))
+                console.log(`🔀 [ROUTING] Después de exclusión: ${eligibleAdvisors.length} asesores`)
+            }
+            
+            // Fallback: Si todos fueron excluidos, usamos a todos los elegibles para no romper
+            if (eligibleAdvisors.length === 0 && allEligibleAdvisors && allEligibleAdvisors.length > 0) {
+                console.log(`🔀 [ROUTING] ⚠️ Todos excluidos, usando lista completa`)
+                eligibleAdvisors = allEligibleAdvisors
+            }
 
             if (eligibleAdvisors && eligibleAdvisors.length > 0) {
                 if (cfg.strategy === 'least_leads') {
@@ -173,6 +229,7 @@ async function getAssignedAdvisorId(supabase: ReturnType<typeof getSupabaseClien
                         }
                     }
 
+                    console.log(`🔀 [ROUTING] ✅ Asignado (least_leads): ${leastLeadsAdvisor}`)
                     return leastLeadsAdvisor
                 } else {
                     // Default / Round Robin
@@ -182,7 +239,16 @@ async function getAssignedAdvisorId(supabase: ReturnType<typeof getSupabaseClien
                         .eq('key', 'last_assigned_whatsapp_advisor')
                         .maybeSingle()
 
-                    const lastAssignedId = lastAssignedData?.value?.id
+                    const lastAssignedDataObj = lastAssignedData?.value
+                    let lastAssignedId = undefined
+                    if (lastAssignedDataObj) {
+                        try {
+                            const parsed = typeof lastAssignedDataObj === 'string' ? JSON.parse(lastAssignedDataObj) : lastAssignedDataObj
+                            lastAssignedId = parsed.id
+                        } catch(e) {}
+                    }
+
+                    console.log(`🔀 [ROUTING] Round Robin: lastAssigned=${lastAssignedId}`)
 
                     let nextIndex = 0
                     if (lastAssignedId) {
@@ -194,11 +260,13 @@ async function getAssignedAdvisorId(supabase: ReturnType<typeof getSupabaseClien
 
                     const nextAdvisorId = eligibleAdvisors[nextIndex].id
 
+                    console.log(`🔀 [ROUTING] ✅ Asignado (round_robin): ${nextAdvisorId} (index=${nextIndex})`)
+
                     // Actualizar el puntero en background
                     try {
                         await supabase.from('system_settings').upsert({
                             key: 'last_assigned_whatsapp_advisor',
-                            value: { id: nextAdvisorId }
+                            value: JSON.stringify({ id: nextAdvisorId })
                         }, { onConflict: 'key' })
                     } catch (upsertError: any) {
                         console.error('Error actualizando puntero de reparto:', upsertError.message)
@@ -207,22 +275,25 @@ async function getAssignedAdvisorId(supabase: ReturnType<typeof getSupabaseClien
                     return nextAdvisorId
                 }
             }
+        } else {
+            console.log(`🔀 [ROUTING] auto_assign=false, saltando al fallback`)
         }
     } catch (e: any) {
-        console.error('Error en enrutamiento:', e.message)
+        console.error(`🔀 [ROUTING] ❌ EXCEPCIÓN en enrutamiento: ${e.message}`)
     }
 
     // Fallback: Cualquier asesor o moderador (en lugar de admin)
+    console.log(`🔀 [ROUTING] ⚠️ Entrando al FALLBACK (sin reglas de reparto)`)
     try {
         const { data: fallbackAdvisor } = await supabase
             .from('profiles')
-            .select('id')
+            .select('id, full_name')
             .in('role', ['advisor', 'moderator', 'asesor', 'coordinador'])
             .limit(1)
             .maybeSingle()
 
         if (fallbackAdvisor) {
-            console.log('Asignación de respaldo activada: Asesor/Coordinador')
+            console.log(`🔀 [ROUTING] ⚠️ Fallback asignado: ${(fallbackAdvisor as any).full_name} (${fallbackAdvisor.id})`)
             return fallbackAdvisor.id
         }
     } catch (fallbackErr: any) {
@@ -255,41 +326,90 @@ async function handleInboundMessage(
     profileName : string,
     mediaUrl?   : string,
     mediaType?  : string,
+    isAd?       : boolean
 ) {
     let leadId: string | null = null
 
-    // 1. Buscar lead por teléfono — matching en dos pasos para manejar prefijos
-    // Paso A: Coincidencia exacta (leads automáticos de WhatsApp con número completo)
-    let existingLead: { id: string; has_unread_messages: boolean; advisor_id: string; first_name: string } | null = null;
-    const exactMatch = await supabase
-        .from('leads')
-        .select('id, has_unread_messages, advisor_id, first_name')
-        .eq('phone', from)
-        .maybeSingle()
+    // ── Construir todas las variantes posibles del teléfono ──────────────
+    const digits = from.replace(/\D/g, '')
+    const last10 = digits.slice(-10)
+    const phonesToTry: string[] = [from] // 1. El original tal cual
 
-    if (exactMatch.data) {
-        existingLead = exactMatch.data
-    } else {
-        // Paso B: Buscar por los últimos 10 dígitos (leads manuales sin prefijo)
-        // Tomar los últimos 10 dígitos del número recibido como sufijo de búsqueda
-        const last10 = from.replace(/\D/g, '').slice(-10)
-        if (last10.length === 10) {
-            const fuzzyMatch = await supabase
-                .from('leads')
-                .select('id, has_unread_messages, advisor_id, first_name')
-                .ilike('phone', `%${last10}`)
-                .maybeSingle()
-            if (fuzzyMatch.data) {
-                existingLead = fuzzyMatch.data
-                // Actualizar el teléfono al formato E.164 completo para futuras coincidencias exactas
+    // 2. Si tiene 13 dígitos y empieza con 521 → probar sin el 1 (52 + 10)
+    if (digits.length === 13 && digits.startsWith('521')) {
+        phonesToTry.push('52' + digits.slice(3))
+    }
+    // 3. Si tiene 12 dígitos y empieza con 52 → probar con el 1 (521 + 10)
+    if (digits.length === 12 && digits.startsWith('52')) {
+        phonesToTry.push('521' + digits.slice(2))
+    }
+    // 4. Solo los 10 dígitos locales
+    if (last10.length === 10 && !phonesToTry.includes(last10)) {
+        phonesToTry.push(last10)
+    }
+
+    console.log(`🔍 [DEBUG] from="${from}" | digits="${digits}" | variantes a probar: ${JSON.stringify(phonesToTry)}`)
+
+    // ── Paso A: Intentar búsquedas exactas con cada variante ─────────────
+    let existingLead: { id: string; has_unread_messages: boolean; advisor_id: string; first_name: string } | null = null;
+
+    for (const phoneVariant of phonesToTry) {
+        const { data, error } = await supabase
+            .from('leads')
+            .select('id, has_unread_messages, advisor_id, first_name')
+            .eq('phone', phoneVariant)
+            .order('registration_date', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+        console.log(`🔍 [DEBUG] Exacta phone="${phoneVariant}" → found=${!!data} error=${error?.message || 'none'}`)
+
+        if (data) {
+            existingLead = data
+            break
+        }
+    }
+
+    // ── Paso B: Fuzzy match — buscar por últimos 4 dígitos + comparar en memoria ─
+    if (!existingLead && last10.length === 10) {
+        const last4 = last10.slice(-4)
+        const { data: candidates, error: fuzzyErr } = await supabase
+            .from('leads')
+            .select('id, has_unread_messages, advisor_id, first_name, phone, registration_date')
+            .ilike('phone', `%${last4}%`)
+            .order('registration_date', { ascending: false })
+            .limit(50)
+
+        console.log(`🔍 [DEBUG] Fuzzy last4="${last4}" → ${candidates?.length ?? 0} candidatos, error=${fuzzyErr?.message || 'none'}`)
+
+        if (candidates && candidates.length > 0) {
+            // Log de cada candidato para diagnóstico
+            candidates.slice(0, 5).forEach((c, i) => {
+                const clean = (c.phone || '').replace(/\D/g, '')
+                console.log(`   candidato[${i}]: id=${c.id} phone="${c.phone}" clean="${clean}" last10_from="${last10}"`)
+            })
+
+            const match = candidates.find(c => {
+                const cleanDb = (c.phone || '').replace(/\D/g, '')
+                const cleanDbLast10 = cleanDb.slice(-10)
+                return cleanDbLast10 === last10
+            })
+
+            if (match) {
+                existingLead = match
+                console.log(`✅ [DEBUG] Fuzzy match encontrado: id=${match.id}`)
+                // Normalizar el teléfono para futuras coincidencias exactas
                 await supabase
                     .from('leads')
                     .update({ phone: from })
-                    .eq('id', fuzzyMatch.data.id)
-                console.log(`Teléfono del lead ${fuzzyMatch.data.id} normalizado a ${from}`)
+                    .eq('id', match.id)
+            } else {
+                console.log(`❌ [DEBUG] Fuzzy: Ningún candidato coincide con last10="${last10}"`)
             }
         }
     }
+
+    console.log(`📋 [DEBUG] Resultado final: existingLead=${existingLead ? existingLead.id : 'NULL → se creará nuevo lead'}`)
 
     if (existingLead) {
         leadId = existingLead.id
@@ -334,9 +454,9 @@ async function handleInboundMessage(
             
     } else {
         // 2. Lead nuevo — auto-crear respetando NOT NULL
-        console.log(`Número desconocido ${from}. Creando lead...`)
+        console.log(`Número desconocido ${from}. Creando lead... (Ad: ${isAd})`)
         try {
-            const { statusId, sourceId, programId, advisorId, turnoId } = await resolveNewLeadIds(supabase)
+            const { statusId, sourceId, programId, advisorId, turnoId } = await resolveNewLeadIds(supabase, isAd)
 
             const firstName       = profileName.split(' ')[0]
             const paternalLastName = profileName.split(' ').slice(1).join(' ').trim() || 'Sin Identificar'
@@ -484,6 +604,7 @@ serve(async (req) => {
     // CRÍTICO: Meta reintentar si recibe algo distinto de 200 en < 20s.
     // Todo error de lógica debe capturarse internamente.
     if (req.method === 'POST') {
+        console.log('🚀 WEBHOOK v3.0 — POST recibido')
         let body: MetaWebhookPayload
 
         try {
@@ -529,11 +650,12 @@ serve(async (req) => {
             }
 
             const profileName = value.contacts?.[0]?.profile?.name || `Lead-${from.slice(-4)}`
+            const isAd = message.referral?.source_type === 'ad' || message.referral?.source_url !== undefined
 
-            console.log(`Inbound de ${from} (${profileName}): "${messageBody}"`)
+            console.log(`Inbound de ${from} (${profileName}): "${messageBody}" (Ad: ${isAd})`)
 
             try {
-                await handleInboundMessage(supabase, from, waMessageId, messageBody, profileName)
+                await handleInboundMessage(supabase, from, waMessageId, messageBody, profileName, undefined, undefined, isAd)
             } catch (err) {
                 console.error('Error inesperado en handleInboundMessage:', err)
             }
@@ -609,6 +731,8 @@ serve(async (req) => {
                                 const finalMessageBody = caption ? caption : defaultMessage;
 
                                 // 5. Insertar en base de datos usando handleInboundMessage
+                                const isAd = message.referral?.source_type === 'ad' || message.referral?.source_url !== undefined
+                                
                                 await handleInboundMessage(
                                     supabase, 
                                     from, 
@@ -616,7 +740,8 @@ serve(async (req) => {
                                     finalMessageBody, 
                                     profileName,
                                     publicUrl,
-                                    type
+                                    type,
+                                    isAd
                                 )
                                 // Terminar ejecución exitosamente
                                 return new Response('EVENT_RECEIVED', { status: 200 })

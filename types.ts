@@ -108,6 +108,7 @@ export interface WhatsAppTemplate {
   id: string;
   name: string;
   content: string;
+  category?: string;
 }
 
 export interface EmailTemplate {

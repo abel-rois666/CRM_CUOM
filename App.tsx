@@ -638,6 +638,7 @@ const AppContent: React.FC = () => {
             sources={sources}
             licenciaturas={licenciaturas}
             turnos={turnos}
+            whatsappTemplates={whatsappTemplates}
             onAddFollowUp={handleAddFollowUp}
             onDeleteFollowUp={handleDeleteFollowUp}
             onUpdateLead={handleUpdateLeadDetails}

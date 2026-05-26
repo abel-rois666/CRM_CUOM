@@ -24,6 +24,7 @@ interface WhatsAppChatProps {
   phone        : string;
   lead         : Lead;           // necesario para la IA
   licenciaturas: Licenciatura[]; // necesario para la IA
+  whatsappTemplates?: import('../types').WhatsAppTemplate[];
 }
 
 // ---------------------------------------------------------------------------
@@ -59,12 +60,18 @@ const groupByDate = (messages: WhatsAppMessage[]) => {
 // ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
-const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenciaturas }) => {
-  const [messages,  setMessages]  = useState<WhatsAppMessage[]>([]);
+const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenciaturas, whatsappTemplates = [] }) => {
+  const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showCRMTemplates, setShowCRMTemplates] = useState(false);
+  const [overrideWindowBlock, setOverrideWindowBlock] = useState(false);
+  
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Focus trick
+  const [inputValueForChild, setInputValueForChild] = useState('');
 
   // -------------------------------------------------------------------------
   // Auto-scroll
@@ -185,6 +192,24 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
     .join('\n');
 
   const leadContext: LeadContext = { lead, licenciaturas, chatHistory };
+
+  // Agrupar plantillas CRM
+  const templatesByCategory = React.useMemo(() => {
+    const grouped: Record<string, import('../types').WhatsAppTemplate[]> = {};
+    whatsappTemplates.forEach(t => {
+      const cat = t.category || 'Sin Categoría';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(t);
+    });
+    return grouped;
+  }, [whatsappTemplates]);
+
+  const handleTemplateClick = (content: string) => {
+    let finalContent = content;
+    finalContent = finalContent.replace(/\{\{1\}\}/g, lead.first_name);
+    finalContent = finalContent.replace(/\{nombre\}/gi, lead.first_name);
+    setInputValueForChild(finalContent);
+  };
 
   // -------------------------------------------------------------------------
   // Render: estados de carga / error
@@ -330,6 +355,48 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
         <div ref={bottomRef} />
       </div>
 
+      {/* Indicador de Ventana de 24 horas */}
+      {(() => {
+        if (isLoading) return null;
+        
+        const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
+        let isWindowOpen = false;
+        
+        if (lastInbound) {
+          const diffHours = (Date.now() - new Date(lastInbound.created_at).getTime()) / (1000 * 60 * 60);
+          isWindowOpen = diffHours <= 24;
+        }
+
+        const isChatLocked = !isWindowOpen && !overrideWindowBlock;
+
+        if (isWindowOpen) {
+          return (
+            <div className="px-4 py-2 bg-green-50 dark:bg-green-900/30 border-t border-green-100 dark:border-green-800 flex items-center gap-2 text-[11px] text-green-700 dark:text-green-300">
+              <span aria-hidden="true">🟢</span>
+              <span><strong>Ventana de 24h abierta:</strong> Puedes enviar mensajes libres o usar Respuestas Rápidas.</span>
+            </div>
+          );
+        } else {
+          return (
+            <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 border-t border-amber-100 dark:border-amber-800 flex items-center justify-between gap-2 text-[11px] text-amber-700 dark:text-amber-300">
+              <div className="flex items-center gap-2">
+                <span aria-hidden="true">⚠️</span>
+                <span><strong>Ventana de 24h cerrada:</strong> Selecciona una <em>Plantilla Oficial de Meta</em> en Opciones Avanzadas.</span>
+              </div>
+              <label className="flex items-center gap-1 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/50 px-2 py-1 rounded transition-colors text-[10px]">
+                <input 
+                  type="checkbox" 
+                  checked={overrideWindowBlock}
+                  onChange={(e) => setOverrideWindowBlock(e.target.checked)}
+                  className="w-3 h-3 text-amber-600 rounded border-amber-300 focus:ring-amber-500"
+                />
+                Forzar desbloqueo manual
+              </label>
+            </div>
+          );
+        }
+      })()}
+
       {/* Caja de herramientas inteligente */}
       <div className="px-3 py-3 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
         <MessageInput
@@ -338,6 +405,8 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
           isSending={isSending}
           showTextarea={false}
           placeholder="Escribe un mensaje..."
+          whatsappTemplates={whatsappTemplates}
+          isLocked={!isLoading && !([...messages].reverse().find(m => m.direction === 'inbound') ? ((Date.now() - new Date([...messages].reverse().find(m => m.direction === 'inbound')!.created_at).getTime()) / (1000 * 60 * 60) <= 24) : false) && !overrideWindowBlock}
         />
       </div>
     </div>

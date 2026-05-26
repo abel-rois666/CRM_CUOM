@@ -17,6 +17,7 @@ type Strategy = 'round_robin' | 'least_leads';
 interface RoutingConfig {
   auto_assign: boolean;
   strategy   : Strategy;
+  excluded_advisors: string[];
 }
 
 const SETTING_KEY = 'whatsapp_routing';
@@ -87,10 +88,14 @@ const WhatsAppRoutingSettings: React.FC = () => {
   const [saving,            setSaving]            = useState(false);
   const [isDirty,           setIsDirty]           = useState(false);
 
+  const [excludedAdvisors,  setExcludedAdvisors]  = useState<string[]>([]);
+  const [advisorsList,      setAdvisorsList]      = useState<{id: string, full_name: string}[]>([]);
+
   // Snapshot de valores guardados en BD (para detectar cambios sin guardar)
   const [savedConfig, setSavedConfig] = useState<RoutingConfig>({
     auto_assign: false,
     strategy   : 'round_robin',
+    excluded_advisors: [],
   });
 
   // -------------------------------------------------------------------------
@@ -113,12 +118,24 @@ const WhatsAppRoutingSettings: React.FC = () => {
         const cfg = (data as any).value as RoutingConfig;
         const autoAssign = cfg.auto_assign === true;
         const strategy   = cfg.strategy === 'least_leads' ? 'least_leads' : 'round_robin';
+        const excluded   = Array.isArray(cfg.excluded_advisors) ? cfg.excluded_advisors : [];
 
         setIsAutoAssign(autoAssign);
         setSelectedStrategy(strategy);
-        setSavedConfig({ auto_assign: autoAssign, strategy });
+        setExcludedAdvisors(excluded);
+        setSavedConfig({ auto_assign: autoAssign, strategy, excluded_advisors: excluded });
       }
-      // Si no existe el registro → los defaults (false + round_robin) ya están en el estado
+
+      // Fetch advisors list para poder excluirlos
+      const { data: advisorsData } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('role', ['advisor', 'moderator', 'asesor', 'coordinador'])
+        .order('full_name', { ascending: true });
+        
+      if (advisorsData) setAdvisorsList(advisorsData);
+
+      // Si no existe el registro → los defaults ya están en el estado
 
       setLoading(false);
     };
@@ -130,11 +147,16 @@ const WhatsAppRoutingSettings: React.FC = () => {
   // Detectar cambios sin guardar
   // -------------------------------------------------------------------------
   useEffect(() => {
+    const isExcludedDifferent = 
+      excludedAdvisors.length !== savedConfig.excluded_advisors.length || 
+      !excludedAdvisors.every(val => savedConfig.excluded_advisors.includes(val));
+
     const hasChanges =
       isAutoAssign !== savedConfig.auto_assign ||
-      selectedStrategy !== savedConfig.strategy;
+      selectedStrategy !== savedConfig.strategy ||
+      isExcludedDifferent;
     setIsDirty(hasChanges);
-  }, [isAutoAssign, selectedStrategy, savedConfig]);
+  }, [isAutoAssign, selectedStrategy, excludedAdvisors, savedConfig]);
 
   // -------------------------------------------------------------------------
   // Guardar — UPSERT en system_settings
@@ -145,6 +167,7 @@ const WhatsAppRoutingSettings: React.FC = () => {
     const payload: RoutingConfig = {
       auto_assign: isAutoAssign,
       strategy   : selectedStrategy,
+      excluded_advisors: excludedAdvisors,
     };
 
     const { error } = await supabase
@@ -172,6 +195,7 @@ const WhatsAppRoutingSettings: React.FC = () => {
   const handleDiscard = () => {
     setIsAutoAssign(savedConfig.auto_assign);
     setSelectedStrategy(savedConfig.strategy);
+    setExcludedAdvisors(savedConfig.excluded_advisors);
   };
 
   // -------------------------------------------------------------------------
@@ -312,6 +336,55 @@ const WhatsAppRoutingSettings: React.FC = () => {
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        {/* Control 3: Exclusión de Asesores */}
+        <div
+          className={`space-y-3 transition-all duration-300 ${
+            isAutoAssign ? 'opacity-100' : 'opacity-40 pointer-events-none select-none'
+          }`}
+        >
+          <div>
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              Omitir Asesores del Reparto
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Los asesores seleccionados <strong>no</strong> recibirán leads automáticamente a través de WhatsApp.
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-700/40 border border-gray-200 dark:border-slate-600 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+            {advisorsList.length === 0 ? (
+              <p className="text-sm text-gray-500 p-4">No hay asesores disponibles.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100 dark:divide-slate-600">
+                {advisorsList.map((adv) => {
+                  const isExcluded = excludedAdvisors.includes(adv.id);
+                  return (
+                    <li key={adv.id} className="flex items-center">
+                      <label className="flex items-center gap-3 w-full px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/60 transition-colors">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 text-green-500 border-gray-300 rounded focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                          checked={isExcluded}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setExcludedAdvisors((prev) => [...prev, adv.id]);
+                            } else {
+                              setExcludedAdvisors((prev) => prev.filter((id) => id !== adv.id));
+                            }
+                          }}
+                        />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                          {adv.full_name || 'Usuario Sin Nombre'}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
 

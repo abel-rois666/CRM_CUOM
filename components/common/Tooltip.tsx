@@ -33,7 +33,7 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top', 
         >
             {children}
             {isVisible && (
-                <div className={`absolute z-[60] px-3 py-2 text-xs font-medium text-white bg-gray-900 rounded-lg shadow-xl w-auto max-w-[170px] text-center leading-normal break-words ${positionClasses[position]}`}>
+                <div className={`absolute z-[100] px-3 py-2 text-xs font-medium text-white bg-gray-900 rounded-lg shadow-xl w-max max-w-[250px] text-center leading-normal break-words ${positionClasses[position]}`}>
                     {content}
                     <div className={`absolute ${arrowClasses[position]}`}></div>
                 </div>

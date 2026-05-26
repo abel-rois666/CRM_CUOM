@@ -7,6 +7,7 @@ import { Lead, WhatsAppTemplate, Licenciatura } from '../types';
 import ChatBubbleLeftRightIcon from './icons/ChatBubbleLeftRightIcon';
 import { supabase } from '../lib/supabase';
 import MessageInput from './MessageInput';
+import Tooltip from './common/Tooltip';
 
 interface WhatsAppModalProps {
   isOpen           : boolean;
@@ -30,6 +31,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [message,             setMessage]            = useState('');
   const [isSending,           setIsSending]          = useState(false);
+  const [activeTab,           setActiveTab]          = useState<'crm' | 'meta'>('crm');
 
   // -------------------------------------------------------------------------
   // Reset al abrir / cambiar plantilla inicial
@@ -46,6 +48,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
       }
       setSelectedTemplateId('');
       setMessage('');
+      setActiveTab('crm');
     }
   }, [isOpen, initialTemplateId, templates]);
 
@@ -53,7 +56,26 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
     const templateId = e.target.value;
     setSelectedTemplateId(templateId);
     const template = templates.find(t => t.id === templateId);
-    setMessage(template ? template.content : '');
+    if (template) injectTemplateContent(template.content);
+    else setMessage('');
+  };
+
+  const templatesByCategory = React.useMemo(() => {
+    const grouped: Record<string, WhatsAppTemplate[]> = {};
+    templates.forEach(t => {
+      const cat = t.category || 'Sin Categoría';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(t);
+    });
+    return grouped;
+  }, [templates]);
+
+  const injectTemplateContent = (content: string) => {
+    if (!lead) return;
+    let finalContent = content;
+    finalContent = finalContent.replace(/\{\{1\}\}/g, lead.first_name);
+    finalContent = finalContent.replace(/\{nombre\}/gi, lead.first_name);
+    setMessage(finalContent);
   };
 
   // -------------------------------------------------------------------------
@@ -118,16 +140,6 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
           </div>
         </div>
 
-        {/* Selector de plantilla */}
-        <Select
-          id="whatsapp-template-select"
-          label="Cargar Plantilla"
-          value={selectedTemplateId}
-          onChange={handleTemplateChange}
-          placeholder="-- Selecciona una plantilla --"
-          options={templates.map(t => ({ value: t.id, label: t.name }))}
-        />
-
         {/* Caja de Herramientas Inteligente (IA + Textarea + Envío) */}
         <MessageInput
           onSendMessage={handleSend}
@@ -135,6 +147,7 @@ const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
           isSending={isSending}
           initialMessage={message}
           showTextarea={true}
+          whatsappTemplates={templates}
         />
 
         {/* Footer */}

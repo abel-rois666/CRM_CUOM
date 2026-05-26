@@ -41,6 +41,7 @@ interface LeadDetailModalProps {
     sources: Source[];
     licenciaturas: Licenciatura[];
     turnos: Turno[];
+    whatsappTemplates?: WhatsAppTemplate[]; // [NEW] Plantillas locales CRM
     onAddFollowUp: (leadId: string, followUp: Omit<FollowUp, 'id' | 'lead_id'>) => void;
     onDeleteFollowUp: (leadId: string, followUpId: string) => void;
     onUpdateLead: (leadId: string, updates: Partial<Lead>) => void;
@@ -287,7 +288,7 @@ const CollapsibleSection: React.FC<{
 };
 
 // --- MAIN COMPONENT ---
-const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, turnos, onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info', onOpenWhatsApp, onOpenEmail }) => {
+const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, turnos, whatsappTemplates = [], onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info', onOpenWhatsApp, onOpenEmail }) => {
     const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary' | 'whatsapp'>(initialTab);
 
     const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
@@ -509,7 +510,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
 
     return (
         <>
-            <Modal isOpen={isOpen} onClose={onClose} title="Detalle del Lead" size="2xl">
+            <Modal isOpen={isOpen} onClose={onClose} title="Detalle del Lead" size="4xl">
                 <div className="flex flex-col h-[70vh]">
 
 
@@ -1002,6 +1003,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                     phone={lead.phone}
                                     lead={lead}
                                     licenciaturas={licenciaturas}
+                                    whatsappTemplates={whatsappTemplates}
                                 />
 
                             </div>

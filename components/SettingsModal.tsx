@@ -1,5 +1,5 @@
 // components/SettingsModal.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Input, Select, TextArea } from './common/FormElements';
 import { createClient } from '@supabase/supabase-js';
 import { Profile, Status, Source, Licenciatura, Turno, WhatsAppTemplate, EmailTemplate, StatusCategory } from '../types';
@@ -1075,6 +1075,7 @@ const WhatsappTemplateSettings: React.FC<{
     userProfile: Profile | null
 }> = ({ templates, onTemplatesUpdate, userProfile }) => {
     const [name, setName] = useState('');
+    const [category, setCategory] = useState<string>('Primer Contacto'); // [NEW] Estado de categoría
     const [content, setContent] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
@@ -1083,7 +1084,30 @@ const WhatsappTemplateSettings: React.FC<{
     const [isGenerating, setIsGenerating] = useState(false);
     const [extraInstructions, setExtraInstructions] = useState(''); // [NEW] State for AI Context
     const [aiMode, setAiMode] = useState<'quick' | 'advanced'>('advanced'); // [NEW] Mode tracking
+    const textAreaRef = useRef<HTMLTextAreaElement>(null);
     const { success, error: toastError } = useToast();
+
+    // Función para insertar variable en la posición del cursor
+    const insertVariable = (variable: string) => {
+        if (!textAreaRef.current) {
+            setContent(prev => prev + variable);
+            return;
+        }
+        
+        const textarea = textAreaRef.current;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        
+        const textBefore = content.substring(0, start);
+        const textAfter = content.substring(end, content.length);
+        
+        setContent(textBefore + variable + textAfter);
+        
+        setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + variable.length, start + variable.length);
+        }, 0);
+    };
 
     // [NEW] AI Handler - Enhanced with Context and Mode
     const handleAiGenerate = async () => {
@@ -1147,12 +1171,6 @@ const WhatsappTemplateSettings: React.FC<{
             return;
         }
 
-        if (templates.length + toInsert.length > 5) {
-            toastError("No hay espacio suficiente para las plantillas recomendadas (máx 5).");
-            setSaving(false);
-            return;
-        }
-
         const { data, error } = await (supabase as any).from('whatsapp_templates').insert(toInsert).select();
         if (error) {
             toastError("Error al crear plantillas: " + error.message);
@@ -1170,7 +1188,7 @@ const WhatsappTemplateSettings: React.FC<{
         if (editingId) {
             const { data, error } = await (supabase as any)
                 .from('whatsapp_templates')
-                .update({ name: name.trim(), content: content.trim() })
+                .update({ name: name.trim(), content: content.trim(), category })
                 .eq('id', editingId)
                 .select()
                 .single();
@@ -1184,18 +1202,13 @@ const WhatsappTemplateSettings: React.FC<{
                 success("Plantilla actualizada");
                 setEditingId(null);
                 setName('');
+                setCategory('Primer Contacto');
                 setContent('');
             }
         } else {
-            if (templates.length >= 5) {
-                toastError("Solo puedes tener un máximo de 5 plantillas.");
-                setSaving(false);
-                return;
-            }
-
             const { data, error } = await (supabase as any)
                 .from('whatsapp_templates')
-                .insert({ name: name.trim(), content: content.trim() })
+                .insert({ name: name.trim(), content: content.trim(), category })
                 .select()
                 .single();
 
@@ -1206,6 +1219,7 @@ const WhatsappTemplateSettings: React.FC<{
                 onTemplatesUpdate([...templates, data]);
                 success("Plantilla creada");
                 setName('');
+                setCategory('Primer Contacto');
                 setContent('');
             }
         }
@@ -1214,12 +1228,14 @@ const WhatsappTemplateSettings: React.FC<{
 
     const handleEdit = (template: WhatsAppTemplate) => {
         setName(template.name);
+        setCategory(template.category || 'Primer Contacto');
         setContent(template.content);
         setEditingId(template.id);
     };
 
     const handleCancelEdit = () => {
         setName('');
+        setCategory('Primer Contacto');
         setContent('');
         setEditingId(null);
     };
@@ -1256,6 +1272,20 @@ const WhatsappTemplateSettings: React.FC<{
                         value={name}
                         onChange={e => setName(e.target.value)}
                         placeholder="Ej: Saludo Inicial"
+                    />
+                    <Select
+                        id="whatsapp-template-category"
+                        name="whatsapp-template-category"
+                        label="Categoría"
+                        value={category}
+                        onChange={e => setCategory(e.target.value)}
+                        options={[
+                            { value: 'Primer Contacto', label: 'Primer Contacto' },
+                            { value: 'Seguimiento', label: 'Seguimiento' },
+                            { value: 'Cierre', label: 'Cierre' },
+                            { value: 'Otro', label: 'Otro' },
+                            { value: 'Recuperación', label: 'Recuperación' }
+                        ]}
                     />
                     <div className="flex justify-between items-end mb-1.5">
                         <label htmlFor="whatsapp-template-content" className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide ml-1">
@@ -1306,28 +1336,65 @@ const WhatsappTemplateSettings: React.FC<{
                         onChange={e => setContent(e.target.value)}
                         placeholder="Hola, te contacto para..."
                         rows={3}
+                        ref={textAreaRef}
                     />
+                    
+                    {/* Boton para agregar variables predefinidas */}
+                    <div className="flex justify-end mt-1">
+                        <select
+                            className="text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 rounded-md px-2 py-1.5 outline-none cursor-pointer transition-colors border border-gray-200 dark:border-slate-600 shadow-sm"
+                            value=""
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    insertVariable(e.target.value);
+                                    e.target.value = ""; // reset
+                                }
+                            }}
+                        >
+                            <option value="" disabled>+ Agregar variable</option>
+                            <option value="{nombre}">🧑 Nombre (Ej: Juan)</option>
+                            <option value="{apellido}">🧑 Apellidos (Ej: Pérez)</option>
+                            <option value="{nombre_completo}">🧑 Nombre Completo</option>
+                            <option value="{telefono}">📱 Teléfono / WhatsApp</option>
+                            <option value="{correo}">✉️ Correo Electrónico</option>
+                            <option value="{programa}">🎓 Programa / Licenciatura</option>
+                            <option value="{asesor}">💼 Nombre del Asesor Asignado</option>
+                            <option value="{fecha}">📅 Fecha de próxima cita</option>
+                            <option value="{hora}">🕒 Hora de próxima cita</option>
+                            <option value="{personalizada}">✏️ Variable Personalizada (Vacía)</option>
+                        </select>
+                    </div>
                     <div className="flex justify-end gap-2 pt-2">
                         {editingId && (
                             <Button onClick={handleCancelEdit} variant="ghost" size="sm" disabled={saving}>
                                 Cancelar
                             </Button>
                         )}
-                        <Button onClick={handleSave} size="sm" disabled={!name || !content || saving}>
+                        <Button 
+                            onClick={handleSave} 
+                            size="sm" 
+                            disabled={!name || !content || saving || (!editingId && templates.length >= 12)}
+                        >
                             {saving ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar')}
                         </Button>
                     </div>
+                    {!editingId && templates.length >= 12 && (
+                        <p className="text-xs text-red-500 text-right mt-1">Límite de 12 plantillas alcanzado.</p>
+                    )}
                 </div>
             </div>
 
             <hr className="my-6 border-gray-100 dark:border-slate-700" />
 
-            <h4 className="font-semibold text-gray-700 dark:text-gray-300">Plantillas Guardadas ({templates.length}/5)</h4>
+            <h4 className="font-semibold text-gray-700 dark:text-gray-300">Plantillas Guardadas ({templates.length}/12)</h4>
             <div className="space-y-3">
                 {templates.map(t => (
                     <div key={t.id} className="border border-gray-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all relative group">
                         <div className="flex justify-between items-start mb-2">
-                            <h5 className="font-bold text-gray-800 dark:text-white text-sm">{t.name}</h5>
+                            <h5 className="font-bold text-gray-800 dark:text-white text-sm">
+                                <span className="text-gray-500 dark:text-gray-400 font-normal mr-1 tracking-wide text-xs">[{t.category || 'Sin Categoría'}]</span>
+                                {t.name}
+                            </h5>
                             <div className="flex gap-1">
                                 <button onClick={() => handleEdit(t)} className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
                                     <EditIcon className="w-4 h-4" />

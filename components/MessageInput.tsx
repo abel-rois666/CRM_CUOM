@@ -46,6 +46,10 @@ interface MessageInputProps {
   placeholder     ?: string;
   /** No se usa con el selector dinámico, pero se mantiene por retrocompatibilidad */
   initialTemplateName?: string;
+  /** Plantillas locales del CRM (Respuestas rápidas) */
+  whatsappTemplates?: import('../types').WhatsAppTemplate[];
+  /** Indica si el chat está bloqueado por la regla de 24h (deshabilita texto libre e IA) */
+  isLocked        ?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -58,24 +62,38 @@ const MessageInput: React.FC<MessageInputProps> = ({
   initialMessage      = '',
   showTextarea        = false,
   placeholder         = 'Escribe un mensaje...',
+  whatsappTemplates   = [],
+  isLocked            = false,
 }) => {
   const { lead, licenciaturas, chatHistory } = leadContext;
 
   const [message,           setMessage]           = useState(initialMessage);
+
+  useEffect(() => {
+    setMessage(initialMessage);
+  }, [initialMessage]);
   const [extraInstructions, setExtraInstructions] = useState('');
   const [isGenerating,      setIsGenerating]      = useState(false);
   const [isSendingTemplate, setIsSendingTemplate] = useState(false);
   const [aiMode,            setAiMode]            = useState<'quick' | 'advanced'>('advanced');
 
-  // --- Estado para plantillas dinámicas ---
-  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  // --- Estado para plantillas dinámicas Meta ---
   const [isLoadingTemplates, setIsLoadingTemplates]     = useState(false);
   const [metaTemplates, setMetaTemplates]               = useState<any[]>([]);
   const [selectedTemplateName, setSelectedTemplateName] = useState<string>('');
   const [templateVariableValues, setTemplateVariableValues] = useState<string[]>([]);
   const [expectedVariablesCount, setExpectedVariablesCount] = useState<number>(0);
 
+  // --- Estado para pestañas y CRM ---
+  const [activeTab, setActiveTab] = useState<'crm' | 'meta'>('crm');
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [selectedCrmTemplateId, setSelectedCrmTemplateId] = useState<string>('');
+  const [crmVariables, setCrmVariables] = useState<string[]>([]);
+  const [crmVariableValues, setCrmVariableValues] = useState<string[]>([]);
+
+  // isDisabled bloquea el envío general por operaciones en curso. isLocked bloquea solo el texto libre por la regla de 24h.
   const isDisabled = isSending || isGenerating || isSendingTemplate;
+  const isFreeTextDisabled = isDisabled || isLocked;
 
   // Nombre completo del lead para autocompletar la 1ra variable si es posible
   const leadFirstName = lead.first_name?.trim() || 'Prospecto';
@@ -100,12 +118,26 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const toggleTemplateSelector = () => {
-    if (!showTemplateSelector) {
-      fetchTemplates();
-    }
-    setShowTemplateSelector(!showTemplateSelector);
+  // Agrupar plantillas CRM
+  const templatesByCategory = React.useMemo(() => {
+    const grouped: Record<string, import('../types').WhatsAppTemplate[]> = {};
+    whatsappTemplates.forEach(t => {
+      const cat = t.category || 'Sin Categoría';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(t);
+    });
+    return grouped;
+  }, [whatsappTemplates]);
+
+  const loadMetaTemplatesIfNeeded = () => {
+    if (metaTemplates.length === 0) fetchTemplates();
   };
+
+  useEffect(() => {
+    if (activeTab === 'meta') {
+      loadMetaTemplatesIfNeeded();
+    }
+  }, [activeTab]);
 
   // -------------------------------------------------------------------------
   // Parsear variables cuando el usuario selecciona una plantilla
@@ -140,6 +172,99 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const newVars = [...templateVariableValues];
     newVars[index] = value;
     setTemplateVariableValues(newVars);
+  };
+
+  // -------------------------------------------------------------------------
+  // Parsear variables de CRM
+  // -------------------------------------------------------------------------
+  const handleCrmTemplateClick = (t: import('../types').WhatsAppTemplate) => {
+    setSelectedCrmTemplateId(t.id);
+    let content = t.content;
+    
+    const matches = content.match(/\{[^{}]+\}/g);
+    if (matches) {
+      const uniqueVars = Array.from(new Set(matches));
+      setCrmVariables(uniqueVars);
+      
+      let nextAppointment = lead.appointments?.find(a => a.status === 'scheduled' && new Date(a.date) > new Date());
+      if (!nextAppointment) {
+         // Si no hay citas futuras, tomar la cita 'scheduled' más reciente (útil para pruebas o citas de hoy)
+         const scheduled = lead.appointments?.filter(a => a.status === 'scheduled') || [];
+         scheduled.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+         nextAppointment = scheduled[0];
+      }
+      const programName = licenciaturas.find(l => l.id === lead.program_id)?.name || 'el programa';
+
+      const initialVars = uniqueVars.map(v => {
+         const lower = v.toLowerCase().replace(/[{}]/g, '');
+         if (lower === 'nombre' || lower.match(/^\d+$/)) return leadFirstName;
+         if (lower === 'apellido') return `${lead.paternal_last_name || ''} ${lead.maternal_last_name || ''}`.trim();
+         if (lower === 'nombre_completo' || lower === 'nombre completo') return `${leadFirstName} ${lead.paternal_last_name || ''}`.trim();
+         if (lower === 'telefono' || lower === 'celular' || lower === 'whatsapp') return lead.phone;
+         if (lower === 'correo' || lower === 'email') return lead.email || '';
+         if (lower === 'licenciatura' || lower === 'programa') return programName;
+         if (nextAppointment) {
+            const d = new Date(nextAppointment.date);
+            if (lower.includes('fecha') || lower.includes('dia') || lower.includes('día')) {
+               return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+            }
+            if (lower.includes('hora') || lower.includes('tiempo')) {
+               return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            }
+         }
+         if (lower === 'asesor') return 'Cargando...';
+         return '';
+      });
+
+      setCrmVariableValues(initialVars);
+      syncCrmToMessage(content, uniqueVars, initialVars);
+
+      const asesorIndex = uniqueVars.findIndex(v => v.toLowerCase().replace(/[{}]/g, '') === 'asesor');
+      if (asesorIndex !== -1 && lead.advisor_id) {
+          supabase.from('profiles').select('full_name').eq('id', lead.advisor_id).single()
+          .then(({ data }) => {
+              if (data?.full_name) {
+                  setCrmVariableValues(prev => {
+                      const updated = [...prev];
+                      updated[asesorIndex] = data.full_name;
+                      syncCrmToMessage(content, uniqueVars, updated);
+                      return updated;
+                  });
+              } else {
+                  setCrmVariableValues(prev => {
+                      const updated = [...prev];
+                      updated[asesorIndex] = 'Tu Asesor';
+                      syncCrmToMessage(content, uniqueVars, updated);
+                      return updated;
+                  });
+              }
+          });
+      }
+    } else {
+      setCrmVariables([]);
+      setCrmVariableValues([]);
+      setMessage(content);
+    }
+  };
+
+  const syncCrmToMessage = (baseContent: string, vars: string[], values: string[]) => {
+    let preview = baseContent;
+    vars.forEach((v, idx) => {
+      const escaped = v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      preview = preview.replace(new RegExp(escaped, 'g'), values[idx]);
+    });
+    setMessage(preview);
+  };
+
+  const handleCrmVariableChange = (index: number, value: string) => {
+    const newVars = [...crmVariableValues];
+    newVars[index] = value;
+    setCrmVariableValues(newVars);
+    
+    const t = whatsappTemplates.find(x => x.id === selectedCrmTemplateId);
+    if (t) {
+      syncCrmToMessage(t.content, crmVariables, newVars);
+    }
   };
 
   // -------------------------------------------------------------------------
@@ -252,7 +377,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       // Éxito
-      setShowTemplateSelector(false);
       setSelectedTemplateName('');
       setTemplateVariableValues([]);
       
@@ -269,76 +393,164 @@ const MessageInput: React.FC<MessageInputProps> = ({
   // -------------------------------------------------------------------------
   return (
     <div className="space-y-3">
-      {/* ── Fila superior: instrucción IA + botones IA ───────────────────── */}
-      <div className="flex items-end gap-2">
-        <div className="flex-grow">
-          <Input
-            id="msg-input-extra-instructions"
-            value={extraInstructions}
-            onChange={(e) => setExtraInstructions(e.target.value)}
-            placeholder="Instrucción extra para la IA (opcional)..."
-            label={showTextarea ? 'Instrucción extra (Opcional)' : undefined}
-          />
-        </div>
-
-        {/* IA Rápida */}
-        <Tooltip content="IA Rápida: Mensaje breve y directo." position="top">
-          <button
-            onClick={() => handleAiGenerate('quick')}
-            disabled={isDisabled}
-            className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5 ${
-              isDisabled
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-blue-400 to-cyan-400 hover:from-blue-500 hover:to-cyan-500 text-white'
-            }`}
-          >
-            <BoltIcon className={`w-3 h-3 ${isGenerating && aiMode === 'quick' ? 'animate-spin' : ''}`} />
-            {isGenerating && aiMode === 'quick' ? '...' : 'IA Rápida'}
-          </button>
-        </Tooltip>
-
-        {/* IA Avanzada */}
-        <Tooltip content="IA Avanzada: Mensaje detallado y persuasivo." position="top">
-          <button
-            onClick={() => handleAiGenerate('advanced')}
-            disabled={isDisabled}
-            className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm transition-all transform hover:-translate-y-0.5 ${
-              isDisabled
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-purple-200 dark:shadow-none hover:shadow-md'
-            }`}
-          >
-            <SparklesIcon className={`w-3 h-3 ${isGenerating && aiMode === 'advanced' ? 'animate-spin' : ''}`} />
-            {isGenerating && aiMode === 'advanced' ? '...' : 'IA Avanzada'}
-          </button>
-        </Tooltip>
+      {/* ── BOTÓN TOGGLE DE OPCIONES AVANZADAS ── */}
+      <div className="pb-1">
+        <button
+          onClick={() => {
+            const nextState = !isAdvancedOpen;
+            setIsAdvancedOpen(nextState);
+            if (!nextState) {
+               setActiveTab('crm');
+            }
+          }}
+          className="w-full flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <SparklesIcon className="w-4 h-4 text-brand-primary" />
+            <span>Plantillas e IA Avanzada</span>
+          </span>
+          {isAdvancedOpen ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
+        </button>
       </div>
 
-      {/* ── BOTÓN Y PANEL DE PLANTILLAS DINÁMICAS (Meta API) ───────────── */}
-      <div className="border border-green-200 dark:border-green-800 rounded-xl overflow-hidden">
+      {isAdvancedOpen && (
+        <div className="space-y-3 animate-fade-in border border-slate-100 dark:border-slate-700/50 rounded-xl p-3 bg-white/50 dark:bg-slate-900/50">
+          {/* PESTAÑAS (Solo si hay plantillas CRM o si se usa en contexto general) */}
+          <div className="flex border-b border-gray-200 dark:border-slate-700">
         <button
-          onClick={toggleTemplateSelector}
-          disabled={isDisabled || !lead.phone}
-          className={`
-            w-full flex items-center justify-between px-4 py-2 text-xs font-semibold
-            transition-all duration-150
-            ${isDisabled || !lead.phone
-              ? 'bg-gray-50 text-gray-400 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed'
-              : showTemplateSelector 
-                ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' 
-                : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40'
-            }
-          `}
+          onClick={() => setActiveTab('crm')}
+          className={`flex-1 sm:flex-none px-4 py-2.5 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'crm' 
+              ? 'border-brand-primary text-brand-primary dark:text-brand-secondary dark:border-brand-secondary' 
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400'
+          }`}
+          title="Gratuitas. Úsalas en vivo mientras la ventana de 24h esté activa."
         >
-          <div className="flex items-center gap-2">
+          Respuestas Rápidas (CRM)
+        </button>
+        <button
+          onClick={() => setActiveTab('meta')}
+          className={`flex-1 sm:flex-none px-4 py-2.5 font-bold text-xs sm:text-sm transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'meta' 
+              ? 'border-brand-primary text-brand-primary dark:text-brand-secondary dark:border-brand-secondary' 
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400'
+          }`}
+          title="Tienen costo. Úsalas para iniciar o reactivar chat tras 24h."
+        >
+          Plantillas Oficiales (Meta)
+        </button>
+      </div>
+
+      {activeTab === 'crm' && (
+        <>
+          {/* PLANTILLAS CRM */}
+          {whatsappTemplates.length > 0 && (
+            <div className="bg-white dark:bg-slate-900 space-y-4">
+              <Select
+                id="crm-template-select"
+                label="Selecciona una Respuesta Rápida"
+                value={selectedCrmTemplateId}
+                disabled={isFreeTextDisabled}
+                onChange={(e) => {
+                  const t = whatsappTemplates.find(x => x.id === e.target.value);
+                  if (t) {
+                    handleCrmTemplateClick(t);
+                  } else {
+                    setSelectedCrmTemplateId('');
+                    setCrmVariables([]);
+                    setCrmVariableValues([]);
+                    setMessage('');
+                  }
+                }}
+                options={[
+                  { value: '', label: '-- Elegir respuesta rápida --' },
+                  ...Object.entries(templatesByCategory).flatMap(([category, catTemplates]) => [
+                    // Opciones agrupadas simuladas (el componente Select nativo soporta optgroup si modificamos el componente Select, pero por ahora lo aplanamos con un prefijo visual)
+                    ...catTemplates.map(t => ({ value: t.id, label: `[${category}] ${t.name}` }))
+                  ])
+                ]}
+              />
+            </div>
+          )}
+
+          {/* VARIABLES CRM DINÁMICAS (Cualquier texto entre llaves) */}
+          {selectedCrmTemplateId && crmVariables.length > 0 && (
+            <div className="space-y-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 animate-fade-in">
+              <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">Variables de la Respuesta Rápida</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {crmVariables.map((v, idx) => (
+                  <Input
+                    key={idx}
+                    id={`crm-template-var-${idx}`}
+                    label={`Variable ${v}`}
+                    value={crmVariableValues[idx]}
+                    onChange={(e) => handleCrmVariableChange(idx, e.target.value)}
+                    placeholder={`Valor para ${v}`}
+                  />
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 italic">Los cambios se reflejarán inmediatamente en la caja de mensaje abajo.</p>
+            </div>
+          )}
+
+          {/* ── Fila superior: instrucción IA + botones IA ───────────────────── */}
+          <div className="flex flex-col sm:flex-row items-end gap-2">
+            <div className="flex-grow w-full">
+              <Input
+                id="msg-input-extra-instructions"
+                value={extraInstructions}
+                onChange={(e) => setExtraInstructions(e.target.value)}
+                placeholder="Instrucción extra para la IA (opcional)..."
+                label={showTextarea ? 'Instrucción extra (Opcional)' : undefined}
+              />
+            </div>
+
+            <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+              {/* IA Rápida */}
+              <Tooltip content="IA Rápida: Mensaje breve y directo." position="top">
+                <button
+                  onClick={() => handleAiGenerate('quick')}
+                  disabled={isFreeTextDisabled}
+                  className={`flex-1 sm:flex-none justify-center flex items-center gap-1 px-3 py-1.5 sm:py-1 rounded-full text-xs font-bold shadow-sm transition-all transform hover:-translate-y-0.5 ${
+                    isFreeTextDisabled
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-blue-400 to-cyan-400 hover:from-blue-500 hover:to-cyan-500 text-white'
+                  }`}
+                >
+                  <BoltIcon className={`w-3 h-3 ${isGenerating && aiMode === 'quick' ? 'animate-spin' : ''}`} />
+                  {isGenerating && aiMode === 'quick' ? '...' : 'IA Rápida'}
+                </button>
+              </Tooltip>
+
+              {/* IA Avanzada */}
+              <Tooltip content="IA Avanzada: Mensaje detallado y persuasivo." position="top">
+                <button
+                  onClick={() => handleAiGenerate('advanced')}
+                  disabled={isFreeTextDisabled}
+                  className={`flex-1 sm:flex-none justify-center flex items-center gap-1 px-3 py-1.5 sm:py-1 rounded-full text-xs font-bold text-white shadow-sm transition-all transform hover:-translate-y-0.5 ${
+                    isFreeTextDisabled
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-purple-200 dark:shadow-none hover:shadow-md'
+                  }`}
+                >
+                  <SparklesIcon className={`w-3 h-3 ${isGenerating && aiMode === 'advanced' ? 'animate-spin' : ''}`} />
+                  {isGenerating && aiMode === 'advanced' ? '...' : 'IA Avanzada'}
+                </button>
+              </Tooltip>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* PESTAÑA META */}
+      {activeTab === 'meta' && (
+        <div className="border border-green-200 dark:border-green-800 rounded-xl overflow-hidden animate-fade-in">
+          <div className="bg-green-50 text-green-800 dark:bg-green-900/40 dark:text-green-300 px-4 py-2 text-xs font-semibold flex items-center gap-2 border-b border-green-100 dark:border-green-800/50">
             <span aria-hidden="true">👋</span>
             <span>Plantillas Aprobadas (Meta)</span>
           </div>
-          {showTemplateSelector ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
-        </button>
 
-        {showTemplateSelector && (
-          <div className="p-4 bg-white dark:bg-slate-900 space-y-4 border-t border-green-100 dark:border-green-800/50">
+          <div className="p-4 bg-white dark:bg-slate-900 space-y-4">
             {isLoadingTemplates ? (
               <div className="flex items-center justify-center gap-2 text-xs text-green-600 animate-pulse">
                 <SparklesIcon className="w-4 h-4 animate-spin" />
@@ -360,7 +572,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 />
 
                 {expectedVariablesCount > 0 && (
-                  <div className="space-y-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700">
+                  <div className="space-y-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 animate-fade-in">
                     <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">Variables Dinámicas</p>
                     {templateVariableValues.map((val, idx) => (
                       <Input
@@ -378,7 +590,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
                 {/* VISTA PREVIA DE PLANTILLA */}
                 {selectedTemplateName && (
-                  <div className="relative mt-2 p-3 bg-[#efeae2] dark:bg-[#0b141a] rounded-lg border border-[#d1c9c1] dark:border-[#202c33] shadow-inner overflow-hidden">
+                  <div className="relative mt-2 p-3 bg-[#efeae2] dark:bg-[#0b141a] rounded-lg border border-[#d1c9c1] dark:border-[#202c33] shadow-inner overflow-hidden animate-fade-in">
                     <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">Vista Previa</p>
                     <div className="relative bg-white dark:bg-[#202C33] p-3 rounded-xl rounded-tl-none shadow-sm text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed inline-block max-w-full break-words">
                       {/* Triangulito simulando burbuja de WhatsApp */}
@@ -424,73 +636,87 @@ const MessageInput: React.FC<MessageInputProps> = ({
                   <button
                     onClick={handleSendTemplate}
                     disabled={isSendingTemplate || templateVariableValues.some(v => !v.trim())}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold shadow-md shadow-green-200 dark:shadow-none transition-all disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold shadow-md shadow-green-200 dark:shadow-none transition-all disabled:opacity-50 mt-4"
                   >
                     {isSendingTemplate ? (
                       <><SparklesIcon className="w-4 h-4 animate-spin" /> Enviando...</>
                     ) : (
-                      <><PaperAirplaneIcon className="w-4 h-4" /> Enviar Plantilla</>
+                      <><PaperAirplaneIcon className="w-4 h-4" /> Enviar Plantilla Oficial</>
                     )}
                   </button>
                 )}
               </>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+        </div>
+      )}
 
-      {/* ── MODO TEXTAREA (WhatsAppModal — redacción antes de enviar) ────── */}
-      {showTextarea ? (
-        <textarea
-          id="msg-input-textarea"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          rows={6}
-          placeholder="El mensaje generado o redactado aparecerá aquí..."
-          className="
-            w-full px-4 py-3 text-sm rounded-xl border border-gray-200 dark:border-gray-600
-            bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100
-            placeholder-gray-400 dark:placeholder-gray-500
-            focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent
-            resize-none transition-all
-          "
-        />
-      ) : (
-        /* ── MODO INPUT INLINE (WhatsAppChat — escritura directa) ──────── */
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isDisabled}
-            placeholder={
-              isGenerating        ? 'Generando mensaje con IA...' :
-              isSendingTemplate   ? 'Enviando plantilla...'       :
-              placeholder
-            }
-            className="
-              flex-1 px-4 py-2 text-sm rounded-full border border-gray-200 dark:border-gray-600
-              bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100
-              placeholder-gray-400 dark:placeholder-gray-500
-              focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent
-              disabled:opacity-50 transition-all
-            "
-          />
-          <button
-            onClick={handleSend}
-            disabled={!message.trim() || isDisabled}
-            title="Enviar mensaje"
-            className="
-              flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center
-              bg-green-500 hover:bg-green-600 active:scale-95
-              text-white shadow-md shadow-green-200 dark:shadow-none
-              disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
-              transition-all duration-150
-            "
-          >
-            <PaperAirplaneIcon className="w-5 h-5" />
-          </button>
+      {/* ── MODO TEXTAREA Y MODO INPUT INLINE ── (Solo se muestra en CRM para enviar) ────── */}
+      {activeTab === 'crm' && (
+        <div className="animate-fade-in mt-4">
+          {showTextarea ? (
+            <div>
+              {selectedCrmTemplateId && (
+                <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Vista Previa / Edición Libre</p>
+              )}
+              <textarea
+                id="msg-input-textarea"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={6}
+                disabled={isFreeTextDisabled}
+                placeholder={isLocked ? "🔒 Envío bloqueado (Regla 24h Meta). Usa una plantilla oficial o desbloquea manualmente." : "El mensaje generado o redactado aparecerá aquí..."}
+                className="
+                  w-full px-4 py-3 text-sm rounded-xl border border-gray-200 dark:border-gray-600
+                  bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100
+                  placeholder-gray-400 dark:placeholder-gray-500
+                  focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent
+                  disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:cursor-not-allowed
+                  resize-none transition-all
+                "
+              />
+            </div>
+          ) : (
+            <div className="flex items-end gap-2">
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isFreeTextDisabled}
+                rows={3}
+                placeholder={
+                  isLocked            ? '🔒 Envío bloqueado (Regla 24h de Meta)...' :
+                  isGenerating        ? 'Generando mensaje con IA...' :
+                  isSendingTemplate   ? 'Enviando plantilla...'       :
+                  placeholder
+                }
+                className="
+                  flex-1 px-4 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-600
+                  bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100
+                  placeholder-gray-400 dark:placeholder-gray-500
+                  focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent
+                  disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:cursor-not-allowed 
+                  transition-all resize-none custom-scrollbar
+                "
+              />
+              <button
+                onClick={handleSend}
+                disabled={!message.trim() || isFreeTextDisabled}
+                title="Enviar mensaje"
+                className="
+                  flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center
+                  bg-green-500 hover:bg-green-600 active:scale-95
+                  text-white shadow-md shadow-green-200 dark:shadow-none
+                  disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
+                  transition-all duration-150 mb-1
+                "
+              >
+                <PaperAirplaneIcon className="w-5 h-5" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
