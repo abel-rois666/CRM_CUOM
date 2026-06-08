@@ -344,9 +344,9 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
                 .from('leads')
                 .select(`
                     *,
-                    appointments(*, created_by(full_name)),
-                    follow_ups(*, created_by(full_name)),
-                    status_history(*, created_by(full_name))
+                    appointments(*, profiles:created_by(full_name)),
+                    follow_ups(*, profiles:created_by(full_name)),
+                    status_history(*, profiles:created_by(full_name))
                 `)
                 .order('registration_date', { ascending: false });
 

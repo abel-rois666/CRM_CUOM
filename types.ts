@@ -120,6 +120,14 @@ export interface EmailTemplate {
 }
 
 // --- Sistema ---
+export interface MediaCatalogItem {
+  id: string;
+  name: string;
+  file_type: 'image' | 'document';
+  file_url: string;
+  created_at: string;
+}
+
 export interface LoginHistory {
   id: string;
   user_id: string;

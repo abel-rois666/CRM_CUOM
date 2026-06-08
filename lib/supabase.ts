@@ -283,6 +283,29 @@ export interface Database {
           created_at?: string
         }
       }
+      media_catalog: {
+        Row: {
+          id: string
+          name: string
+          file_type: 'image' | 'document'
+          file_url: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          file_type: 'image' | 'document'
+          file_url: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          file_type?: 'image' | 'document'
+          file_url?: string
+          created_at?: string
+        }
+      }
       status_categories: {
         Row: {
           key: string

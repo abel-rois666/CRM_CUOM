@@ -21,8 +21,10 @@ import { useToast } from '../context/ToastContext';
 import EnvelopeIcon from './icons/EnvelopeIcon';
 import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import ArrowPathIcon from './icons/ArrowPathIcon';
+import MediaCatalogSettings from './MediaCatalogSettings';
 import CameraIcon from './icons/CameraIcon';
 import ClockIcon from './icons/ClockIcon';
+import DocumentTextIcon from './icons/DocumentTextIcon';
 import ChevronLeftIcon from './icons/ChevronLeftIcon'; // [NEW]
 import ChevronRightIcon from './icons/ChevronRightIcon'; // [NEW]
 import BoltIcon from './icons/BoltIcon';
@@ -2082,6 +2084,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
         { id: 'sources', label: 'Orígenes', icon: <ArrowDownTrayIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
         { id: 'licenciaturas', label: 'Oferta Académica', icon: <AcademicCapIcon className="w-6 h-6 flex-shrink-0" />, allowedRoles: ['admin'] },
         { id: 'turnos', label: 'Turnos', icon: <ClockIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
+        { id: 'media_catalog', label: 'Catálogo Multimedia', icon: <DocumentTextIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
         { id: 'whatsapp_admin', label: 'WhatsApp Admin', icon: <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />, allowedRoles: ['admin'] },
 
         // Plantillas visibles para todos los roles con permisos de gestión
@@ -2148,6 +2151,7 @@ const SettingsModal: React.FC<SettingsModalProps> = (props) => {
                     {activeTab === 'sources' && <SourceSettings sources={props.sources} onSourcesUpdate={props.onSourcesUpdate} />}
                     {activeTab === 'licenciaturas' && <LicenciaturaSettings licenciaturas={props.licenciaturas} onLicenciaturasUpdate={props.onLicenciaturasUpdate} />}
                     {activeTab === 'turnos' && <TurnoSettings turnos={props.turnos} onTurnosUpdate={props.onTurnosUpdate} />}
+                    {activeTab === 'media_catalog' && <MediaCatalogSettings />}
                     {activeTab === 'whatsapp' && <WhatsappTemplateSettings templates={props.whatsappTemplates} onTemplatesUpdate={props.onWhatsappTemplatesUpdate} userProfile={props.currentUserProfile} />}
                     {activeTab === 'email' && <EmailTemplateSettings templates={props.emailTemplates} onTemplatesUpdate={props.onEmailTemplatesUpdate} userProfile={props.currentUserProfile} />}
                     {activeTab === 'whatsapp_admin' && (

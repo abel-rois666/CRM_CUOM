@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import ArrowPathIcon from './icons/ArrowPathIcon';
 import MessageInput, { LeadContext } from './MessageInput';
 import { Lead, Licenciatura } from '../types';
+import { useToast } from '../context/ToastContext';
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -67,6 +68,7 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
   const [error, setError] = useState<string | null>(null);
   const [showCRMTemplates, setShowCRMTemplates] = useState(false);
   const [overrideWindowBlock, setOverrideWindowBlock] = useState(false);
+  const { toastError, success } = useToast();
   
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -168,12 +170,12 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
             errMsg = errBody.details || errBody.error || errMsg;
           } catch (e) { /* ignorar */ }
         }
-        alert(`Error al enviar: ${errMsg}`);
+        toastError(`Error al enviar: ${errMsg}`);
       }
     } catch (err: any) {
       // Garantizar limpieza también si el fetch mismo lanza (red, timeout, etc.)
       setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
-      alert(`Error inesperado: ${err.message}`);
+      toastError(`Error inesperado: ${err.message}`);
     } finally {
       setIsSending(false);
     }

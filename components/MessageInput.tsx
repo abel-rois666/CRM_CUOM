@@ -14,6 +14,10 @@ import { Lead, Licenciatura } from '../types';
 import { supabase } from '../lib/supabase';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChevronUpIcon from './icons/ChevronUpIcon';
+import PaperClipIcon from './icons/PaperClipIcon';
+import DocumentTextIcon from './icons/DocumentTextIcon';
+import { useToast } from '../context/ToastContext';
+import ConfirmationModal from './common/ConfirmationModal';
 
 // ---------------------------------------------------------------------------
 // Tipos públicos
@@ -66,6 +70,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   isLocked            = false,
 }) => {
   const { lead, licenciaturas, chatHistory } = leadContext;
+  const { success, error: toastError } = useToast();
 
   const [message,           setMessage]           = useState(initialMessage);
 
@@ -92,11 +97,67 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const [crmVariableValues, setCrmVariableValues] = useState<string[]>([]);
 
   // isDisabled bloquea el envío general por operaciones en curso. isLocked bloquea solo el texto libre por la regla de 24h.
-  const isDisabled = isSending || isGenerating || isSendingTemplate;
+  const [isUploading, setIsUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
+  const isDisabled = isSending || isGenerating || isSendingTemplate || isUploading;
   const isFreeTextDisabled = isDisabled || isLocked;
 
   // Nombre completo del lead para autocompletar la 1ra variable si es posible
   const leadFirstName = lead.first_name?.trim() || 'Prospecto';
+
+  // --- Estado para Catálogo Multimedia ---
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [mediaCatalog, setMediaCatalog] = useState<any[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [itemToConfirmSend, setItemToConfirmSend] = useState<any>(null);
+
+  const fetchMediaCatalog = async () => {
+    setIsLoadingCatalog(true);
+    try {
+      const { data, error } = await supabase.from('media_catalog').select('*').order('created_at', { ascending: false });
+      if (!error && data) setMediaCatalog(data);
+    } catch (err) {
+      console.error("Error al cargar catálogo:", err);
+    } finally {
+      setIsLoadingCatalog(false);
+    }
+  };
+
+  const handleOpenCatalog = () => {
+    const nextState = !showCatalog;
+    setShowCatalog(nextState);
+    if (nextState && mediaCatalog.length === 0) {
+      fetchMediaCatalog();
+    }
+  };
+
+  const handleSendCatalogItem = async () => {
+    if (isDisabled || !itemToConfirmSend) return;
+    setIsUploading(true);
+    setShowCatalog(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          leadId: lead.id,
+          phone: lead.phone,
+          mediaUrl: itemToConfirmSend.file_url,
+          mediaType: itemToConfirmSend.file_type === 'image' ? 'image' : 'document',
+          mediaName: itemToConfirmSend.name,
+        },
+      });
+      if (error || !data?.success) throw error || new Error(data?.error);
+      success("Archivo del catálogo enviado.");
+    } catch (err: any) {
+      console.error("Error al enviar desde catálogo:", err);
+      toastError(`Error al enviar archivo del catálogo: ${err.message}`);
+    } finally {
+      setIsUploading(false);
+      setItemToConfirmSend(null);
+    }
+  };
 
   // -------------------------------------------------------------------------
   // Obtener plantillas de Meta API
@@ -112,7 +173,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       }
     } catch (err: any) {
       console.error("Error al cargar plantillas de Meta:", err);
-      alert(`Error al cargar plantillas: ${err.message}`);
+      toastError(`Error al cargar plantillas: ${err.message}`);
     } finally {
       setIsLoadingTemplates(false);
     }
@@ -222,7 +283,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
       const asesorIndex = uniqueVars.findIndex(v => v.toLowerCase().replace(/[{}]/g, '') === 'asesor');
       if (asesorIndex !== -1 && lead.advisor_id) {
           supabase.from('profiles').select('full_name').eq('id', lead.advisor_id).single()
-          .then(({ data }) => {
+          .then((res) => {
+              const data = res.data as { full_name: string } | null;
               if (data?.full_name) {
                   setCrmVariableValues(prev => {
                       const updated = [...prev];
@@ -293,9 +355,116 @@ const MessageInput: React.FC<MessageInputProps> = ({
       setMessage(text);
     } catch (err) {
       console.error('AI generation error:', err);
-      alert('No se pudo generar el mensaje. Por favor intenta de nuevo.');
+      toastError('No se pudo generar el mensaje. Por favor intenta de nuevo.');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // -------------------------------------------------------------------------
+  // Envío Multimedia (Temporales)
+  // -------------------------------------------------------------------------
+  const calculateSHA256 = async (file: File): Promise<string> => {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Límite de 16MB
+    if (file.size > 16 * 1024 * 1024) {
+      toastError("El archivo excede el límite de 16MB.");
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setSelectedFile(file);
+    if (file.type.startsWith('image/')) {
+      setFilePreviewUrl(URL.createObjectURL(file));
+    } else {
+      setFilePreviewUrl(null);
+    }
+    
+    // Limpiamos el input para poder seleccionar el mismo archivo si se cancela
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleConfirmFileUpload = async () => {
+    if (!selectedFile) return;
+
+    const fileType = selectedFile.type.startsWith('image/') ? 'image' : 'document';
+    setIsUploading(true);
+
+    try {
+      const hash = await calculateSHA256(selectedFile);
+      const ext = selectedFile.name.split('.').pop() || 'bin';
+      const fileName = `${hash}.${ext}`;
+      const bucket = 'temp_media';
+
+      // Verificar existencia intentando generar Signed URL directamente (10 años de validez)
+      let { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(fileName, 315360000);
+
+      // Si da error, significa que no existe, entonces lo subimos
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+         const { error: uploadError } = await supabase.storage
+           .from(bucket)
+           .upload(fileName, selectedFile, { upsert: true });
+         
+         if (uploadError) throw uploadError;
+
+         // Obtener Signed URL nuevamente (10 años de validez)
+         const { data: newSignedUrl, error: newSignedError } = await supabase.storage
+           .from(bucket)
+           .createSignedUrl(fileName, 315360000);
+         
+         if (newSignedError) throw newSignedError;
+         signedUrlData = newSignedUrl;
+      }
+
+      const mediaUrl = signedUrlData?.signedUrl;
+      if (!mediaUrl) throw new Error("No se pudo obtener la URL firmada.");
+
+      // Enviar el mensaje multimedia
+      const { data, error: invokeError } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          leadId: lead.id,
+          phone: lead.phone,
+          mediaUrl: mediaUrl,
+          mediaType: fileType,
+          mediaName: selectedFile.name,
+        },
+      });
+
+      if (invokeError || !data?.success) {
+          let errMsg = data?.details ?? data?.error ?? invokeError?.message ?? 'Por favor intenta de nuevo.';
+          if (invokeError && 'context' in invokeError) {
+            try {
+              const errBody = await (invokeError as any).context.json();
+              errMsg = errBody.details || errBody.error || errMsg;
+            } catch (e) { /* ignorar */ }
+          }
+          throw new Error(errMsg);
+      }
+      success("Archivo enviado.");
+    } catch (error: any) {
+      console.error("Error al procesar/enviar multimedia:", error);
+      toastError(`Error al enviar archivo: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      clearSelectedFile();
     }
   };
 
@@ -310,7 +479,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     if (!showTextarea) setMessage('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -324,9 +493,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
     if (isDisabled || !selectedTemplateName) return;
 
     // Verificar que todas las variables obligatorias estén llenas
-    const hasEmptyVars = templateVariableValues.some((v) => !v.trim());
-    if (hasEmptyVars) {
-      alert("Por favor llena todas las variables de la plantilla.");
+    if (expectedVariablesCount > 0 && templateVariableValues.some(v => !v.trim())) {
+      toastError("Por favor llena todas las variables de la plantilla.");
       return;
     }
 
@@ -372,17 +540,18 @@ const MessageInput: React.FC<MessageInputProps> = ({
           } catch (e) { /* ignorar si no es JSON */ }
         }
 
-        alert(`Error al enviar plantilla: ${errMsg}`);
+        toastError(`Error al enviar plantilla: ${errMsg}`);
         return;
       }
 
       // Éxito
+      success("Plantilla enviada exitosamente.");
       setSelectedTemplateName('');
       setTemplateVariableValues([]);
       
     } catch (err: any) {
       console.error('Template send error:', err);
-      alert(`Error inesperado al enviar plantilla: ${err.message}`);
+      toastError(`Error inesperado al enviar plantilla: ${err.message}`);
     } finally {
       setIsSendingTemplate(false);
     }
@@ -392,6 +561,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   // Render
   // -------------------------------------------------------------------------
   return (
+    <>
     <div className="space-y-3">
       {/* ── BOTÓN TOGGLE DE OPCIONES AVANZADAS ── */}
       <div className="pb-1">
@@ -679,32 +849,102 @@ const MessageInput: React.FC<MessageInputProps> = ({
               />
             </div>
           ) : (
-            <div className="flex items-end gap-2">
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isFreeTextDisabled}
-                rows={3}
-                placeholder={
-                  isLocked            ? '🔒 Envío bloqueado (Regla 24h de Meta)...' :
-                  isGenerating        ? 'Generando mensaje con IA...' :
-                  isSendingTemplate   ? 'Enviando plantilla...'       :
-                  placeholder
-                }
-                className="
-                  flex-1 px-4 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-600
-                  bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100
-                  placeholder-gray-400 dark:placeholder-gray-500
-                  focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent
-                  disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:cursor-not-allowed 
-                  transition-all resize-none custom-scrollbar
-                "
-              />
-              <button
-                onClick={handleSend}
-                disabled={!message.trim() || isFreeTextDisabled}
-                title="Enviar mensaje"
+            <div className="flex flex-col gap-2 relative">
+              {/* VISTA PREVIA DE ARCHIVO SELECCIONADO */}
+              {selectedFile && (
+                <div className="mb-2 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex flex-col gap-2 animate-fade-in relative shadow-sm">
+                  <button
+                    type="button"
+                    onClick={clearSelectedFile}
+                    disabled={isUploading}
+                    className="absolute top-2 right-2 p-1 bg-white/80 dark:bg-gray-700/80 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-full text-gray-600 hover:text-red-600 dark:text-gray-300 transition-colors z-10 shadow-sm"
+                    title="Cancelar envío de archivo"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+                  
+                  <div className="flex items-center gap-3">
+                    {filePreviewUrl ? (
+                      <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 flex-shrink-0 bg-black/5">
+                        <img src={filePreviewUrl} alt="Vista previa" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-500 rounded-lg flex items-center justify-center border border-blue-200 dark:border-blue-800 flex-shrink-0">
+                        <DocumentTextIcon className="w-8 h-8" />
+                      </div>
+                    )}
+                    <div className="flex-1 overflow-hidden pr-6">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{selectedFile.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={handleConfirmFileUpload}
+                    disabled={isUploading}
+                    className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white rounded-lg text-sm font-bold shadow-md transition-all disabled:opacity-50"
+                  >
+                    {isUploading ? (
+                      <><SparklesIcon className="w-4 h-4 animate-spin" /> Enviando Adjunto...</>
+                    ) : (
+                      <><PaperAirplaneIcon className="w-4 h-4" /> Enviar {selectedFile.type.startsWith('image/') ? 'Imagen' : 'Documento'}</>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-end gap-2 relative">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileSelect} 
+                  className="hidden" 
+                  accept="image/jpeg,image/png,image/webp,application/pdf" 
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isDisabled || !!selectedFile}
+                  title="Adjuntar imagen o PDF (Temporal)"
+                  className="absolute left-2 bottom-2 text-gray-400 hover:text-green-500 disabled:opacity-50 transition-colors p-1 z-10"
+                >
+                  <PaperClipIcon className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenCatalog}
+                  disabled={isDisabled || !!selectedFile}
+                  title="Catálogo Oficial"
+                  className="absolute left-9 bottom-2 text-gray-400 hover:text-green-500 disabled:opacity-50 transition-colors p-1 z-10"
+                >
+                  <DocumentTextIcon className="w-5 h-5" />
+                </button>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isFreeTextDisabled}
+                  rows={3}
+                  placeholder={
+                    isLocked            ? '🔒 Envío bloqueado (Regla 24h de Meta)...' :
+                    isGenerating        ? 'Generando mensaje con IA...' :
+                    isSendingTemplate   ? 'Enviando plantilla...'       :
+                    isUploading         ? 'Subiendo y procesando archivo...' :
+                    placeholder
+                  }
+                  className="
+                    flex-1 pl-16 pr-4 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-600
+                    bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100
+                    placeholder-gray-400 dark:placeholder-gray-500
+                    focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent
+                    disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:cursor-not-allowed 
+                    transition-all resize-none custom-scrollbar
+                  "
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!message.trim() || isFreeTextDisabled || !!selectedFile}
+                  title="Enviar mensaje"
                 className="
                   flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center
                   bg-green-500 hover:bg-green-600 active:scale-95
@@ -715,6 +955,43 @@ const MessageInput: React.FC<MessageInputProps> = ({
               >
                 <PaperAirplaneIcon className="w-5 h-5" />
               </button>
+            </div>
+            {isUploading && !selectedFile && (
+              <p className="text-xs text-green-500 dark:text-green-400 animate-pulse flex items-center gap-1 pl-1 mt-1">
+                <SparklesIcon className="w-3 h-3" />
+                Procesando archivo...
+              </p>
+            )}
+
+            {/* Menú de Catálogo Multimedia */}
+            {showCatalog && (
+              <div className="absolute bottom-16 left-0 w-64 max-h-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50 overflow-y-auto custom-scrollbar p-2">
+                <div className="flex items-center justify-between px-2 pb-2 mb-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Catálogo Oficial</span>
+                  <button onClick={() => setShowCatalog(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+                </div>
+                {isLoadingCatalog ? (
+                  <p className="text-xs text-gray-400 p-2 text-center">Cargando...</p>
+                ) : mediaCatalog.length === 0 ? (
+                  <p className="text-xs text-gray-400 p-2 text-center">No hay archivos en el catálogo.</p>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {mediaCatalog.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => { setItemToConfirmSend(item); setShowCatalog(false); }}
+                        className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-left transition-colors"
+                      >
+                        {item.file_type === 'image' ? <PaperClipIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : <DocumentTextIcon className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                        <span className="text-sm text-gray-700 dark:text-gray-200 truncate">{item.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             </div>
           )}
         </div>
@@ -728,6 +1005,22 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </p>
       )}
     </div>
+      <ConfirmationModal
+        isOpen={!!itemToConfirmSend}
+        onClose={() => setItemToConfirmSend(null)}
+        onConfirm={handleSendCatalogItem}
+        title="Enviar Archivo del Catálogo"
+        message={
+          <>
+            ¿Estás seguro de enviar <strong>{itemToConfirmSend?.name}</strong> a este prospecto?
+            <br /><br />
+            El archivo se enviará inmediatamente al confirmar.
+          </>
+        }
+        confirmButtonText="Sí, enviar archivo"
+        confirmButtonVariant="primary"
+      />
+    </>
   );
 };
 

@@ -46,7 +46,10 @@ function buildMetaPayload(
     message: string,
     templateName?: string,
     templateVariables?: string[],
-    languageCode: string = 'es_MX'
+    languageCode: string = 'es_MX',
+    mediaUrl?: string,
+    mediaType?: 'image' | 'document',
+    mediaName?: string
 ): Record<string, unknown> {
     if (isTemplate && templateName) {
         const hasVars = Array.isArray(templateVariables) && templateVariables.length > 0
@@ -73,6 +76,25 @@ function buildMetaPayload(
         }
     }
 
+    // Si hay mediaUrl, mandamos multimedia (asumimos que NO es template, WhatsApp Cloud API para enviar fotos directas)
+    if (mediaUrl && mediaType) {
+        if (mediaType === 'image') {
+            return {
+                messaging_product: 'whatsapp',
+                to: cleanPhone,
+                type: 'image',
+                image: { link: mediaUrl }
+            }
+        } else if (mediaType === 'document') {
+            return {
+                messaging_product: 'whatsapp',
+                to: cleanPhone,
+                type: 'document',
+                document: { link: mediaUrl, filename: mediaName || "Documento Adjunto" }
+            }
+        }
+    }
+
     // Mensaje de texto libre (comportamiento original)
     return {
         messaging_product: 'whatsapp',
@@ -93,7 +115,17 @@ function buildDbMessageBody(
     templateName?: string,
     templateVariables?: string[],
     previewText?: string,
+    mediaType?: 'image' | 'document',
+    mediaUrl?: string,
+    mediaName?: string
 ): string {
+    if (mediaUrl) {
+        if (mediaName) {
+            return `[📎 Archivo Adjunto: ${mediaName}]`
+        }
+        return `[📎 Archivo Adjunto: ${mediaType === 'image' ? 'Imagen' : 'Documento'}]`
+    }
+
     if (!isTemplate || !templateName) return message
 
     if (previewText) {
@@ -147,6 +179,9 @@ serve(async (req) => {
             templateVariables,
             languageCode      = 'es_MX',
             previewText,
+            mediaUrl,
+            mediaType,
+            mediaName,
         } = await req.json()
 
         // Validación: o hay mensaje de texto, o hay nombre de plantilla
@@ -157,9 +192,9 @@ serve(async (req) => {
             )
         }
 
-        if (!isTemplate && !message) {
+        if (!isTemplate && !message && !mediaUrl) {
             return new Response(
-                JSON.stringify({ error: 'El campo message es obligatorio para mensajes de texto libre.' }),
+                JSON.stringify({ error: 'El campo message o mediaUrl es obligatorio para mensajes.' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
         }
@@ -204,10 +239,10 @@ serve(async (req) => {
         // 4. Construir payload y enviar a Meta WhatsApp Cloud API
         // -----------------------------------------------------------------------
         const metaUrl     = `https://graph.facebook.com/v19.0/${WA_PHONE_NUMBER_ID}/messages`
-        const metaPayload = buildMetaPayload(cleanPhone, isTemplate, message, templateName, templateVariables, languageCode)
+        const metaPayload = buildMetaPayload(cleanPhone, isTemplate, message, templateName, templateVariables, languageCode, mediaUrl, mediaType, mediaName)
 
         console.log(
-            `Sending WhatsApp ${isTemplate ? `template "${templateName}"` : 'text'} to ${cleanPhone}`
+            `Sending WhatsApp ${isTemplate ? `template "${templateName}"` : mediaUrl ? 'media' : 'text'} to ${cleanPhone}`
         )
 
         const metaResponse = await fetch(metaUrl, {
@@ -242,7 +277,7 @@ serve(async (req) => {
             auth: { persistSession: false },
         })
 
-        const dbMessageBody = buildDbMessageBody(isTemplate, message, templateName, templateVariables, previewText)
+        const dbMessageBody = buildDbMessageBody(isTemplate, message, templateName, templateVariables, previewText, mediaType, mediaUrl, mediaName)
 
         const { error: dbError } = await supabase
             .from('whatsapp_messages')
@@ -253,6 +288,8 @@ serve(async (req) => {
                 wa_message_id  : metaMessageId,
                 wa_sender_phone: cleanPhone,
                 status         : 'sent',
+                media_url      : mediaUrl ?? null,
+                media_type     : mediaType ?? null,
             })
 
         if (dbError) {
