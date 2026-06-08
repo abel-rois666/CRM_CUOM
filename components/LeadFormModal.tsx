@@ -84,6 +84,7 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
     setValue,
     watch,
     reset,
+    trigger,
     formState: { errors, isValid }
   } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
@@ -145,8 +146,11 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
           turno_id: '',
         });
       }
+      // Forzar validación inicial para que el botón no aparezca deshabilitado
+      // si los datos son correctos (especialmente al editar)
+      setTimeout(() => trigger(), 0);
     }
-  }, [isOpen, leadToEdit, statuses, currentUser, reset]);
+  }, [isOpen, leadToEdit, statuses, currentUser, reset, trigger]);
 
   // Utility to Title Case
   const toTitleCase = (str: string) => {
@@ -324,8 +328,8 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
               autoComplete="given-name"
               error={errors.first_name?.message}
               placeholder={isAnonymous ? 'Generado automáticamente' : 'Ej. María'}
-              disabled={isAnonymous}
-              className={isAnonymous ? 'opacity-60 cursor-not-allowed' : ''}
+              readOnly={isAnonymous}
+              className={isAnonymous ? 'opacity-60 pointer-events-none bg-gray-50 dark:bg-slate-800' : ''}
               // Keep TitleCase behavior on Blur (solo si no es anónimo)
               onBlur={(e) => {
                 if (!isAnonymous) setValue('first_name', toTitleCase(e.target.value.trim()), { shouldDirty: true, shouldValidate: true });
@@ -337,8 +341,8 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
               autoComplete="family-name"
               error={errors.paternal_last_name?.message}
               placeholder={isAnonymous ? 'Sin Identificar' : 'Ej. López'}
-              disabled={isAnonymous}
-              className={isAnonymous ? 'opacity-60 cursor-not-allowed' : ''}
+              readOnly={isAnonymous}
+              className={isAnonymous ? 'opacity-60 pointer-events-none bg-gray-50 dark:bg-slate-800' : ''}
               onBlur={(e) => {
                 if (!isAnonymous) setValue('paternal_last_name', toTitleCase(e.target.value.trim()), { shouldDirty: true, shouldValidate: true });
               }}
@@ -449,7 +453,8 @@ const LeadFormModal: React.FC<LeadFormModalProps> = ({
             label="Asignar a"
             {...register('advisor_id')}
             error={errors.advisor_id?.message}
-            disabled={currentUser?.role === 'advisor'}
+            className={currentUser?.role === 'advisor' ? 'pointer-events-none opacity-70 bg-gray-50 dark:bg-slate-800' : ''}
+            tabIndex={currentUser?.role === 'advisor' ? -1 : 0}
             options={availableAdvisors.map(a => ({ value: a.id, label: a.full_name }))}
             placeholder="-- Seleccionar --"
           />
