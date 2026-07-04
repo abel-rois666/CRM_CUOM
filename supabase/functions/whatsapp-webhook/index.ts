@@ -545,7 +545,21 @@ async function handleInboundMessage(
 // Handler: procesar actualización de estado de mensaje SALIENTE
 // Meta envía estos eventos cuando el destinatario recibe/lee un mensaje.
 // Los usamos para actualizar el campo `status` en whatsapp_messages.
+//
+// IMPORTANTE: Meta puede enviar estados fuera de orden. Implementamos una
+// jerarquía para evitar degradar un estado superior (ej. delivered→sent).
+// Jerarquía: failed(0) < sent(1) < delivered(2) < read(3)
+// Un estado solo se actualiza si el nuevo estado es MAYOR que el actual.
+// Excepción: 'failed' siempre se acepta si el estado actual es 'sent'
+// (Meta rechazó la entrega), pero NO si ya fue 'delivered' o 'read'.
 // ---------------------------------------------------------------------------
+const STATUS_HIERARCHY: Record<string, number> = {
+    'failed'   : 0,
+    'sent'     : 1,
+    'delivered': 2,
+    'read'     : 3,
+}
+
 async function handleStatusUpdate(
     supabase      : ReturnType<typeof getSupabaseClient>,
     statusUpdate  : MetaStatusUpdate,
@@ -555,6 +569,42 @@ async function handleStatusUpdate(
     // Solo persistimos estados relevantes para la UI del chat
     if (!['sent', 'delivered', 'read', 'failed'].includes(status)) return
 
+    // Log detallado si Meta reporta un fallo (incluir código y título del error)
+    if (status === 'failed' && statusUpdate.errors && statusUpdate.errors.length > 0) {
+        const errDetails = statusUpdate.errors.map(e => `Code=${e.code} Title="${e.title}"`).join('; ')
+        console.error(`❌ [STATUS] Mensaje ${waMessageId} FALLÓ. Errores de Meta: ${errDetails}`)
+    }
+
+    // Obtener el estado actual del mensaje para comparar jerarquía
+    const { data: currentMsg, error: fetchErr } = await supabase
+        .from('whatsapp_messages')
+        .select('status')
+        .eq('wa_message_id', waMessageId)
+        .maybeSingle()
+
+    if (fetchErr) {
+        console.error(`Error leyendo status actual para ${waMessageId}:`, fetchErr.message)
+        return
+    }
+
+    if (!currentMsg) {
+        console.log(`⚠️ [STATUS] Mensaje ${waMessageId} no encontrado en DB (puede ser de otro sistema). Ignorando.`)
+        return
+    }
+
+    const currentRank = STATUS_HIERARCHY[currentMsg.status] ?? -1
+    const newRank     = STATUS_HIERARCHY[status] ?? -1
+
+    // Regla de jerarquía: solo actualizar si el nuevo estado es superior
+    // Excepción especial: 'failed' se acepta si el actual es 'sent' (Meta rechazó en entrega)
+    const isFailed = status === 'failed'
+    const isCurrentSent = currentMsg.status === 'sent'
+
+    if (newRank <= currentRank && !(isFailed && isCurrentSent)) {
+        console.log(`⏭️ [STATUS] Ignorando ${waMessageId}: ${currentMsg.status}(${currentRank}) → ${status}(${newRank}) — no es upgrade.`)
+        return
+    }
+
     const { error } = await supabase
         .from('whatsapp_messages')
         .update({ status })
@@ -563,7 +613,7 @@ async function handleStatusUpdate(
     if (error) {
         console.error(`Error actualizando status (${status}) para ${waMessageId}:`, error.message)
     } else {
-        console.log(`Status actualizado: ${waMessageId} → ${status}`)
+        console.log(`✅ [STATUS] ${waMessageId}: ${currentMsg.status} → ${status}`)
     }
 }
 

@@ -128,6 +128,16 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
           });
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `lead_id=eq.${leadId}` },
+        (payload) => {
+          const updatedMsg = payload.new as WhatsAppMessage;
+          setMessages((prev) => 
+            prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m))
+          );
+        }
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -341,8 +351,12 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
                             {isTempSending ? 'Enviando...' : formatTime(msg.created_at)}
                           </span>
                           {isOutbound && !isTempSending && (
-                            <span className="text-[10px] text-green-500" title={msg.status ?? ''}>
-                              {msg.status === 'sent' ? '✓✓' : '✓'}
+                            <span 
+                              className={`text-[13px] font-black ${msg.status === 'read' ? 'text-[#34B7F1] drop-shadow-sm' : msg.status === 'failed' ? 'text-red-500' : 'text-gray-500 dark:text-gray-300'}`} 
+                              title={msg.status ?? ''}
+                              style={{ letterSpacing: '-0.15em', marginLeft: '4px' }}
+                            >
+                              {msg.status === 'read' || msg.status === 'delivered' ? '✓✓' : msg.status === 'failed' ? '⚠️' : '✓'}
                             </span>
                           )}
                         </div>
