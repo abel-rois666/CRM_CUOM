@@ -51,11 +51,12 @@ export interface Turno {
 // --- Actividades y Sub-Entidades ---
 export interface FollowUp {
   id: string;
-  date: string; // ISO String
-  notes: string;
   lead_id: string;
-  created_by?: Profile | null; // Puede ser null si el usuario se borró
-  created_at?: string;
+  date: string;
+  notes: string;
+  interaction_types?: string[]; // [NEW] Llamada, WhatsApp, Email
+  created_by?: string | Profile | null;
+  created_at: string;
 }
 
 export interface Appointment {

@@ -22,6 +22,7 @@ interface ActivityEvent {
     type: ActivityType;
     detail: string;      // texto completo – el truncado es solo visual
     timestamp: string;
+    interactionTypes?: string[]; // [NEW] Llamada, WhatsApp, Email
 }
 
 interface StatusSummaryItem { name: string; count: number; }
@@ -136,7 +137,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
             // 3. Notas
             let q3 = (supabase as any)
                 .from('follow_ups')
-                .select('id, lead_id, notes, created_at, leads(first_name, paternal_last_name, advisor_id)')
+                .select('id, lead_id, notes, created_at, interaction_types, leads(first_name, paternal_last_name, advisor_id)')
                 .gte('created_at', from).lte('created_at', to);
             const { data: notesData, error: e3 } = await q3;
             if (e3) throw e3;
@@ -173,7 +174,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
 
             (notesData || []).forEach((n: any) => {
                 const advisorId = n.leads?.advisor_id || '';
-                push({ id: `fu-${seq++}`, leadId: n.lead_id, leadName: n.leads ? `${n.leads.first_name} ${n.leads.paternal_last_name}` : 'Lead eliminado', advisorId, advisorName: advisorMap.get(advisorId) || 'Sin Asignar', type: 'note_added', detail: n.notes || '', timestamp: n.created_at });
+                push({ id: `fu-${seq++}`, leadId: n.lead_id, leadName: n.leads ? `${n.leads.first_name} ${n.leads.paternal_last_name}` : 'Lead eliminado', advisorId, advisorName: advisorMap.get(advisorId) || 'Sin Asignar', type: 'note_added', detail: n.notes || '', timestamp: n.created_at, interactionTypes: n.interaction_types });
             });
 
             (apptData || []).forEach((a: any) => {
@@ -211,6 +212,26 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
             .map(([name, count]) => ({ name, count }));
     }, [events]);
 
+    // ── Resumen de Interacciones (Llamada, WhatsApp, Email) ────────────
+    const interactionSummary = useMemo<StatusSummaryItem[]>(() => {
+        if (!events) return [];
+        const map = new Map<string, number>();
+        let totalInteractions = 0;
+        events.forEach(ev => {
+            if (ev.type === 'note_added' && ev.interactionTypes) {
+                ev.interactionTypes.forEach(t => {
+                    map.set(t, (map.get(t) || 0) + 1);
+                    totalInteractions++;
+                });
+            }
+        });
+        return Array.from(map.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => ({ name, count }));
+    }, [events]);
+
+    const totalInteractions = interactionSummary.reduce((sum, item) => sum + item.count, 0);
+
     // ── Contadores de cabecera ──────────────────────────────────────────────────
     const counts = useMemo(() =>
         (events || []).reduce((acc, e) => {
@@ -231,7 +252,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
             const content = reportRef.current!;
 
             const clone = content.cloneNode(true) as HTMLElement;
-            clone.style.cssText = `width:1100px;padding:32px 40px;background:#fff;position:absolute;left:-9999px;top:0;font-family:Arial,Helvetica,sans-serif;`;
+            clone.style.cssText = `width:1400px;padding:32px 40px;background:#fff;position:absolute;left:-9999px;top:0;font-family:Arial,Helvetica,sans-serif;`;
             document.body.appendChild(clone);
 
             Array.from(clone.querySelectorAll('*')).forEach((el) => {
@@ -251,10 +272,10 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
             });
             rowBreaksPx.push(Math.round(cloneRect.height));
 
-            const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1100 });
+            const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1400 });
             document.body.removeChild(clone);
 
-            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+            const pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
             const pdfW = pdf.internal.pageSize.getWidth();
             const pdfH = pdf.internal.pageSize.getHeight();
             const MARGIN = 12;
@@ -313,7 +334,8 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
 
     // ─── Render ──────────────────────────────────────────────────────────────────
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Actividad de Leads" size="4xl">
+        <Modal isOpen={isOpen} onClose={onClose} title="Actividad de Leads" size="7xl">
+            <div className="flex flex-col gap-5 relative h-full">
             {isExporting && (
                 <div className="fixed inset-0 z-[100] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in select-none">
                     <div className="relative">
@@ -429,6 +451,32 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                             </div>
                         )}
 
+                        {/* ── Desglose de Tipos de Interacción ── */}
+                        {interactionSummary.length > 0 && (
+                            <div className="rounded-xl border border-purple-100 dark:border-purple-900/40 bg-purple-50/50 dark:bg-purple-900/10 p-4 mt-4">
+                                <h4 className="text-sm font-bold text-purple-800 dark:text-purple-300 mb-3 flex items-center gap-2">
+                                    💬 Desglose de Tipos de Interacción
+                                    <span className="text-xs font-normal text-purple-600 dark:text-purple-400">
+                                        ({totalInteractions} interacciones totales)
+                                    </span>
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {interactionSummary.map(({ name, count }) => {
+                                        const pct = totalInteractions ? Math.round((count / totalInteractions) * 100) : 0;
+                                        return (
+                                            <div key={name} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-800 shadow-sm">
+                                                <span className="text-lg font-black text-purple-700 dark:text-purple-300 leading-none">{count}</span>
+                                                <div>
+                                                    <p className="text-xs font-semibold text-gray-800 dark:text-white leading-tight">{name}</p>
+                                                    <p className="text-[10px] text-gray-400 leading-tight">{pct}% del total</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         {/* ── Tabla de actividad ── */}
                         {events.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
@@ -443,6 +491,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                                         <tr className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 uppercase text-xs tracking-wider">
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Hora</th>
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Tipo</th>
+                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Interacción</th>
                                             <th className="px-4 py-3 text-left font-semibold">Lead</th>
                                             {showAdvisorCol && (
                                                 <th className="px-4 py-3 text-left font-semibold">
@@ -468,6 +517,17 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.bgClass} ${cfg.textClass}`}>
                                                                 {cfg.emoji} {cfg.label}
                                                             </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 align-top whitespace-nowrap">
+                                                            {ev.type === 'note_added' && ev.interactionTypes && ev.interactionTypes.length > 0 ? (
+                                                                <div className="flex flex-col gap-1">
+                                                                    {ev.interactionTypes.map(t => (
+                                                                        <span key={t} className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-100 dark:border-purple-800 w-max">
+                                                                            {t === 'Llamada telefónica' ? '📞' : t === 'WhatsApp' ? '💬' : '✉️'} {t}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            ) : <span className="text-gray-300 dark:text-gray-600">-</span>}
                                                         </td>
                                                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap align-top">
                                                             {ev.leadName}
@@ -513,6 +573,7 @@ const ActivityReportModal: React.FC<ActivityReportModalProps> = ({
                         )}
                     </div>
                 )}
+            </div>
             </div>
         </Modal>
     );

@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS public.follow_ups (
   lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE,
   date TIMESTAMPTZ NOT NULL,
   notes TEXT NOT NULL,
+  interaction_types TEXT[] DEFAULT '{}', -- [NEW] Tipos de Interacción (Llamada, WhatsApp, Email)
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );

@@ -112,6 +112,7 @@ interface ReportData {
     leadsByAdvisor: BreakdownData;
     leadsBySource: BreakdownData;
     conversionByAdvisor: ConversionBreakdownItem[];
+    interactions: { call: number; whatsapp: number; email: number };
 }
 
 const tailwindColorMap: { [key: string]: string } = {
@@ -412,21 +413,28 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             breakdown: Array.from(leadsBySourceMap.entries()).map(([id, count]) => ({ name: String(sourceMap.get(id) || 'Desconocido'), count }))
         };
 
-        // 5. Enrollments (Inscritos del Periodo)
-        // Criterios para contar como "Inscrito del periodo":
-        // A) Lead ACTUALMENTE en status 'won' (Inscrito)
-        // B) CUALQUIERA de las siguientes condiciones:
-        //    B1) La ÚLTIMA transición a 'won' ocurrió en el periodo
-        //    B2) El lead fue REGISTRADO en el periodo (para leads creados directamente como Inscrito)
-        // C) NO cuenta si tuvo 'won' pero después cambió a otro status
         let enrolledCount = 0;
         let periodAppointments = 0;
         const conversionsByAdvisor = new Map<string, number>();
+
+        // Interactions count
+        let callCount = 0;
+        let whatsappCount = 0;
+        let emailCount = 0;
 
         // Find all statuses that are 'won' category
         const wonStatusIds = new Set(statuses.filter(s => s.category === 'won').map(s => s.id));
 
         allLeads.forEach(lead => {
+            // Check interactions
+            (lead.follow_ups || []).forEach(fu => {
+                if (isInPeriod(fu.created_at) && fu.interaction_types) {
+                    if (fu.interaction_types.includes('Llamada telefónica')) callCount++;
+                    if (fu.interaction_types.includes('WhatsApp')) whatsappCount++;
+                    if (fu.interaction_types.includes('Email')) emailCount++;
+                }
+            });
+
             // A. Check if lead is CURRENTLY in a 'won' status
             const currentStatus = statuses.find(s => s.id === lead.status_id);
             if (currentStatus?.category !== 'won') return; // Skip if not currently won
@@ -481,7 +489,8 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
             updatedLeads: updatedLeadsReport,
             leadsByAdvisor: leadsByAdvisorReport,
             leadsBySource: leadsBySourceReport,
-            conversionByAdvisor: conversionBreakdown
+            conversionByAdvisor: conversionBreakdown,
+            interactions: { call: callCount, whatsapp: whatsappCount, email: emailCount }
         });
         setIsLoading(false);
     };
@@ -654,6 +663,41 @@ const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, leads, statu
                                     isExporting={isExporting}
                                 />
                             </div>
+
+                            {report.interactions && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 mt-4">
+                                    <div className={`p-4 rounded-xl border flex items-center gap-4 ${isExporting ? 'bg-purple-50 border-purple-200' : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700 shadow-sm'}`}>
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-purple-600 bg-purple-100 flex-shrink-0 text-2xl">
+                                            📞
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-black text-gray-900 dark:text-white leading-none">{report.interactions.call}</p>
+                                            <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">Llamadas</p>
+                                            <p className="text-xs text-gray-400">Llamadas telefónicas</p>
+                                        </div>
+                                    </div>
+                                    <div className={`p-4 rounded-xl border flex items-center gap-4 ${isExporting ? 'bg-green-50 border-green-200' : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700 shadow-sm'}`}>
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-green-600 bg-green-100 flex-shrink-0 text-2xl">
+                                            💬
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-black text-gray-900 dark:text-white leading-none">{report.interactions.whatsapp}</p>
+                                            <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">WhatsApp</p>
+                                            <p className="text-xs text-gray-400">Mensajes enviados</p>
+                                        </div>
+                                    </div>
+                                    <div className={`p-4 rounded-xl border flex items-center gap-4 ${isExporting ? 'bg-blue-50 border-blue-200' : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700 shadow-sm'}`}>
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-blue-600 bg-blue-100 flex-shrink-0 text-2xl">
+                                            ✉️
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-black text-gray-900 dark:text-white leading-none">{report.interactions.email}</p>
+                                            <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">Email</p>
+                                            <p className="text-xs text-gray-400">Correos electrónicos</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <ChartSection title="Estatus de Nuevos Leads" isExporting={isExporting}>

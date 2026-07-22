@@ -753,9 +753,16 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                                 </div>
 
                                                 <div>
-                                                    <div className="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[10px] font-bold mb-2 border border-blue-100 dark:border-blue-800">
-                                                        <CalendarIcon className="w-3 h-3" />
-                                                        Contacto: {item.contactDate.toLocaleDateString()}
+                                                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                        <div className="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[10px] font-bold border border-blue-100 dark:border-blue-800">
+                                                            <CalendarIcon className="w-3 h-3" />
+                                                            Contacto: {item.contactDate.toLocaleDateString()}
+                                                        </div>
+                                                        {item.data.interaction_types && item.data.interaction_types.map((type: string) => (
+                                                            <div key={type} className="inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-[10px] font-bold border border-purple-100 dark:border-purple-800">
+                                                                {type === 'Llamada telefónica' ? '📞' : type === 'WhatsApp' ? '💬' : '✉️'} {type}
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                     <ExpandableText text={item.data.notes} className="text-gray-700 dark:text-gray-200 text-sm ml-1" />
                                                 </div>
@@ -1090,7 +1097,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
 
                             onAddFollowUp(lead.id, {
                                 date: localDate.toISOString(),
-                                notes: data.notes
+                                notes: data.notes,
+                                interaction_types: data.interaction_types
                             });
                             setFollowUpModalOpen(false);
                         }}
