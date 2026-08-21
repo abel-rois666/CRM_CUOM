@@ -758,11 +758,13 @@ const App: React.FC = () => {
 
   if (isTestRoute && testToken) {
     return (
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <Suspense fallback={<LeadListSkeleton />}>
-          <VocationalTestView token={testToken} />
-        </Suspense>
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          <Suspense fallback={<LeadListSkeleton />}>
+            <VocationalTestView token={testToken} />
+          </Suspense>
+        </ThemeProvider>
+      </AuthProvider>
     );
   }
 
