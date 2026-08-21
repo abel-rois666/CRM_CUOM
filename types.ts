@@ -148,6 +148,27 @@ export interface Notification {
   link?: string;
 }
 
+export interface VocationalTest {
+  id: string;
+  lead_id: string;
+  token: string;
+  status: 'pending' | 'completed' | 'expired';
+  expires_at: string;
+  completed_at?: string | null;
+  raw_answers?: Record<number, boolean> | null;
+  calculated_interests?: Record<string, number> | null;
+  calculated_aptitudes?: Record<string, number> | null;
+  recommended_careers?: Array<{
+    name: string;
+    matchInterests: number;
+    matchAptitudes: number;
+    concordance: number;
+    cv: number;
+  }> | null;
+  created_by?: string | Profile | null;
+  created_at: string;
+}
+
 export type QuickFilterType = 'appointments_today' | 'no_followup' | 'stale_followup' | null;
 
 export interface DashboardMetrics {

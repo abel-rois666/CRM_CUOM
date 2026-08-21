@@ -64,7 +64,7 @@ const MediaCatalogSettings: React.FC = () => {
             return;
         }
 
-        const fileType = file.type.startsWith('image/') ? 'image' : 'document';
+        const fileType: 'image' | 'document' = file.type.startsWith('image/') ? 'image' : 'document';
         setIsUploading(true);
 
         try {

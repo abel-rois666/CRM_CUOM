@@ -24,10 +24,22 @@ const BulkImportModal = React.lazy(() => import('./components/BulkImportModal'))
 const AlertsModal = React.lazy(() => import('./components/AlertsModal'));
 const SetupWizard = React.lazy(() => import('./components/SetupWizard'));
 const ActivityReportModal = React.lazy(() => import('./components/ActivityReportModal'));
+const VocationalTestView = React.lazy(() => import('./components/VocationalTestView'));
+import { usePublicRoute } from './hooks/usePublicRoute';
 
 const AppContent: React.FC = () => {
+  const { isTestRoute, testToken } = usePublicRoute();
+
   const { session, profile, loading: authLoading, signOut } = useAuth();
   const { success, error: toastError, info } = useToast();
+
+  if (isTestRoute && testToken) {
+    return (
+      <Suspense fallback={<LeadListSkeleton />}>
+        <VocationalTestView token={testToken} />
+      </Suspense>
+    );
+  }
 
   const {
     loadingData,

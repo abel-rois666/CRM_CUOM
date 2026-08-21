@@ -65,6 +65,7 @@ export interface Database {
           updated_at?: string
           search_text?: string | null
         }
+          Relationships: []
       }
       profiles: {
         Row: {
@@ -91,6 +92,7 @@ export interface Database {
           preferences?: Json
           created_at?: string
         }
+          Relationships: []
       }
       statuses: {
         Row: {
@@ -111,16 +113,19 @@ export interface Database {
           color?: string
           category?: 'active' | 'won' | 'lost'
         }
+          Relationships: []
       }
       sources: {
         Row: { id: string; name: string }
         Insert: { id?: string; name: string }
         Update: { id?: string; name?: string }
+          Relationships: []
       }
       licenciaturas: {
         Row: { id: string; name: string }
         Insert: { id?: string; name: string }
         Update: { id?: string; name?: string }
+          Relationships: []
       }
       follow_ups: {
         Row: {
@@ -147,6 +152,7 @@ export interface Database {
           created_by?: string | null
           created_at?: string
         }
+          Relationships: []
       }
       appointments: {
         Row: {
@@ -185,6 +191,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+          Relationships: []
       }
       status_history: {
         Row: {
@@ -211,21 +218,25 @@ export interface Database {
           date?: string
           created_by?: string | null
         }
+          Relationships: []
       }
       whatsapp_templates: {
         Row: { id: string; name: string; content: string; created_at: string }
         Insert: { id?: string; name: string; content: string; created_at?: string }
         Update: { id?: string; name?: string; content?: string; created_at?: string }
+          Relationships: []
       }
       email_templates: {
         Row: { id: string; name: string; subject: string; body: string; design_json: Json | null; created_at: string }
         Insert: { id?: string; name: string; subject: string; body: string; design_json?: Json | null; created_at?: string }
         Update: { id?: string; name?: string; subject?: string; body?: string; design_json?: Json | null; created_at?: string }
+          Relationships: []
       }
       login_history: {
         Row: { id: string; user_id: string; login_at: string; user_agent: string | null }
         Insert: { id?: string; user_id: string; login_at?: string; user_agent?: string | null }
         Update: { id?: string; user_id?: string; login_at?: string; user_agent?: string | null }
+          Relationships: []
       }
       // ESTA ES LA TABLA QUE FALTABA Y CAUSABA EL ERROR 'NEVER'
       notifications: {
@@ -259,6 +270,7 @@ export interface Database {
           created_at?: string
           link?: string | null
         }
+          Relationships: []
       }
       organization_settings: {
         Row: {
@@ -282,6 +294,7 @@ export interface Database {
           logo_url?: string | null
           created_at?: string
         }
+          Relationships: []
       }
       media_catalog: {
         Row: {
@@ -305,6 +318,7 @@ export interface Database {
           file_url?: string
           created_at?: string
         }
+          Relationships: []
       }
       status_categories: {
         Row: {
@@ -328,11 +342,116 @@ export interface Database {
           color?: string
           order_index?: number
         }
+          Relationships: []
+      }
+      vocational_tests: {
+        Row: {
+          id: string
+          lead_id: string
+          token: string
+          status: 'pending' | 'completed' | 'expired'
+          expires_at: string
+          completed_at: string | null
+          raw_answers: any | null
+          calculated_interests: any | null
+          calculated_aptitudes: any | null
+          recommended_careers: any | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          token?: string
+          status?: 'pending' | 'completed' | 'expired'
+          expires_at?: string
+          completed_at?: string | null
+          raw_answers?: any | null
+          calculated_interests?: any | null
+          calculated_aptitudes?: any | null
+          recommended_careers?: any | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          token?: string
+          status?: 'pending' | 'completed' | 'expired'
+          expires_at?: string
+          completed_at?: string | null
+          raw_answers?: any | null
+          calculated_interests?: any | null
+          calculated_aptitudes?: any | null
+          recommended_careers?: any | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          id: string
+          lead_id: string
+          wamid: string | null
+          direction: 'inbound' | 'outbound'
+          type: string
+          body: string | null
+          media_url: string | null
+          status: string
+          timestamp: string
+          created_at: string
+          metadata: any | null
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          wamid?: string | null
+          direction: 'inbound' | 'outbound'
+          type?: string
+          body?: string | null
+          media_url?: string | null
+          status?: string
+          timestamp?: string
+          created_at?: string
+          metadata?: any | null
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          wamid?: string | null
+          direction?: 'inbound' | 'outbound'
+          type?: string
+          body?: string | null
+          media_url?: string | null
+          status?: string
+          timestamp?: string
+          created_at?: string
+          metadata?: any | null
+        }
+        Relationships: []
+      }
+      turnos: {
+        Row: { id: string; name: string }
+        Insert: { id?: string; name: string }
+        Update: { id?: string; name?: string }
+        Relationships: []
       }
     }
     Views: {
     }
     Functions: {
+      get_quick_filter_leads: {
+        Args: {
+          filter_type: string
+          requesting_user_id: string
+        }
+        Returns: any
+      }
+      get_dashboard_metrics: {
+        Args: Record<string, unknown>
+        Returns: any
+      }
       create_user_profile: {
         Args: {
           user_id: string

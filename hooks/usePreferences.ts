@@ -41,7 +41,7 @@ export const usePreferences = () => {
                 // @ts-ignore - Supabase types might not reflect the new column yet
                 const { error } = await supabase
                     .from('profiles')
-                    .update({ preferences: newPrefs })
+                    .update({ preferences: newPrefs as any })
                     .eq('id', id);
 
                 if (error) console.error('Error saving preferences:', error);

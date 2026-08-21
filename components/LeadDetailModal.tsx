@@ -1,5 +1,5 @@
 // components/LeadDetailModal.tsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, Suspense } from 'react';
 import { Lead, Profile, Status, FollowUp, Source, Appointment, Licenciatura, Turno, WhatsAppTemplate } from '../types';
 import { calculateLeadScore, getScoreColor, getScoreLabel, getScoreBreakdown } from '../utils/leadScoring';
 import Modal from './common/Modal';
@@ -27,8 +27,11 @@ import ExclamationCircleIcon from './icons/ExclamationCircleIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChevronRightIcon from './icons/ChevronRightIcon';
-import WhatsAppChat from './WhatsAppChat'; // [NEW] Chat en tiempo real
+import AcademicCapIcon from './icons/AcademicCapIcon';
 import { supabase } from '../lib/supabase'; // [NEW] Para fetch de mensajes WA
+
+const WhatsAppChat = React.lazy(() => import('./WhatsAppChat'));
+const VocationalTab = React.lazy(() => import('./VocationalTab'));
 
 const PencilIcon = EditIcon; // Alias for code compatibility
 
@@ -289,7 +292,7 @@ const CollapsibleSection: React.FC<{
 
 // --- MAIN COMPONENT ---
 const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, turnos, whatsappTemplates = [], onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info', onOpenWhatsApp, onOpenEmail }) => {
-    const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary' | 'whatsapp'>(initialTab);
+    const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary' | 'whatsapp' | 'vocational'>(initialTab as any);
 
     const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
     const [editingAppointment, setEditingAppointment] = useState<any>(null); // [NEW] Track which appointment is being edited
@@ -574,6 +577,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                             { id: 'activity', label: 'Historial', icon: <ListBulletIcon className="w-4 h-4" /> },
                             { id: 'appointments', label: 'Agenda', icon: <CalendarIcon className="w-4 h-4" /> },
                             { id: 'whatsapp', label: 'WhatsApp', icon: <ChatBubbleLeftRightIcon className="w-4 h-4" /> },
+                            { id: 'vocational', label: 'Vocacional', icon: <AcademicCapIcon className="w-4 h-4" /> },
                         ].map((tab) => (
                             <button
                                 key={tab.id}
@@ -1013,6 +1017,15 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                     whatsappTemplates={whatsappTemplates}
                                 />
 
+                            </div>
+                        )}
+
+                        {/* TAB 5: VOCACIONAL */}
+                        {activeTab === 'vocational' && (
+                            <div className="animate-fade-in">
+                                <Suspense fallback={<div className="p-8 text-center text-gray-500">Cargando módulo vocacional...</div>}>
+                                    <VocationalTab lead={lead} currentUser={currentUser} />
+                                </Suspense>
                             </div>
                         )}
 

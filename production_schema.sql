@@ -198,6 +198,22 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
   value TEXT
 );
 
+-- VOCATIONAL TESTS (Test CHASIDE V3 — Orientación Vocacional)
+CREATE TABLE IF NOT EXISTS public.vocational_tests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE NOT NULL,
+  token UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
+  status TEXT CHECK (status IN ('pending', 'completed', 'expired')) DEFAULT 'pending',
+  expires_at TIMESTAMPTZ DEFAULT (now() + interval '7 days'),
+  completed_at TIMESTAMPTZ,
+  raw_answers JSONB,
+  calculated_interests JSONB,
+  calculated_aptitudes JSONB,
+  recommended_careers JSONB,
+  created_by UUID REFERENCES public.profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- 4. TRIGGERS Y AUTOMATIZACIÓN
 -- ==============================================================================
 
@@ -250,6 +266,8 @@ CREATE INDEX IF NOT EXISTS idx_follow_ups_created_by ON public.follow_ups(create
 
 CREATE INDEX IF NOT EXISTS idx_status_history_lead_id ON public.status_history(lead_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_vocational_tests_lead_id ON public.vocational_tests(lead_id);
+CREATE INDEX IF NOT EXISTS idx_vocational_tests_token ON public.vocational_tests(token);
 CREATE INDEX IF NOT EXISTS idx_login_history_user_id ON public.login_history(user_id);
 
 -- 6. POLÍTICAS DE SEGURIDAD (RLS) - FINAL HARDENED
@@ -272,6 +290,7 @@ ALTER TABLE public.organization_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.status_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.whatsapp_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vocational_tests ENABLE ROW LEVEL SECURITY;
 
 -- Profiles
 CREATE POLICY "Staff can view all profiles" ON public.profiles FOR SELECT TO authenticated USING (true);
@@ -314,6 +333,12 @@ CREATE POLICY "Users access own notifications" ON public.notifications FOR ALL T
 CREATE POLICY "Users view own history" ON public.login_history FOR SELECT TO authenticated USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users insert login_history" ON public.login_history FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
 CREATE POLICY "Admins view all login history" ON public.login_history FOR SELECT TO authenticated USING ( public.is_role('admin') );
+
+-- Vocational Tests
+CREATE POLICY "Staff can read vocational_tests" ON public.vocational_tests FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Staff can insert vocational_tests" ON public.vocational_tests FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Anon can read vocational_tests by token" ON public.vocational_tests FOR SELECT TO anon USING (true);
+CREATE POLICY "Anon can complete pending vocational_test" ON public.vocational_tests FOR UPDATE TO anon USING (status = 'pending') WITH CHECK (status = 'completed');
 
 -- 7. FUNCIONES RPC (API DEL FRONTEND)
 -- ==============================================================================
