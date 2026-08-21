@@ -28,18 +28,8 @@ const VocationalTestView = React.lazy(() => import('./components/VocationalTestV
 import { usePublicRoute } from './hooks/usePublicRoute';
 
 const AppContent: React.FC = () => {
-  const { isTestRoute, testToken } = usePublicRoute();
-
   const { session, profile, loading: authLoading, signOut } = useAuth();
   const { success, error: toastError, info } = useToast();
-
-  if (isTestRoute && testToken) {
-    return (
-      <Suspense fallback={<LeadListSkeleton />}>
-        <VocationalTestView token={testToken} />
-      </Suspense>
-    );
-  }
 
   const {
     loadingData,
@@ -763,18 +753,32 @@ import { ModalProvider, useModal } from './context/ModalContext'; // [NEW]
 
 // ... imports
 
-const App: React.FC = () => (
-  <AuthProvider>
-    <ConfigProvider>
+const App: React.FC = () => {
+  const { isTestRoute, testToken } = usePublicRoute();
+
+  if (isTestRoute && testToken) {
+    return (
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <ToastProvider>
-          <ModalProvider>
-            <AppContent />
-          </ModalProvider>
-        </ToastProvider>
+        <Suspense fallback={<LeadListSkeleton />}>
+          <VocationalTestView token={testToken} />
+        </Suspense>
       </ThemeProvider>
-    </ConfigProvider>
-  </AuthProvider>
-);
+    );
+  }
+
+  return (
+    <AuthProvider>
+      <ConfigProvider>
+        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          <ToastProvider>
+            <ModalProvider>
+              <AppContent />
+            </ModalProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </ConfigProvider>
+    </AuthProvider>
+  );
+};
 
 export default App;

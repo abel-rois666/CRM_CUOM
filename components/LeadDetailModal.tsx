@@ -293,6 +293,7 @@ const CollapsibleSection: React.FC<{
 // --- MAIN COMPONENT ---
 const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead, advisors, statuses, sources, licenciaturas, turnos, whatsappTemplates = [], onAddFollowUp, onDeleteFollowUp, onUpdateLead, onSaveAppointment, onUpdateAppointmentStatus, onDeleteAppointment, onTransferLead, currentUser, initialTab = 'info', onOpenWhatsApp, onOpenEmail }) => {
     const [activeTab, setActiveTab] = useState<'info' | 'activity' | 'appointments' | 'summary' | 'whatsapp' | 'vocational'>(initialTab as any);
+    const [whatsappInitialMessage, setWhatsappInitialMessage] = useState('');
 
     const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
     const [editingAppointment, setEditingAppointment] = useState<any>(null); // [NEW] Track which appointment is being edited
@@ -1015,6 +1016,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                     lead={lead}
                                     licenciaturas={licenciaturas}
                                     whatsappTemplates={whatsappTemplates}
+                                    initialMessage={whatsappInitialMessage}
                                 />
 
                             </div>
@@ -1024,7 +1026,14 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                         {activeTab === 'vocational' && (
                             <div className="animate-fade-in">
                                 <Suspense fallback={<div className="p-8 text-center text-gray-500">Cargando módulo vocacional...</div>}>
-                                    <VocationalTab lead={lead} currentUser={currentUser} />
+                                    <VocationalTab 
+                                        lead={lead} 
+                                        currentUser={currentUser} 
+                                        onNavigateToWhatsApp={(msg) => {
+                                            setWhatsappInitialMessage(msg);
+                                            setActiveTab('whatsapp');
+                                        }}
+                                    />
                                 </Suspense>
                             </div>
                         )}

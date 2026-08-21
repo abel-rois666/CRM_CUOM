@@ -11,6 +11,7 @@ import { generateVocationalPDF } from '../utils/reports';
 interface VocationalTabProps {
     lead: Lead;
     currentUser: Profile;
+    onNavigateToWhatsApp?: (message: string) => void;
 }
 
 const AREA_LABELS: Record<string, string> = {
@@ -23,7 +24,7 @@ const AREA_LABELS: Record<string, string> = {
     E: 'Exactas',
 };
 
-const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser }) => {
+const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavigateToWhatsApp }) => {
     const [tests, setTests] = useState<VocationalTest[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -83,7 +84,11 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser }) => {
     const openWhatsApp = (token: string) => {
         const url = `${window.location.origin}/?test=true&token=${token}`;
         const message = `¡Hola! Aquí tienes el enlace para realizar tu Test de Orientación Vocacional: ${url}`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        if (onNavigateToWhatsApp) {
+            onNavigateToWhatsApp(message);
+        } else {
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        }
     };
 
     const handleDownloadPDF = async (testData: VocationalTest) => {

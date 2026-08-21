@@ -26,6 +26,7 @@ interface WhatsAppChatProps {
   lead         : Lead;           // necesario para la IA
   licenciaturas: Licenciatura[]; // necesario para la IA
   whatsappTemplates?: import('../types').WhatsAppTemplate[];
+  initialMessage?  : string;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +62,7 @@ const groupByDate = (messages: WhatsAppMessage[]) => {
 // ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
-const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenciaturas, whatsappTemplates = [] }) => {
+const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenciaturas, whatsappTemplates = [], initialMessage = '' }) => {
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -73,7 +74,7 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Focus trick
-  const [inputValueForChild, setInputValueForChild] = useState('');
+  const [inputValueForChild, setInputValueForChild] = useState(initialMessage);
 
   // -------------------------------------------------------------------------
   // Auto-scroll
@@ -423,6 +424,7 @@ const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ leadId, phone, lead, licenc
           placeholder="Escribe un mensaje..."
           whatsappTemplates={whatsappTemplates}
           isLocked={!isLoading && !([...messages].reverse().find(m => m.direction === 'inbound') ? ((Date.now() - new Date([...messages].reverse().find(m => m.direction === 'inbound')!.created_at).getTime()) / (1000 * 60 * 60) <= 24) : false) && !overrideWindowBlock}
+          initialMessage={inputValueForChild}
         />
       </div>
     </div>
