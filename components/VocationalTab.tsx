@@ -5,8 +5,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import PlusIcon from './icons/PlusIcon';
 import ClipboardIcon from './icons/ClipboardIcon';
 import LinkIcon from './icons/LinkIcon';
+import TrashIcon from './icons/TrashIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
 import { generateVocationalPDF } from '../utils/reports';
+import { useToast } from '../context/ToastContext';
 
 interface VocationalTabProps {
     lead: Lead;
@@ -29,6 +31,7 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { success, error: toastError } = useToast();
 
     const fetchTests = async () => {
         setLoading(true);
@@ -99,6 +102,26 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
         }
     };
 
+    const deleteTest = async (testId: string) => {
+        if (!confirm("¿Estás seguro de que deseas eliminar este test? Si el prospecto intenta abrir el enlace, le marcará que es inválido.")) {
+            return;
+        }
+        
+        try {
+            const { error } = await supabase
+                .from('vocational_tests')
+                .delete()
+                .eq('id', testId);
+                
+            if (error) throw error;
+            
+            success("Test eliminado correctamente");
+            setTests(tests.filter(t => t.id !== testId));
+        } catch (err: any) {
+            toastError(err.message || "Error al eliminar el test");
+        }
+    };
+
     if (loading) {
         return <div className="p-8 text-center text-gray-500">Cargando historial de tests...</div>;
     }
@@ -164,6 +187,13 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
                                                 <ClipboardIcon className="w-5 h-5" />
                                             </button>
                                             <button
+                                                onClick={() => deleteTest(test.id)}
+                                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                                                title="Eliminar Enlace"
+                                            >
+                                                <TrashIcon className="w-5 h-5" />
+                                            </button>
+                                            <button
                                                 onClick={() => openWhatsApp(test.token)}
                                                 className="px-3 py-1.5 bg-[#25D366] text-white text-sm font-medium rounded-md hover:bg-[#128C7E] transition-colors"
                                             >
@@ -197,13 +227,22 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
                                                 Realizado el: {new Date(test.completed_at!).toLocaleString()}
                                             </p>
                                         </div>
-                                        <button
-                                            onClick={() => handleDownloadPDF(test)}
-                                            className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium"
-                                        >
-                                            <DocumentTextIcon className="w-4 h-4 mr-2" />
-                                            Descargar PDF
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => deleteTest(test.id)}
+                                                className="flex items-center px-3 py-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors text-sm font-medium"
+                                                title="Eliminar Test"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDownloadPDF(test)}
+                                                className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium"
+                                            >
+                                                <DocumentTextIcon className="w-4 h-4 mr-2" />
+                                                Descargar PDF
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
