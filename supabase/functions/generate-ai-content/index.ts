@@ -52,9 +52,9 @@ serve(async (req) => {
 
         // 5. Define Groq fallback model chain
         const fallbackModels = [
-            "qwen/qwen3.6-27b",    // Modelo principal (Excelente velocidad y muy bueno redactando en español)
-            "openai/gpt-oss-20b",  // Respaldo 1 (Rápido y eficiente para mensajes cortos)
-            "groq/compound-mini"   // Respaldo 2 (Por si los demás saturan)
+            "openai/gpt-oss-20b",  // Modelo principal (Más directo, sin tags de pensamiento)
+            "qwen/qwen3.6-27b",    // Respaldo 1
+            "groq/compound-mini"   // Respaldo 2
         ]
 
         let lastError = ''
@@ -76,7 +76,12 @@ serve(async (req) => {
 
             if (response.ok) {
                 const data = await response.json()
-                generatedText = data.choices?.[0]?.message?.content || "No content generated"
+                let text = data.choices?.[0]?.message?.content || "No content generated"
+                
+                // Remover el bloque <think> ... </think> que generan algunos modelos de razonamiento (ej. Qwen/DeepSeek)
+                text = text.replace(/<think>[\s\S]*?<\/think>\n*/g, '').trim()
+                
+                generatedText = text
                 console.log('Success with model:', currentModel)
                 break
             }
