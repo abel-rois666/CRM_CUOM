@@ -111,7 +111,14 @@ Top 3 Carreras recomendadas:
 Puntajes de Intereses (0-100): ${JSON.stringify(test.calculated_interests)}
 Puntajes de Aptitudes (0-100): ${JSON.stringify(test.calculated_aptitudes)}
 
-Realiza un resumen breve de la representación gráfica de las áreas CHASIDE (intereses vs aptitudes), y una interpretación poniendo énfasis en la carrera con mayor puntaje y el top 3. Responde directamente con el análisis profesional y estructurado, sin rodeos.`;
+Redacta una interpretación muy sencilla, amigable y no técnica para que cualquier persona la pueda entender fácilmente. Explica de forma breve qué significan sus áreas más fuertes, y por qué el test le sugiere principalmente la carrera #1, junto con sus otras opciones del top 3. 
+
+REGLAS ESTRICTAS:
+- NO incluyas tablas de puntajes ni listas de números.
+- NO uses lenguaje técnico complicado.
+- NO incluyas recomendaciones prácticas ni pasos a seguir.
+- Redacta de 1 a 3 párrafos fluidos y directos.
+- Responde directamente con el análisis, sin saludos ni preámbulos.`;
 
             const { data, error } = await supabase.functions.invoke('generate-ai-content', {
                 body: { instruction: prompt, context: "Interpretación experta de resultados del test vocacional CHASIDE." }
