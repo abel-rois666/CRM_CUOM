@@ -760,7 +760,11 @@ const App: React.FC = () => {
     return (
       <AuthProvider>
         <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-          <Suspense fallback={<LeadListSkeleton />}>
+          <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
+            </div>
+          }>
             <VocationalTestView token={testToken} />
           </Suspense>
         </ThemeProvider>
