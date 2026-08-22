@@ -772,6 +772,12 @@ const App: React.FC = () => {
     );
   }
 
+  // Redirección de seguridad para el subdominio público
+  if (window.location.hostname === 'vocational.cuom.edu.mx') {
+    window.location.href = 'https://cuom.edu.mx';
+    return null;
+  }
+
   return (
     <AuthProvider>
       <ConfigProvider>
