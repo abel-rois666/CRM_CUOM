@@ -120,8 +120,11 @@ export const generateVocationalPDF = async (
     // -- Lead Info --
     doc.setFontSize(11);
     doc.setTextColor(75, 85, 99); // gray-600
-    doc.text(`Aspirante: ${lead.first_name} ${lead.paternal_last_name} ${lead.maternal_last_name}`, 14, 45);
-    doc.text(`Contacto: ${lead.phone} | ${lead.email}`, 14, 52);
+    const fullName = [lead.first_name, lead.paternal_last_name, lead.maternal_last_name].filter(Boolean).join(' ');
+    doc.text(`Aspirante: ${fullName}`, 14, 45);
+    
+    const contactInfo = [lead.phone, lead.email].filter(Boolean).join(' | ');
+    doc.text(`Contacto: ${contactInfo}`, 14, 52);
     doc.text(`Fecha del test: ${format(new Date(testData.completed_at || testData.created_at), 'dd/MM/yyyy HH:mm', { locale: es })}`, 14, 59);
 
     doc.setDrawColor(229, 231, 235); // gray-200
@@ -139,16 +142,28 @@ export const generateVocationalPDF = async (
     
     top3.forEach((career, index) => {
         // Draw a soft box
-        doc.setFillColor(243, 244, 246); // gray-100
+        if (index === 0) {
+            doc.setFillColor(254, 243, 199); // amber-100 for 1st place
+        } else {
+            doc.setFillColor(243, 244, 246); // gray-100
+        }
         doc.roundedRect(14, startY, pageWidth - 28, 16, 2, 2, 'F');
         
         doc.setFontSize(12);
-        doc.setTextColor(31, 41, 55);
+        if (index === 0) {
+            doc.setTextColor(180, 83, 9); // amber-700
+        } else {
+            doc.setTextColor(31, 41, 55); // gray-800
+        }
         doc.text(`${index + 1}. ${career.name}`, 20, startY + 11);
         
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 64, 175);
+        if (index === 0) {
+            doc.setTextColor(180, 83, 9); // amber-700
+        } else {
+            doc.setTextColor(30, 64, 175); // brand-primary
+        }
         doc.text(`${career.cv}% CV`, pageWidth - 40, startY + 11);
         doc.setFont('helvetica', 'normal');
         
@@ -184,6 +199,16 @@ export const generateVocationalPDF = async (
             2: { halign: 'center' },
             3: { halign: 'center' },
             4: { halign: 'center', fontStyle: 'bold', textColor: [30, 64, 175] }
+        },
+        didParseCell: (data) => {
+            // Highlight first row
+            if (data.section === 'body' && data.row.index === 0) {
+                data.cell.styles.fillColor = [254, 243, 199]; // amber-100
+                data.cell.styles.textColor = [180, 83, 9]; // amber-700
+                if (data.column.index === 4) {
+                    data.cell.styles.textColor = [180, 83, 9]; // keep amber for CV column too
+                }
+            }
         }
     });
 
@@ -191,6 +216,9 @@ export const generateVocationalPDF = async (
     let finalY = (doc as any).lastAutoTable.finalY + 15;
     
     if (testData.ai_analysis) {
+        doc.addPage();
+        finalY = 20;
+
         doc.setFontSize(14);
         doc.setTextColor(31, 41, 55);
         doc.setFont('helvetica', 'bold');
@@ -202,12 +230,6 @@ export const generateVocationalPDF = async (
         doc.setTextColor(55, 65, 81);
         
         const splitText = doc.splitTextToSize(testData.ai_analysis, pageWidth - 28);
-        // Check if text goes beyond page, if so add a new page (autoTable does this automatically, but for text we must check manually if it's very long. Since AI analysis is short, a simple check works)
-        if (finalY + (splitText.length * 5) > doc.internal.pageSize.height - 20) {
-            doc.addPage();
-            finalY = 20;
-        }
-        
         doc.text(splitText, 14, finalY);
         finalY += splitText.length * 5 + 10;
     }
