@@ -79,13 +79,13 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
     };
 
     const copyToClipboard = (token: string) => {
-        const url = `https://vocational.cuom.edu.mx/?test=true&token=${token}`;
+        const url = `https://vocacional.cuom.edu.mx/?test=true&token=${token}`;
         navigator.clipboard.writeText(url);
         success('¡Enlace copiado al portapapeles!');
     };
 
     const openWhatsApp = (token: string) => {
-        const url = `https://vocational.cuom.edu.mx/?test=true&token=${token}`;
+        const url = `https://vocacional.cuom.edu.mx/?test=true&token=${token}`;
         const message = `¡Hola! Aquí tienes el enlace para realizar tu Test de Orientación Vocacional: ${url}`;
         if (onNavigateToWhatsApp) {
             onNavigateToWhatsApp(message);
@@ -159,7 +159,7 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
                 <div className="space-y-6">
                     {tests.map((test) => {
                         if (test.status === 'pending') {
-                            const testUrl = `https://vocational.cuom.edu.mx/?test=true&token=${test.token}`;
+                            const testUrl = `https://vocacional.cuom.edu.mx/?test=true&token=${test.token}`;
                             return (
                                 <div key={test.id} className="p-6 bg-white border border-amber-200 rounded-xl shadow-sm">
                                     <div className="flex justify-between items-start mb-4">
