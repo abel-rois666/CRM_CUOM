@@ -174,6 +174,7 @@ export interface VocationalTest {
     concordance: number;
     cv: number;
   }> | null;
+  ai_analysis?: string | null;
   created_by?: string | Profile | null;
   created_at: string;
 }

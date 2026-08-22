@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { VocationalTest, Profile, Lead } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, LabelList } from 'recharts';
 import PlusIcon from './icons/PlusIcon';
 import ClipboardIcon from './icons/ClipboardIcon';
 import LinkIcon from './icons/LinkIcon';
 import TrashIcon from './icons/TrashIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
+import SparklesIcon from './icons/SparklesIcon';
 import { generateVocationalPDF } from '../utils/reports';
 import { useToast } from '../context/ToastContext';
 
@@ -30,6 +31,7 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
     const [tests, setTests] = useState<VocationalTest[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isAnalyzingId, setIsAnalyzingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const { success, error: toastError } = useToast();
 
@@ -85,12 +87,54 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
     };
 
     const openWhatsApp = (token: string) => {
-        const url = `https://vocacional.cuom.edu.mx/?test=true&token=${token}`;
-        const message = `¡Hola! Aquí tienes el enlace para realizar tu Test de Orientación Vocacional: ${url}`;
+        const testUrl = `https://vocacional.cuom.edu.mx/?test=true&token=${token}`;
+        const defaultMsg = `¡Hola! Aquí tienes el enlace para realizar tu Test Vocacional CHASIDE: ${testUrl}`;
         if (onNavigateToWhatsApp) {
-            onNavigateToWhatsApp(message);
+            onNavigateToWhatsApp(defaultMsg);
         } else {
-            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+            const encodedMsg = encodeURIComponent(defaultMsg);
+            window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}?text=${encodedMsg}`, '_blank');
+        }
+    };
+
+    const handleGenerateChasideAnalysis = async (test: VocationalTest) => {
+        if (!test.calculated_interests || !test.calculated_aptitudes || !test.recommended_careers) return;
+        
+        setIsAnalyzingId(test.id);
+        try {
+            const prompt = `Actúa como un experto orientador vocacional. He aquí los resultados del test CHASIDE de un alumno.
+Top 3 Carreras recomendadas:
+1. ${test.recommended_careers[0].name} (${test.recommended_careers[0].cv}%)
+2. ${test.recommended_careers[1].name} (${test.recommended_careers[1].cv}%)
+3. ${test.recommended_careers[2].name} (${test.recommended_careers[2].cv}%)
+
+Puntajes de Intereses (0-100): ${JSON.stringify(test.calculated_interests)}
+Puntajes de Aptitudes (0-100): ${JSON.stringify(test.calculated_aptitudes)}
+
+Realiza un resumen breve de la representación gráfica de las áreas CHASIDE (intereses vs aptitudes), y una interpretación poniendo énfasis en la carrera con mayor puntaje y el top 3. Responde directamente con el análisis profesional y estructurado, sin rodeos.`;
+
+            const { data, error } = await supabase.functions.invoke('generate-ai-content', {
+                body: { prompt, context: "Interpretación experta de resultados del test vocacional CHASIDE." }
+            });
+
+            if (error) throw error;
+            
+            const analysis = data.content || "No se pudo generar el análisis.";
+
+            const { error: updateError } = await supabase
+                .from('vocational_tests')
+                .update({ ai_analysis: analysis })
+                .eq('id', test.id);
+                
+            if (updateError) throw updateError;
+            
+            setTests(tests.map(t => t.id === test.id ? { ...t, ai_analysis: analysis } : t));
+            success('Análisis generado y guardado correctamente.');
+        } catch (error: any) {
+            console.error('Error generando análisis:', error);
+            toastError('Hubo un error al generar el análisis.');
+        } finally {
+            setIsAnalyzingId(null);
         }
     };
 
@@ -256,7 +300,9 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
                                                         <XAxis type="number" domain={[0, 100]} />
                                                         <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
                                                         <Tooltip formatter={(value: number) => `${value}%`} />
-                                                        <Bar dataKey="cv" fill="#0EA5E9" name="Compatibilidad Vocacional" radius={[0, 4, 4, 0]} />
+                                                        <Bar dataKey="cv" fill="#0EA5E9" name="Compatibilidad Vocacional" radius={[0, 4, 4, 0]}>
+                                                            <LabelList dataKey="cv" position="right" formatter={(val: number) => val + '%'} style={{ fontSize: '12px', fill: '#4B5563' }} />
+                                                        </Bar>
                                                     </BarChart>
                                                 </ResponsiveContainer>
                                             </div>
@@ -308,6 +354,32 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
                                                 </tbody>
                                             </table>
                                         </div>
+                                    </div>
+
+                                    {/* AI Interpretation Section */}
+                                    <div className="mt-8 bg-indigo-50/50 p-6 rounded-xl border border-indigo-100">
+                                        <h4 className="text-md font-bold text-indigo-900 mb-3 flex items-center">
+                                            <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" />
+                                            Interpretación Inteligente (IA)
+                                        </h4>
+                                        {test.ai_analysis ? (
+                                            <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                                {test.ai_analysis}
+                                            </div>
+                                        ) : (
+                                            <div data-html2canvas-ignore="true" className="flex flex-col items-start">
+                                                <p className="text-sm text-gray-600 mb-3">
+                                                    Genera un análisis experto cruzando los resultados de intereses y aptitudes con el top de carreras recomendadas.
+                                                </p>
+                                                <button
+                                                    onClick={() => handleGenerateChasideAnalysis(test)}
+                                                    disabled={isAnalyzingId === test.id}
+                                                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                                                >
+                                                    {isAnalyzingId === test.id ? 'Generando Análisis...' : '✨ Generar Análisis Profesional'}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
