@@ -47,6 +47,11 @@ CREATE POLICY "Staff can update vocational_tests"
   ON public.vocational_tests FOR UPDATE
   TO authenticated USING (true);
 
+-- Usuarios autenticados pueden eliminar (cancelar) tests
+CREATE POLICY "Staff can delete vocational_tests"
+  ON public.vocational_tests FOR DELETE
+  TO authenticated USING (true);
+
 -- Acceso anónimo de escritura SOLO si el test está pendiente
 CREATE POLICY "Anon can complete pending vocational_test"
   ON public.vocational_tests FOR UPDATE

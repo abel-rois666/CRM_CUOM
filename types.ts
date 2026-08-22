@@ -82,6 +82,14 @@ export interface StatusChange {
 }
 
 // --- Entidad Principal: Lead ---
+export interface EnrollmentStatus {
+  pago: 'Pendiente' | 'Parcial' | 'Completo';
+  documentacion_inscripcion: 'Pendiente' | 'Parcial' | 'Completo';
+  acta_nacimiento: 'Pendiente' | 'Original y Copia' | 'Original' | 'Copia' | 'Comprobante trámite';
+  certificado_bachillerato: 'Pendiente' | 'Original y Copia' | 'Original' | 'Copia' | 'Comprobante trámite o Historial Académico';
+  fotografias: 'Pendiente' | 'Entregadas';
+}
+
 export interface Lead {
   id: string;
   first_name: string;
@@ -102,6 +110,7 @@ export interface Lead {
   status_history?: StatusChange[];
   has_unread_messages?: boolean;
   turno_id?: string | null;
+  enrollment_status?: EnrollmentStatus;
 }
 
 // --- Plantillas ---
