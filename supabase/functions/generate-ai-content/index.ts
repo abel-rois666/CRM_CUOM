@@ -52,8 +52,9 @@ serve(async (req) => {
 
         // 5. Define Groq fallback model chain
         const fallbackModels = [
-            "llama-3.3-70b-versatile", // Modelo principal
-            "qwen/qwen3-32b",           // Modelo de respaldo
+            "qwen/qwen3.6-27b",    // Modelo principal (Excelente velocidad y muy bueno redactando en español)
+            "openai/gpt-oss-20b",  // Respaldo 1 (Rápido y eficiente para mensajes cortos)
+            "groq/compound-mini"   // Respaldo 2 (Por si los demás saturan)
         ]
 
         let lastError = ''
