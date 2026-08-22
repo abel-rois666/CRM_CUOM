@@ -114,7 +114,7 @@ Puntajes de Aptitudes (0-100): ${JSON.stringify(test.calculated_aptitudes)}
 Realiza un resumen breve de la representación gráfica de las áreas CHASIDE (intereses vs aptitudes), y una interpretación poniendo énfasis en la carrera con mayor puntaje y el top 3. Responde directamente con el análisis profesional y estructurado, sin rodeos.`;
 
             const { data, error } = await supabase.functions.invoke('generate-ai-content', {
-                body: { prompt, context: "Interpretación experta de resultados del test vocacional CHASIDE." }
+                body: { instruction: prompt, context: "Interpretación experta de resultados del test vocacional CHASIDE." }
             });
 
             if (error) throw error;
@@ -163,6 +163,23 @@ Realiza un resumen breve de la representación gráfica de las áreas CHASIDE (i
             setTests(tests.filter(t => t.id !== testId));
         } catch (err: any) {
             toastError(err.message || "Error al eliminar el test");
+        }
+    };
+
+    const handleDeleteChasideAnalysis = async (testId: string) => {
+        try {
+            const { error: updateError } = await supabase
+                .from('vocational_tests')
+                .update({ ai_analysis: null })
+                .eq('id', testId);
+                
+            if (updateError) throw updateError;
+            
+            setTests(tests.map(t => t.id === testId ? { ...t, ai_analysis: null } : t));
+            success('Análisis eliminado correctamente.');
+        } catch (error: any) {
+            console.error('Error eliminando análisis:', error);
+            toastError('Hubo un error al eliminar el análisis.');
         }
     };
 
@@ -357,24 +374,48 @@ Realiza un resumen breve de la representación gráfica de las áreas CHASIDE (i
                                     </div>
 
                                     {/* AI Interpretation Section */}
-                                    <div className="mt-8 bg-indigo-50/50 p-6 rounded-xl border border-indigo-100">
-                                        <h4 className="text-md font-bold text-indigo-900 mb-3 flex items-center">
-                                            <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" />
-                                            Interpretación Inteligente (IA)
-                                        </h4>
+                                    <div className="mt-8 bg-indigo-50/50 p-6 rounded-xl border border-indigo-100 relative group">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="text-md font-bold text-indigo-900 flex items-center">
+                                                <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" />
+                                                Interpretación Inteligente (IA)
+                                            </h4>
+                                            
+                                            {/* Action buttons (only visible on hover or if analysis exists) */}
+                                            {test.ai_analysis && (
+                                                <div data-html2canvas-ignore="true" className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => handleGenerateChasideAnalysis(test)}
+                                                        disabled={isAnalyzingId === test.id}
+                                                        className="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors disabled:opacity-50"
+                                                        title="Regenerar Análisis"
+                                                    >
+                                                        {isAnalyzingId === test.id ? <span className="text-xs">⏳</span> : <SparklesIcon className="w-4 h-4" />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteChasideAnalysis(test.id)}
+                                                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                        title="Eliminar Análisis"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
                                         {test.ai_analysis ? (
                                             <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                                                 {test.ai_analysis}
                                             </div>
                                         ) : (
-                                            <div data-html2canvas-ignore="true" className="flex flex-col items-start">
+                                            <div data-html2canvas-ignore="true" className="flex flex-col items-start mt-2">
                                                 <p className="text-sm text-gray-600 mb-3">
                                                     Genera un análisis experto cruzando los resultados de intereses y aptitudes con el top de carreras recomendadas.
                                                 </p>
                                                 <button
                                                     onClick={() => handleGenerateChasideAnalysis(test)}
                                                     disabled={isAnalyzingId === test.id}
-                                                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                                                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
                                                 >
                                                     {isAnalyzingId === test.id ? 'Generando Análisis...' : '✨ Generar Análisis Profesional'}
                                                 </button>
