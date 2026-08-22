@@ -404,6 +404,23 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
         onUpdateLead(lead.id, { [e.target.name]: e.target.value });
     };
 
+    const handleEnrollmentStatusChange = (field: string, value: string) => {
+        const currentStatus = lead.enrollment_status || {
+            pago: 'Pendiente',
+            documentacion_inscripcion: 'Pendiente',
+            acta_nacimiento: 'Pendiente',
+            certificado_bachillerato: 'Pendiente',
+            fotografias: 'Pendiente'
+        };
+        
+        onUpdateLead(lead.id, {
+            enrollment_status: {
+                ...currentStatus,
+                [field]: value
+            } as any
+        });
+    };
+
     // [NEW] Estados para resumen inteligente del lead
     const [summary, setSummary] = useState<string | null>(null);
     const [isSummarizing, setIsSummarizing] = useState(false);
@@ -717,6 +734,76 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                             </Button>
                                         </div>
                                     </div>
+
+                                    {/* [NEW] Sección de Documentación y Pagos */}
+                                    <div className="bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm mt-3 sm:mt-4">
+                                        <h5 className="font-bold text-gray-800 dark:text-white mb-3 text-xs sm:text-sm uppercase tracking-wide border-b border-gray-100 dark:border-slate-700 pb-2">Documentación y Pagos</h5>
+                                        <div className="space-y-3">
+                                            <Select
+                                                label="Pago"
+                                                name="pago"
+                                                value={lead.enrollment_status?.pago || 'Pendiente'}
+                                                onChange={(e) => handleEnrollmentStatusChange('pago', e.target.value)}
+                                                className="text-xs py-1.5"
+                                                options={[
+                                                    { value: 'Pendiente', label: 'Pendiente' },
+                                                    { value: 'Parcial', label: 'Parcial' },
+                                                    { value: 'Completo', label: 'Completo' }
+                                                ]}
+                                            />
+                                            <Select
+                                                label="Llenado de inscripción"
+                                                name="documentacion_inscripcion"
+                                                value={lead.enrollment_status?.documentacion_inscripcion || 'Pendiente'}
+                                                onChange={(e) => handleEnrollmentStatusChange('documentacion_inscripcion', e.target.value)}
+                                                className="text-xs py-1.5"
+                                                options={[
+                                                    { value: 'Pendiente', label: 'Pendiente' },
+                                                    { value: 'Parcial', label: 'Parcial' },
+                                                    { value: 'Completo', label: 'Completo' }
+                                                ]}
+                                            />
+                                            <Select
+                                                label="Acta de nacimiento"
+                                                name="acta_nacimiento"
+                                                value={lead.enrollment_status?.acta_nacimiento || 'Pendiente'}
+                                                onChange={(e) => handleEnrollmentStatusChange('acta_nacimiento', e.target.value)}
+                                                className="text-xs py-1.5"
+                                                options={[
+                                                    { value: 'Pendiente', label: 'Pendiente' },
+                                                    { value: 'Original y Copia', label: 'Original y Copia' },
+                                                    { value: 'Original', label: 'Original' },
+                                                    { value: 'Copia', label: 'Copia' },
+                                                    { value: 'Comprobante trámite', label: 'Comprobante trámite' }
+                                                ]}
+                                            />
+                                            <Select
+                                                label="Certificado Bachillerato"
+                                                name="certificado_bachillerato"
+                                                value={lead.enrollment_status?.certificado_bachillerato || 'Pendiente'}
+                                                onChange={(e) => handleEnrollmentStatusChange('certificado_bachillerato', e.target.value)}
+                                                className="text-xs py-1.5"
+                                                options={[
+                                                    { value: 'Pendiente', label: 'Pendiente' },
+                                                    { value: 'Original y Copia', label: 'Original y Copia' },
+                                                    { value: 'Original', label: 'Original' },
+                                                    { value: 'Copia', label: 'Copia' },
+                                                    { value: 'Comprobante trámite o Historial Académico', label: 'Comprobante trámite o Historial Académico' }
+                                                ]}
+                                            />
+                                            <Select
+                                                label="2 Fotografías"
+                                                name="fotografias"
+                                                value={lead.enrollment_status?.fotografias || 'Pendiente'}
+                                                onChange={(e) => handleEnrollmentStatusChange('fotografias', e.target.value)}
+                                                className="text-xs py-1.5"
+                                                options={[
+                                                    { value: 'Pendiente', label: 'Pendiente' },
+                                                    { value: 'Entregadas', label: 'Entregadas' }
+                                                ]}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1009,16 +1096,18 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                     )}
                                 </div>
 
-                                {/* Chat en tiempo real */}
-                                <WhatsAppChat
-                                    leadId={lead.id}
-                                    phone={lead.phone}
-                                    lead={lead}
-                                    licenciaturas={licenciaturas}
-                                    whatsappTemplates={whatsappTemplates}
-                                    initialMessage={whatsappInitialMessage}
-                                />
-
+                                <div className="flex-1 bg-gray-50/50 dark:bg-slate-800 rounded-xl overflow-hidden shadow-inner border border-gray-100 dark:border-slate-700">
+                                    <Suspense fallback={<div className="p-8 text-center text-gray-500">Cargando Chat...</div>}>
+                                        <WhatsAppChat
+                                            leadId={lead.id}
+                                            phone={lead.phone}
+                                            lead={lead}
+                                            licenciaturas={licenciaturas}
+                                            whatsappTemplates={whatsappTemplates}
+                                            initialMessage={whatsappInitialMessage}
+                                        />
+                                    </Suspense>
+                                </div>
                             </div>
                         )}
 
