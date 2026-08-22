@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { VocationalTest, Profile, Lead } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, LabelList, Cell } from 'recharts';
 import PlusIcon from './icons/PlusIcon';
 import ClipboardIcon from './icons/ClipboardIcon';
 import LinkIcon from './icons/LinkIcon';
@@ -324,7 +324,10 @@ REGLAS ESTRICTAS:
                                                         <XAxis type="number" domain={[0, 100]} />
                                                         <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
                                                         <Tooltip formatter={(value: number) => `${value}%`} />
-                                                        <Bar dataKey="cv" fill="#0EA5E9" name="Compatibilidad Vocacional" radius={[0, 4, 4, 0]}>
+                                                        <Bar dataKey="cv" name="Compatibilidad Vocacional" radius={[0, 4, 4, 0]}>
+                                                            {topCareers.map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={index === 0 ? "#F59E0B" : "#0EA5E9"} />
+                                                            ))}
                                                             <LabelList dataKey="cv" position="right" formatter={(val: number) => val + '%'} style={{ fontSize: '12px', fill: '#4B5563' }} />
                                                         </Bar>
                                                     </BarChart>
@@ -367,7 +370,7 @@ REGLAS ESTRICTAS:
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100 bg-white">
                                                     {test.recommended_careers.map((career, idx) => (
-                                                        <tr key={idx} className={idx < 3 ? 'bg-blue-50/30' : ''}>
+                                                        <tr key={idx} className={idx === 0 ? 'bg-amber-50 border-l-4 border-amber-500' : idx < 3 ? 'bg-blue-50/30 border-l-4 border-transparent' : 'border-l-4 border-transparent'}>
                                                             <td className="px-4 py-3 font-medium text-gray-800">{career.name}</td>
                                                             <td className="px-4 py-3 text-gray-600">{career.matchInterests}%</td>
                                                             <td className="px-4 py-3 text-gray-600">{career.matchAptitudes}%</td>
