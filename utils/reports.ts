@@ -155,38 +155,26 @@ export const generateVocationalPDF = async (
         startY += 20;
     });
 
-    // -- Breakdown Table --
+    // -- Breakdown Table (Careers) --
     doc.setFontSize(14);
     doc.setTextColor(31, 41, 55);
     doc.setFont('helvetica', 'bold');
-    doc.text('Desglose Técnico', 14, startY + 10);
+    doc.text('Detalle del Ranking', 14, startY + 10);
     doc.setFont('helvetica', 'normal');
 
-    const AREA_LABELS: Record<string, string> = {
-        C: 'C - Administrativo/Contable',
-        H: 'H - Humanístico/Social',
-        A: 'A - Artístico/Creativo',
-        S: 'S - Ciencias de la Salud',
-        I: 'I - Ingeniería/Tecnología',
-        D: 'D - Defensa/Seguridad',
-        E: 'E - Ciencias Exactas',
-    };
-
-    const tableData = Object.keys(AREA_LABELS).map(key => {
-        const interest = testData.calculated_interests?.[key] || 0;
-        const aptitude = testData.calculated_aptitudes?.[key] || 0;
-        const concordance = Math.round(100 - Math.abs(interest - aptitude));
+    const tableData = testData.recommended_careers.map(career => {
         return [
-            AREA_LABELS[key],
-            `${Math.round(interest)}%`,
-            `${Math.round(aptitude)}%`,
-            `${concordance}%`
+            career.name,
+            `${career.matchInterests}%`,
+            `${career.matchAptitudes}%`,
+            `${career.concordance}%`,
+            `${career.cv}%`
         ];
     });
 
     autoTable(doc, {
         startY: startY + 16,
-        head: [['Área', 'Match Intereses', 'Match Aptitudes', 'Concordancia (K)']],
+        head: [['Carrera', 'Match Intereses', 'Match Aptitudes', 'Concordancia (K)', 'CV Final']],
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [30, 64, 175], textColor: 255 }, // brand-primary
@@ -194,12 +182,39 @@ export const generateVocationalPDF = async (
         columnStyles: {
             1: { halign: 'center' },
             2: { halign: 'center' },
-            3: { halign: 'center' }
+            3: { halign: 'center' },
+            4: { halign: 'center', fontStyle: 'bold', textColor: [30, 64, 175] }
         }
     });
 
+    // -- AI Interpretation (if exists) --
+    let finalY = (doc as any).lastAutoTable.finalY + 15;
+    
+    if (testData.ai_analysis) {
+        doc.setFontSize(14);
+        doc.setTextColor(31, 41, 55);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Interpretación Inteligente (IA)', 14, finalY);
+        doc.setFont('helvetica', 'normal');
+        
+        finalY += 8;
+        doc.setFontSize(10);
+        doc.setTextColor(55, 65, 81);
+        
+        const splitText = doc.splitTextToSize(testData.ai_analysis, pageWidth - 28);
+        // Check if text goes beyond page, if so add a new page (autoTable does this automatically, but for text we must check manually if it's very long. Since AI analysis is short, a simple check works)
+        if (finalY + (splitText.length * 5) > doc.internal.pageSize.height - 20) {
+            doc.addPage();
+            finalY = 20;
+        }
+        
+        doc.text(splitText, 14, finalY);
+        finalY += splitText.length * 5 + 10;
+    }
+
     // -- Footer --
-    const finalY = (doc as any).lastAutoTable.finalY + 20;
+    if (!finalY) finalY = (doc as any).lastAutoTable.finalY + 15;
+    else finalY += 5;
     doc.setFontSize(9);
     doc.setTextColor(107, 114, 128); // gray-500
     doc.text('Este reporte es un instrumento de orientación y apoyo; no determina de forma definitiva la decisión profesional del aspirante.', 14, finalY, { maxWidth: pageWidth - 28, align: 'justify' });
