@@ -99,7 +99,8 @@ export const generateAppointmentsPDF = async (
 
 export const generateVocationalPDF = async (
     lead: Lead,
-    testData: VocationalTest
+    testData: VocationalTest,
+    radarImageUrl?: string
 ): Promise<void> => {
     if (!testData.recommended_careers || testData.status !== 'completed') {
         throw new Error('El test no está completado o faltan datos.');
@@ -147,7 +148,11 @@ export const generateVocationalPDF = async (
         } else {
             doc.setFillColor(243, 244, 246); // gray-100
         }
-        doc.roundedRect(14, startY, pageWidth - 28, 16, 2, 2, 'F');
+        
+        // We will make the width 100 instead of pageWidth - 28 to leave space for the chart
+        const boxWidth = radarImageUrl ? 100 : pageWidth - 28;
+        
+        doc.roundedRect(14, startY, boxWidth, 16, 2, 2, 'F');
         
         doc.setFontSize(12);
         if (index === 0) {
@@ -155,7 +160,13 @@ export const generateVocationalPDF = async (
         } else {
             doc.setTextColor(31, 41, 55); // gray-800
         }
-        doc.text(`${index + 1}. ${career.name}`, 20, startY + 11);
+        
+        // Truncate name if it's too long
+        let careerName = career.name;
+        if (radarImageUrl && careerName.length > 25) {
+            careerName = careerName.substring(0, 22) + '...';
+        }
+        doc.text(`${index + 1}. ${careerName}`, 20, startY + 11);
         
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -164,11 +175,18 @@ export const generateVocationalPDF = async (
         } else {
             doc.setTextColor(30, 64, 175); // brand-primary
         }
-        doc.text(`${career.cv}% CV`, pageWidth - 40, startY + 11);
+        
+        // Align CV to the right edge of the box
+        doc.text(`${career.cv}% CV`, 14 + boxWidth - 25, startY + 11);
         doc.setFont('helvetica', 'normal');
         
         startY += 20;
     });
+
+    if (radarImageUrl) {
+        // Place the radar chart next to the top 3 boxes
+        doc.addImage(radarImageUrl, 'PNG', 125, 75, 70, 60);
+    }
 
     // -- Breakdown Table (Careers) --
     doc.setFontSize(14);
@@ -230,7 +248,7 @@ export const generateVocationalPDF = async (
         doc.setTextColor(55, 65, 81);
         
         const splitText = doc.splitTextToSize(testData.ai_analysis, pageWidth - 28);
-        doc.text(splitText, 14, finalY);
+        doc.text(splitText, 14, finalY, { align: 'justify', maxWidth: pageWidth - 28 });
         finalY += splitText.length * 5 + 10;
     }
 

@@ -8,6 +8,7 @@ import LinkIcon from './icons/LinkIcon';
 import TrashIcon from './icons/TrashIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
 import SparklesIcon from './icons/SparklesIcon';
+import html2canvas from 'html2canvas';
 import { generateVocationalPDF } from '../utils/reports';
 import { useToast } from '../context/ToastContext';
 
@@ -147,7 +148,16 @@ REGLAS ESTRICTAS:
 
     const handleDownloadPDF = async (testData: VocationalTest) => {
         try {
-            await generateVocationalPDF(lead, testData);
+            let radarDataUrl: string | undefined = undefined;
+            const radarElement = document.getElementById(`radar-chart-${testData.id}`);
+            if (radarElement) {
+                const canvas = await html2canvas(radarElement, {
+                    scale: 2, // High resolution
+                    backgroundColor: null,
+                });
+                radarDataUrl = canvas.toDataURL('image/png');
+            }
+            await generateVocationalPDF(lead, testData, radarDataUrl);
         } catch (err: any) {
             alert(`Error al generar PDF: ${err.message}`);
         }
@@ -336,9 +346,9 @@ REGLAS ESTRICTAS:
                                         </div>
 
                                         {/* Radar Chart for Areas */}
-                                        <div>
+                                        <div id={`radar-chart-${test.id}`}>
                                             <h4 className="text-md font-semibold text-gray-800 mb-4 text-center">Perfil CHASIDE</h4>
-                                            <div className="h-64">
+                                            <div className="h-64 bg-white">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                                                         <PolarGrid />
@@ -414,7 +424,7 @@ REGLAS ESTRICTAS:
                                         </div>
 
                                         {test.ai_analysis ? (
-                                            <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                            <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed text-justify">
                                                 {test.ai_analysis}
                                             </div>
                                         ) : (
