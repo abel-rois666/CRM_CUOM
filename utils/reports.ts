@@ -112,7 +112,7 @@ export const generateVocationalPDF = async (
     // -- Header --
     doc.setFontSize(22);
     doc.setTextColor(30, 64, 175); // brand-primary (blue-800 equivalent)
-    doc.text('Centro Universitario de Oriente', 14, 25);
+    doc.text('Centro Universitario Oriente de México', 14, 25);
     
     doc.setFontSize(16);
     doc.setTextColor(55, 65, 81); // gray-700
