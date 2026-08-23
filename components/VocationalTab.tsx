@@ -11,6 +11,7 @@ import SparklesIcon from './icons/SparklesIcon';
 import html2canvas from 'html2canvas';
 import { generateVocationalPDF } from '../utils/reports';
 import { useToast } from '../context/ToastContext';
+import ConfirmationModal from './common/ConfirmationModal';
 
 interface VocationalTabProps {
     lead: Lead;
@@ -33,6 +34,7 @@ const VocationalTab: React.FC<VocationalTabProps> = ({ lead, currentUser, onNavi
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isAnalyzingId, setIsAnalyzingId] = useState<string | null>(null);
+    const [testToDelete, setTestToDelete] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const { success, error: toastError } = useToast();
 
@@ -163,21 +165,20 @@ REGLAS ESTRICTAS:
         }
     };
 
-    const deleteTest = async (testId: string) => {
-        if (!confirm("¿Estás seguro de que deseas eliminar este test? Si el prospecto intenta abrir el enlace, le marcará que es inválido.")) {
-            return;
-        }
+    const handleConfirmDeleteTest = async () => {
+        if (!testToDelete) return;
         
         try {
             const { error } = await supabase
                 .from('vocational_tests')
                 .delete()
-                .eq('id', testId);
+                .eq('id', testToDelete);
                 
             if (error) throw error;
             
             success("Test eliminado correctamente");
-            setTests(tests.filter(t => t.id !== testId));
+            setTests(tests.filter(t => t.id !== testToDelete));
+            setTestToDelete(null);
         } catch (err: any) {
             toastError(err.message || "Error al eliminar el test");
         }
@@ -265,7 +266,7 @@ REGLAS ESTRICTAS:
                                                 <ClipboardIcon className="w-5 h-5" />
                                             </button>
                                             <button
-                                                onClick={() => deleteTest(test.id)}
+                                                onClick={() => setTestToDelete(test.id)}
                                                 className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
                                                 title="Eliminar Enlace"
                                             >
@@ -307,7 +308,7 @@ REGLAS ESTRICTAS:
                                         </div>
                                         <div className="flex gap-2">
                                             <button
-                                                onClick={() => deleteTest(test.id)}
+                                                onClick={() => setTestToDelete(test.id)}
                                                 className="flex items-center px-3 py-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors text-sm font-medium"
                                                 title="Eliminar Test"
                                             >
@@ -450,6 +451,16 @@ REGLAS ESTRICTAS:
                     })}
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={!!testToDelete}
+                onClose={() => setTestToDelete(null)}
+                onConfirm={handleConfirmDeleteTest}
+                title="Eliminar Test Vocacional"
+                message={<>¿Estás seguro de que deseas eliminar este test? <br/><br/>Si el prospecto intenta abrir el enlace, le marcará que es inválido.</>}
+                confirmButtonText="Sí, Eliminar"
+                confirmButtonVariant="danger"
+            />
         </div>
     );
 };
