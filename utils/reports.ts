@@ -106,7 +106,7 @@ export const generateVocationalPDF = async (
         throw new Error('El test no está completado o faltan datos.');
     }
 
-    const doc = new jsPDF({ orientation: 'portrait' });
+    const doc = new jsPDF({ orientation: 'portrait', compress: true });
     const pageWidth = doc.internal.pageSize.width;
     
     // -- Header --
@@ -185,7 +185,7 @@ export const generateVocationalPDF = async (
 
     if (radarImageUrl) {
         // Place the radar chart next to the top 3 boxes
-        doc.addImage(radarImageUrl, 'PNG', 125, 75, 70, 60);
+        doc.addImage(radarImageUrl, 'JPEG', 125, 75, 70, 60, undefined, 'FAST');
     }
 
     // -- Breakdown Table (Careers) --

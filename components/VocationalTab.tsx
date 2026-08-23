@@ -155,9 +155,9 @@ REGLAS ESTRICTAS:
             if (radarElement) {
                 const canvas = await html2canvas(radarElement, {
                     scale: 2, // High resolution
-                    backgroundColor: null,
+                    backgroundColor: '#ffffff',
                 });
-                radarDataUrl = canvas.toDataURL('image/png');
+                radarDataUrl = canvas.toDataURL('image/jpeg', 0.7);
             }
             await generateVocationalPDF(lead, testData, radarDataUrl);
         } catch (err: any) {
