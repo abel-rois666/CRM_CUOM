@@ -356,6 +356,7 @@ export interface Database {
           calculated_interests: any | null
           calculated_aptitudes: any | null
           recommended_careers: any | null
+          ai_analysis: string | null
           created_by: string | null
           created_at: string
         }
@@ -370,6 +371,7 @@ export interface Database {
           calculated_interests?: any | null
           calculated_aptitudes?: any | null
           recommended_careers?: any | null
+          ai_analysis?: string | null
           created_by?: string | null
           created_at?: string
         }
@@ -384,6 +386,7 @@ export interface Database {
           calculated_interests?: any | null
           calculated_aptitudes?: any | null
           recommended_careers?: any | null
+          ai_analysis?: string | null
           created_by?: string | null
           created_at?: string
         }
