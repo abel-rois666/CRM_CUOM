@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface PublicRouteState {
     isTestRoute: boolean;
@@ -6,23 +6,15 @@ interface PublicRouteState {
 }
 
 export const usePublicRoute = (): PublicRouteState => {
-    const [state, setState] = useState<PublicRouteState>({
-        isTestRoute: false,
-        testToken: null,
+    // Evaluate synchronously to prevent premature redirects in App.tsx
+    const searchParams = new URLSearchParams(window.location.search);
+    const isTestRoute = searchParams.get('test') === 'true';
+    const testToken = searchParams.get('token');
+
+    const [state] = useState<PublicRouteState>({
+        isTestRoute,
+        testToken,
     });
-
-    useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const isTestMode = urlParams.get('test') === 'true';
-        const testToken = urlParams.get('token');
-
-        if (isTestMode && testToken) {
-            setState({
-                isTestRoute: true,
-                testToken: testToken,
-            });
-        }
-    }, []);
 
     return state;
 };

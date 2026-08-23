@@ -182,6 +182,7 @@ const VocationalTestView: React.FC<VocationalTestViewProps> = ({ token }) => {
                     <div className="inline-flex items-center justify-center p-3 bg-brand-primary/10 rounded-full mb-4">
                         <AcademicCapIcon className="w-8 h-8 text-brand-primary" />
                     </div>
+                    <h2 className="text-lg font-bold text-brand-primary mb-1 uppercase tracking-wider">Centro Universitario Oriente de México</h2>
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Test de Orientación Vocacional</h1>
                     <p className="text-gray-600">Descubre las áreas y carreras que mejor se adaptan a tus intereses y aptitudes.</p>
                 </div>
