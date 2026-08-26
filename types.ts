@@ -111,6 +111,8 @@ export interface Lead {
   has_unread_messages?: boolean;
   turno_id?: string | null;
   enrollment_status?: EnrollmentStatus;
+  estado_transferencia?: 'NO_ENVIADO' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO' | null;
+  observaciones_transferencia?: string | null;
 }
 
 // --- Plantillas ---

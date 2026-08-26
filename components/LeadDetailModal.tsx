@@ -29,6 +29,7 @@ import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChevronRightIcon from './icons/ChevronRightIcon';
 import AcademicCapIcon from './icons/AcademicCapIcon';
 import { supabase } from '../lib/supabase'; // [NEW] Para fetch de mensajes WA
+import { useToast } from '../context/ToastContext';
 
 const WhatsAppChat = React.lazy(() => import('./WhatsAppChat'));
 const VocationalTab = React.lazy(() => import('./VocationalTab'));
@@ -301,6 +302,8 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
     const [isFollowUpModalOpen, setFollowUpModalOpen] = useState(false);
     const [isTransferModalOpen, setTransferModalOpen] = useState(false);
     const [isCancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+    const { success, error: toastError } = useToast();
+    const [isTransferring, setIsTransferring] = useState(false);
 
     const [followUpToDelete, setFollowUpToDelete] = useState<string | null>(null);
 
@@ -310,6 +313,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
     const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
     const turnoMap = useMemo(() => new Map(turnos.map(t => [t.id, t.name])), [turnos]);
     const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color }])), [statuses]);
+    const isStatusInscrito = lead ? statusMap.get(lead.status_id)?.name.toLowerCase() === 'inscrito' : false;
 
     const { activeAppointment, pastAppointments } = useMemo(() => {
         if (!lead?.appointments) return { activeAppointment: undefined, pastAppointments: [] };
@@ -395,6 +399,43 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
         const now = new Date();
         return apptDate > now && apptDate <= new Date(now.getTime() + 48 * 60 * 60 * 1000);
     }, [activeAppointment]);
+
+    const handleTransferToSchool = async () => {
+        if (!lead) return;
+        setIsTransferring(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('transferir-alumno', {
+                body: {
+                    first_name: lead.first_name,
+                    paternal_last_name: lead.paternal_last_name,
+                    maternal_last_name: lead.maternal_last_name,
+                    email: lead.email,
+                    phone: lead.phone,
+                    program_id: lead.program_id,
+                    lead_id: lead.id
+                }
+            });
+
+            if (error) throw error;
+            
+            if (data?.error) {
+                throw new Error(data.error);
+            }
+
+            success('Solicitud de transferencia enviada a Control Escolar.');
+            
+            onUpdateLead(lead.id, {
+                estado_transferencia: 'EN_REVISION',
+                observaciones_transferencia: null
+            });
+
+        } catch (err: any) {
+            console.error('Error al transferir:', err);
+            toastError(err.message || 'Error de conexión al transferir a Control Escolar.');
+        } finally {
+            setIsTransferring(false);
+        }
+    };
 
     if (!lead) return null;
 
@@ -576,7 +617,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                             );
                         })()}
 
-                        <div className="w-full sm:w-auto flex-shrink-0">
+                        <div className="w-full sm:w-auto flex-shrink-0 flex flex-col gap-2">
                             <Select
                                 name="status_id"
                                 value={lead.status_id}
@@ -584,8 +625,34 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
                                 options={statuses.map(s => ({ value: s.id, label: s.name }))}
                                 className="w-full sm:w-48 text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-white"
                             />
+                            {isStatusInscrito && (
+                                <Button
+                                    size="sm"
+                                    onClick={handleTransferToSchool}
+                                    disabled={lead.estado_transferencia === 'EN_REVISION' || lead.estado_transferencia === 'APROBADO' || isTransferring}
+                                    className="w-full"
+                                    variant={lead.estado_transferencia === 'RECHAZADO' ? 'danger' : 'primary'}
+                                >
+                                    {isTransferring ? 'Enviando...' : 
+                                     lead.estado_transferencia === 'EN_REVISION' ? 'En Revisión (Control Escolar)' :
+                                     lead.estado_transferencia === 'APROBADO' ? 'Aprobado y Transferido' :
+                                     lead.estado_transferencia === 'RECHAZADO' ? 'Re-enviar a C. Escolar' :
+                                     'Transferir a C. Escolar'}
+                                </Button>
+                            )}
                         </div>
                     </div>
+
+                    {/* Alerta de Rechazo de Transferencia */}
+                    {lead.estado_transferencia === 'RECHAZADO' && lead.observaciones_transferencia && (
+                        <div className="mb-4 p-3 bg-red-50 border border-red-400 rounded-md text-sm text-red-800 flex items-start gap-3 flex-shrink-0 shadow-sm animate-fade-in">
+                            <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <strong className="font-bold">Transferencia Rechazada:</strong> {lead.observaciones_transferencia}
+                                <p className="mt-1 text-xs text-red-700">Por favor corrige los datos en la pestaña de Información antes de volver a enviarlo.</p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Sistema de Pestañas */}
                     <div className="flex border-b border-gray-200 dark:border-slate-700 mb-4 sm:mb-6 overflow-x-auto scrollbar-hide -mx-2 px-2 sm:mx-0 sm:px-0 flex-shrink-0">
