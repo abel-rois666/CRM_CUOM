@@ -313,7 +313,7 @@ const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ isOpen, onClose, lead
     const licenciaturaMap = useMemo(() => new Map(licenciaturas.map(l => [l.id, l.name])), [licenciaturas]);
     const turnoMap = useMemo(() => new Map(turnos.map(t => [t.id, t.name])), [turnos]);
     const statusMap = useMemo(() => new Map(statuses.map(s => [s.id, { name: s.name, color: s.color }])), [statuses]);
-    const isStatusInscrito = lead ? statusMap.get(lead.status_id)?.name.toLowerCase() === 'inscrito' : false;
+    const isStatusInscrito = lead ? statusMap.get(lead.status_id)?.name.toLowerCase().includes('inscrito') : false;
 
     const { activeAppointment, pastAppointments } = useMemo(() => {
         if (!lead?.appointments) return { activeAppointment: undefined, pastAppointments: [] };
