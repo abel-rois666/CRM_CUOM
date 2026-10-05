@@ -24,3 +24,6 @@ dist-ssr
 *.sln
 *.sw?
 enable_notifications_realtime.sql
+crm_carreras.json
+escolar_carreras.json
+escolar_carrera.json
